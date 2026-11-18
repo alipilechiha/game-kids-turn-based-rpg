@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      '.release-compat',
       'coverage',
       'playwright-report',
       'test-results',

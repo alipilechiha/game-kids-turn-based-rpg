@@ -34,6 +34,8 @@ jobs:
           # (not Secrets). Leave unset for a non-research build: the upload
           # button simply stays hidden and no CSP exception is emitted.
           VITE_RESEARCH_API_URL: ${{ vars.VITE_RESEARCH_API_URL }}
+      - name: Keep diagnostic source maps out of the public Pages artifact
+        run: find dist -type f -name '*.map' -delete
       - uses: actions/configure-pages@v5
         with:
           # Creates the Pages site (Actions source) on first run so no manual

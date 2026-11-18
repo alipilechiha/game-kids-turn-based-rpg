@@ -28,9 +28,14 @@ The core workspace package, independent tarball consumer gate, Kids RPG cutover,
 application import boundary, and linked Vite development workflow are in place.
 The linked workflow passed cold/warm start, browser reload, failed-compile
 output preservation, and recovery checks on Windows; the same focused check is
-in the existing Linux Playwright job. Release and rollback compatibility remain
-the final Phase 1 gate. PR 1 and PR 2 were pushed on explicit request; later
-work remains local until separately requested.
+in the existing Linux Playwright job. PR 6 now checks the built deployment tree,
+service-worker precache, hidden source maps, and a same-origin old/candidate/old
+save round trip. The Windows release/rollback check passed with a real baseline
+build, offline candidate resume, schema 3/IndexedDB v2 save, rollback to the
+baseline build, and no celebration replay. Full local verification, installed
+tarball consumer, and focused PWA checks passed. Linux CI execution remains
+pending. PR 1 and PR 2 were pushed on explicit request; later work remains local
+until separately requested.
 
 ## Selected architecture
 

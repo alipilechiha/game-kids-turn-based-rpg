@@ -70,6 +70,26 @@ jobs:
           # Same variable the deploy build reads; unset is fine — the app
           # falls back to the built-in default endpoint.
           VITE_RESEARCH_API_URL: ${{ vars.VITE_RESEARCH_API_URL }}
+      - name: Fetch the previous same-origin release baseline
+        if: matrix.shard == 1 && github.event_name != 'workflow_dispatch'
+        id: rollback-baseline
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            BASELINE='${{ github.event.pull_request.base.sha }}'
+          else
+            BASELINE='${{ github.event.before }}'
+          fi
+          git fetch --no-tags --depth=1 origin "$BASELINE"
+          echo "sha=$BASELINE" >> "$GITHUB_OUTPUT"
+      - name: Build the old and candidate same-origin releases
+        if: matrix.shard == 1 && github.event_name != 'workflow_dispatch'
+        run: npm run release:rollback:prepare -- "${{ steps.rollback-baseline.outputs.sha }}"
+      - name: Verify save compatibility across upgrade and rollback
+        if: matrix.shard == 1 && github.event_name != 'workflow_dispatch'
+        run: npx playwright test e2e/release-rollback.spec.ts --project=landscape-mobile
+        env:
+          RUN_RELEASE_ROLLBACK: '1'
       - name: Playwright shard ${{ matrix.shard }}/4
         run: npx playwright test --shard=${{ matrix.shard }}/4
       - uses: actions/upload-artifact@v4

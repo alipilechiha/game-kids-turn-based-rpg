@@ -46,6 +46,10 @@ export default defineConfig(({ mode }) => ({
       manifest: false,
       includeAssets: ['icons/*.svg', 'offline.html'],
       workbox: {
+        // The app's Vite maps stay hidden for internal diagnostics. Workbox
+        // emits separate worker maps with visible sourceMappingURL comments
+        // unless disabled explicitly; those files must not be public assets.
+        sourcemap: false,
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest,json,mp3,ogg,wav,glb}'],
         // The ?perfprobe=1 measurement chunk must never be precached — the
         // profiling path carries zero install cost for the ordinary PWA.

@@ -41,6 +41,7 @@
     "validate:assets:release": "node --experimental-strip-types scripts/validate-assets.ts --release",
     "check:budgets": "node --experimental-strip-types scripts/check-budgets.ts",
     "check:deploy": "node --experimental-strip-types scripts/check-deploy.ts",
+    "release:rollback:prepare": "node scripts/prepare-release-rollback.mjs",
     "framework:check": "node packages/core/scripts/check-boundary.mjs",
     "framework:build": "npm run build --workspace=packages/core",
     "framework:watch": "tsc --project packages/core/tsconfig.build.json --watch --pretty false",
