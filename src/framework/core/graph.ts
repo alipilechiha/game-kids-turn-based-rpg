@@ -16,7 +16,10 @@ export interface GraphSource<A extends Anchor = Anchor> {
 // and a builder's document source identically. Results are memoized per table
 // identity so gameplay passes a static source at zero extra cost.
 const BY_ID = new WeakMap<readonly Anchor[], Map<AnchorId, Anchor>>();
-const NEIGHBOURS = new WeakMap<readonly Edge[], Map<AnchorId, AnchorId[]>>();
+const NEIGHBOURS = new WeakMap<
+  readonly Anchor[],
+  WeakMap<readonly Edge[], Map<AnchorId, AnchorId[]>>
+>();
 
 function anchorsById<A extends Anchor>(anchors: readonly A[]): Map<AnchorId, A> {
   let byId = BY_ID.get(anchors);
@@ -28,14 +31,20 @@ function anchorsById<A extends Anchor>(anchors: readonly A[]): Map<AnchorId, A> 
 }
 
 function neighboursById(source: GraphSource): Map<AnchorId, AnchorId[]> {
-  let byId = NEIGHBOURS.get(source.edges);
+  let byEdges = NEIGHBOURS.get(source.anchors);
+  if (!byEdges) {
+    byEdges = new WeakMap();
+    NEIGHBOURS.set(source.anchors, byEdges);
+  }
+
+  let byId = byEdges.get(source.edges);
   if (!byId) {
     byId = new Map(source.anchors.map((anchor) => [anchor.id, []]));
     for (const edge of source.edges) {
       byId.get(edge.from)?.push(edge.to);
       byId.get(edge.to)?.push(edge.from);
     }
-    NEIGHBOURS.set(source.edges, byId);
+    byEdges.set(source.edges, byId);
   }
   return byId;
 }
