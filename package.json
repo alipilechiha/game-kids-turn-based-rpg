@@ -37,6 +37,8 @@
     "framework:test:prepared": "npm --ignore-scripts --workspace=packages/core run test",
     "framework:test": "npm run framework:check && npm run framework:build && npm run framework:test:prepared",
     "framework:pack": "npm run framework:check && npm run framework:build && npm pack --ignore-scripts --workspace=packages/core",
+    "framework:consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-consumer.mjs",
+    "framework:runtime:check": "node scripts/check-framework-runtime.mjs",
     "example:build": "vite build --config examples/hello-world/vite.config.ts",
     "example:dev": "vite --config examples/hello-world/vite.config.ts",
     "verify": "npm run format:check && npm run lint && npm run framework:check && npm run framework:build && npm run framework:test:prepared && npm run typecheck && npm run test && npm run build && npm run example:build"

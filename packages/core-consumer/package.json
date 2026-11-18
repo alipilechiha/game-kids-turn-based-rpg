@@ -1,0 +1,19 @@
+{
+  "name": "waypoint-rpg-core-consumer-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "types:nodenext": "tsc -p tsconfig.nodenext.json",
+    "types:bundler": "tsc -p tsconfig.bundler.json",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.0"
+  }
+}

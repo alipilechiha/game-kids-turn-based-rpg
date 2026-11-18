@@ -10,6 +10,37 @@ on:
   workflow_dispatch:
 
 jobs:
+  framework-consumer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            packages/core-consumer/package-lock.json
+      - name: Install only framework workspace dependencies
+        run: npm ci --workspace=packages/core --include-workspace-root=false
+      - name: Build and verify the independent tarball consumer
+        run: npm run framework:consumer
+        env:
+          FRAMEWORK_INSTALL_CHROMIUM: '1'
+          FRAMEWORK_TARBALL_OUTPUT: ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: waypoint-rpg-core-tarball
+          path: ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.0.0
+      - name: Verify native Node runtime at the declared minimum
+        run: npm run framework:runtime:check -- "$RUNNER_TEMP/waypoint-rpg-core-0.1.0.tgz"
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 45
