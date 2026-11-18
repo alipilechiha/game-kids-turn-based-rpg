@@ -52,11 +52,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.22.2
           cache: npm
       - run: npm ci
       - name: Install Playwright chromium + system deps
         run: npx playwright install --with-deps chromium
+      - name: Verify linked framework development
+        if: matrix.shard == 1
+        run: npm run framework:watch:check
       - name: Emoji font
         # Headless Linux renders emoji as tofu without this — a font gap,
         # not an app bug (docs/QA.md).

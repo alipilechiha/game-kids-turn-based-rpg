@@ -1,35 +1,51 @@
 # Framework API
 
-`src/framework/` is the reusable half of the game: renderer-independent
-primitives, the game runtime, persistence contracts and pure camera math.
-Everything is exported through **one file** — `src/framework/index.ts` —
-and ESLint (`no-restricted-imports`, `framework/(core|three|modules)/`)
-blocks every deeper import, including type-only ones.
+`packages/core/` is the reusable, renderer-independent ESM package:
+identifiers, world DTOs, graph/pathfinding, the injected runtime, and generic
+persistence contracts. Its only public entry is the `waypoint-rpg-core`
+package root; package-side checks reject external dependencies and deep
+imports. The Kids RPG composes that API with game-owned capabilities, quality
+policy, camera math, and battle modules through `src/framework/index.ts`.
+Application imports use this facade; `examples/hello-world` and independent
+consumers import the package root directly.
 
-> The API is the smallest viable seam two consumers need — the game and
-> `examples/hello-world`. It is intentionally conservative and **internal**
-> (single-package, not a published package): exports the example doesn't
-> exercise are provisional, not proven.
+> Phase 1 delivers a reusable core library, not a complete Three.js RPG
+> engine. `examples/hello-world` verifies the workspace consumer path; the
+> separately installed tarball fixture verifies package isolation, exports,
+> declarations, runtime behavior, and browser bundling. Registry publication
+> is deferred.
+
+## Compatibility boundaries
+
+- **Core runtime:** Node.js `>=22.0.0`; CI executes the packed package on
+  Node.js 22.0.0 with no browser globals.
+- **Root build and development tools:** Node.js `>=22.22.2 <23` and npm
+  `>=10 <11`; application CI pins Node.js 22.22.2. The locked Vite,
+  TypeScript, tests, and package scripts are exercised on this toolchain.
+- **Offline package installation:** the tarball has no runtime dependencies
+  and installs from a local artifact with an empty npm cache. This does not
+  claim that Vite or TypeScript can be newly installed offline.
+- **Development-tool installation:** root and consumer toolchains install from
+  their lockfiles with `npm ci`; an offline tools install requires a populated
+  npm cache.
+- **Browser execution:** Chromium is exercised in the package consumer and
+  app Playwright checks. No compatibility claim is made for other browsers or
+  physical hardware.
 
 ## Export status (audit — who validates what)
 
-| Export group                                                                                                                               | Game app                                                                      | hello-world | Status                                                                                                                                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identifiers, `Anchor`/`Bounds`/`WorldArea`/`WorldMap`, `insideBounds`, `getAnchor`, `GraphSource`                                          | ✓                                                                             | ✓           | **Proven by both consumers**                                                                                                                                                                            |
-| `createGameRuntime` + runtime types, `PersistenceAdapter`/`LoadResult`/`SaveScope`/`StorageFallback`/`PersistenceFailure`                  | ✓                                                                             | ✓           | **Proven by both consumers**                                                                                                                                                                            |
-| Rest of world types (`Edge`, `MapTransition`, `NpcPlacement`, `DiscoveryId`, `NpcId`, `TransitionId`)                                      | ✓                                                                             | —           | App-consumed; not exercised by the example                                                                                                                                                              |
-| Graph helpers (`getAnchorOrNull`, `neighboursOf`, `anchorForNpc`, `anchorForLandmark`, `distanceBetween`), pathfinding                     | ✓                                                                             | —           | App-consumed; provisional for independent use                                                                                                                                                           |
-| Quality/capabilities (`QualityTier`, `detectQualityTier`, `maxPixelRatioFor`, `detectWebgl`, `currentOrientation`, `prefersReducedMotion`) | ✓                                                                             | —           | App-consumed; provisional                                                                                                                                                                               |
-| Camera math (`three/`)                                                                                                                     | ✓                                                                             | —           | App-consumed; provisional — no independent renderer consumer yet                                                                                                                                        |
-| Battle module (`createBattle`/`chooseBattleAction`/`advanceBattlePhase`/`enemyIntentFor`, `battleReducer`, `validateBattleDefinition`)     | ✓ (via `battleReducer` + `validateBattleDefinition` in the reducer/validator) | —           | **Provisional.** Module-level entry points have no external caller today — kept because they are the battle module's intended public surface for a future direct consumer, not removed on zero evidence |
-| `perfProbe`                                                                                                                                | loaded via dynamic `import()`                                                 | —           | Deliberately not re-exported — lazy chunk, precache-excluded                                                                                                                                            |
+| Export group                                                                                                                           | Kids RPG app              | hello-world | Independent tarball consumer                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ----------- | -------------------------------------------------------------------------- |
+| Core identifiers, world DTOs, graph/pathfinding, runtime and persistence contracts                                                     | ✓ via app facade          | ✓           | ✓ Node runtime, NodeNext/Bundler types, Vite bundle and Chromium execution |
+| Quality/capabilities                                                                                                                   | ✓ (app-owned facade)      | —           | Not in the core package                                                    |
+| Camera math (`three/`)                                                                                                                 | ✓ (app-owned facade)      | —           | Not in the core package; validate with a 3D consumer in Phase 2            |
+| Battle module (`createBattle`/`chooseBattleAction`/`advanceBattlePhase`/`enemyIntentFor`, `battleReducer`, `validateBattleDefinition`) | ✓ (app-owned)             | —           | Optional game module, not in the core package                              |
+| `perfProbe`                                                                                                                            | loaded via dynamic import | —           | Deliberately not re-exported — lazy chunk, precache-excluded               |
 
-Nothing in `index.ts` is orphaned enough to delete: every export is either
-consumed by the game through the boundary, proven by the example, or the
-documented public surface of an optional module. The audit deliberately did
-**not** trim battle/camera exports — `hello-world` was never expected to
-exercise every optional module, and the main app requires them through
-`index.ts`.
+The package root exports only the approved generic core API. The app facade
+also exports game-owned optional surfaces; these do not become core-package
+dependencies. A separate 3D game consumer begins in the renderer and narrative
+roadmap phases.
 
 ## Ownership model
 
@@ -97,7 +113,8 @@ per-profile save keys; the `corrupt` branch carries no data by design.
 ## World primitives
 
 `Anchor`, `Edge`, `Bounds`, `WorldArea`, `WorldMap`, `MapTransition`,
-`NpcPlacement` (`core/world.ts`) + branded ids (`core/identifiers.ts`) +
+`NpcPlacement` (`packages/core/src/world.ts`) + branded ids
+(`packages/core/src/identifiers.ts`) +
 `insideBounds`, `GraphSource` helpers (`getAnchor`, `neighboursOf`,
 `anchorForNpc`, `anchorForLandmark`, `distanceBetween`) + `findPath` /
 `nearestWalkableAnchor` / `pathToPoints`. Navigation is a declared anchor
@@ -118,11 +135,11 @@ objects — the app's `CameraRig` consumes them.
 
 ## Optional module: battle
 
-`framework/modules/battle/` — `createBattle`, `chooseBattleAction`,
+`src/framework/modules/battle/` — `createBattle`, `chooseBattleAction`,
 `advanceBattlePhase`, `battleReducer`, `validateBattleDefinition` + types.
 Reusable, not required by a consumer.
 
-## `examples/hello-world` — the second consumer
+## `examples/hello-world` — the workspace consumer
 
 `examples/hello-world/` builds with its own `vite.config.ts` into
 `examples/hello-world/dist` (gitignored) — deliberately outside the game's
@@ -134,13 +151,21 @@ npm run example:dev    # serve the example
 npm run example:build  # build it (part of npm run verify)
 ```
 
-It exercises, end to end: `createGameRuntime` with its own `HelloState`
+It imports `waypoint-rpg-core` from the npm workspace link and exercises end to
+end: `createGameRuntime` with its own `HelloState`
 (5-line reducer), fixed-clock dispatch, subscribe/pause/resume/dispose,
 `PersistenceAdapter` memory round-trip, `GraphSource`/`getAnchor`/
 `insideBounds` on a ~30-line declared world — **no React, no Three, no game
 content**. `hello-world.test.ts` is the consumer-side contract suite; the
 app-side split lives in `src/app/runtimeCoordinator.test.ts` (runtime
 contract vs coordinator behavior).
+
+For package source edits while developing the game, use `npm run dev:linked`.
+It starts one package TypeScript watch process, waits for the first successful
+emit, then starts Vite. Vite's standard linked-package resolution is used; no
+`optimizeDeps.exclude`, `preserveSymlinks`, or custom resolver override is
+configured. `npm run verify` builds the package once before its prepared app
+stages.
 
 ## Lifecycle probes (dev/`__WORLD_PROBE` only)
 

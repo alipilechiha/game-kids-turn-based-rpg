@@ -9,11 +9,13 @@
   "license": "MIT",
   "description": "«محله‌ی مهربانی» — offline-first Persian RTL turn-based RPG vertical slice for ages 3-7.",
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.22.2 <23",
+    "npm": ">=10 <11"
   },
   "scripts": {
     "predev": "npm run framework:build",
     "dev": "vite",
+    "dev:linked": "node scripts/dev-linked.mjs",
     "prebuild": "npm run framework:build",
     "build": "npm --ignore-scripts run validate:content && npm run validate:assets && tsc -b && vite build && npm run check:budgets && npm run check:deploy",
     "preview": "vite preview --port 4173",
@@ -41,6 +43,8 @@
     "check:deploy": "node --experimental-strip-types scripts/check-deploy.ts",
     "framework:check": "node packages/core/scripts/check-boundary.mjs",
     "framework:build": "npm run build --workspace=packages/core",
+    "framework:watch": "tsc --project packages/core/tsconfig.build.json --watch --pretty false",
+    "framework:watch:check": "node scripts/check-framework-linked-dev.mjs",
     "framework:build:isolated": "node packages/core/scripts/check-isolated-build.mjs",
     "framework:test:prepared": "npm --ignore-scripts --workspace=packages/core run test",
     "framework:test": "npm run framework:check && npm run framework:build && npm run framework:test:prepared",
