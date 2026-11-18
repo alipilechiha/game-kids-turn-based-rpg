@@ -273,7 +273,7 @@ export const ASSET_REGISTRY: readonly AssetRegistryEntry[] = [
     licenseUrl: '',
     attribution: 'butterfly (downloaded pack)',
     source: 'butterfly.zip — scene.gltf converted via scripts/convert-model.ts',
-    sha256: '833e437d957c77f380bae8d5a032720011745f506b25f5ad8eb16cba31efa461',
+    sha256: 'ab497146c00d7a363495a2b90afa2c6eba95837177a6efeb9ee2c9fbb277def1',
     status: 'licensed',
   },
   {
@@ -284,7 +284,7 @@ export const ASSET_REGISTRY: readonly AssetRegistryEntry[] = [
     licenseUrl: '',
     attribution: 'an_animated_cat (downloaded pack)',
     source: 'an_animated_cat.zip — scene.gltf converted via scripts/convert-model.ts',
-    sha256: 'aea33aeae84b8aa34d8b957180d64e72e0ccd6a83361aa9fc1595b0972b26957',
+    sha256: '3951ea617d35e6a11cc0f2d44845c122b4109b792d109ab675eae26edb3578ab',
     status: 'licensed',
   },
   {
