@@ -264,9 +264,36 @@ test('same-revision replay is stale, one-time choices are scoped to a playthroug
   });
   assert.equal(reopened.accepted, true);
   if (!reopened.accepted) return;
+  assert.equal(getDialogueView(compiled, reopened.state, 'fa').nodeId, 'vengeance');
   const duplicate = send(compiled, reopened.state, 'choose', { choiceId: 'seek-vengeance' });
   assert.equal(duplicate.accepted, false);
-  assert.equal(duplicate.accepted ? '' : duplicate.reason.code, 'choice-already-applied');
+  assert.equal(duplicate.accepted ? '' : duplicate.reason.code, 'choice-unavailable');
+});
+
+test('leaving and reopening a dialogue resumes its committed branch', () => {
+  const { compiled, state } = setup();
+  const opened = send(compiled, state, 'open-dialogue', { dialogueId: 'guardian-dialogue' });
+  assert.equal(opened.accepted, true);
+  if (!opened.accepted) return;
+  const selected = send(compiled, opened.state, 'choose', { choiceId: 'seek-truth' });
+  assert.equal(selected.accepted, true);
+  if (!selected.accepted) return;
+
+  const exited = send(compiled, selected.state, 'exit-dialogue');
+  assert.equal(exited.accepted, true);
+  if (!exited.accepted) return;
+  const restored = decodeNarrativeState(compiled, JSON.parse(JSON.stringify(exited.state)));
+  assert.equal(restored.ok, true);
+  if (!restored.ok) return;
+  const reopened = send(compiled, restored.state, 'open-dialogue', {
+    dialogueId: 'guardian-dialogue',
+  });
+  assert.equal(reopened.accepted, true);
+  if (!reopened.accepted) return;
+
+  assert.equal(getDialogueView(compiled, reopened.state, 'fa').nodeId, 'truth');
+  assert.deepEqual(reopened.state.appliedChoiceIds, ['seek-truth']);
+  assert.equal(reopened.state.revision, exited.state.revision + 1);
 });
 
 test('explicitly repeatable choices may apply at later revisions', () => {

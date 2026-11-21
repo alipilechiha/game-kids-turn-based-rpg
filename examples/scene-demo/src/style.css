@@ -92,6 +92,13 @@ button:disabled {
   color: #8b2f2f;
 }
 
+.command-feedback {
+  flex-basis: 100%;
+  min-height: 1.2em;
+  color: #52636d;
+  font-size: 0.85rem;
+}
+
 .scene-stage {
   position: relative;
   min-height: min(62vh, 34rem);
@@ -112,6 +119,67 @@ button:disabled {
 .loading {
   padding: 2rem;
   color: #52636d;
+}
+
+.narrative-dialog {
+  width: min(36rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: min(80vh, 40rem);
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 1.25rem;
+  color: #1b2630;
+  background: #fff;
+  box-shadow: 0 1rem 3rem rgb(20 40 50 / 25%);
+  font-family: system-ui, sans-serif;
+}
+
+.narrative-dialog::backdrop {
+  background: rgb(17 31 39 / 58%);
+}
+
+.narrative-dialog__content {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.25rem, 5vw, 2rem);
+  text-align: right;
+}
+
+.narrative-dialog h2,
+.narrative-dialog p {
+  margin: 0;
+}
+
+.narrative-dialog h2 {
+  color: #285f75;
+  font-size: 1.25rem;
+}
+
+.narrative-dialog p {
+  font-size: 1.15rem;
+  line-height: 1.9;
+}
+
+.narrative-dialog__choices {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.narrative-dialog button {
+  min-height: 48px;
+  text-align: right;
+}
+
+.narrative-dialog button:focus-visible,
+.controls button:focus-visible {
+  outline: 3px solid #d59b25;
+  outline-offset: 3px;
+}
+
+.narrative-dialog__leave {
+  color: #285f75;
+  background: #e7f0f3;
 }
 
 .recovery {

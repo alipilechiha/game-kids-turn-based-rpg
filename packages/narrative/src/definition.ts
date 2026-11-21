@@ -133,6 +133,8 @@ export interface NarrativeState {
   readonly appliedChoiceIds: readonly string[];
   readonly appliedTriggerIds: readonly string[];
   readonly activeDialogue: ActiveDialogue | null;
+  /** Last permitted dialogue cursor, restored when its dialogue is reopened. */
+  readonly suspendedDialogue: ActiveDialogue | null;
   readonly endingId: string | null;
 }
 
@@ -159,6 +161,7 @@ export type NarrativeRejectionCode =
   | 'compatibility-mismatch'
   | 'ending-final'
   | 'dialogue-active'
+  | 'dialogue-suspended'
   | 'no-active-dialogue'
   | 'dialogue-unavailable'
   | 'node-unavailable'

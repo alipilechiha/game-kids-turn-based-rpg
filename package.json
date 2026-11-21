@@ -47,7 +47,7 @@
     "framework:narrative:check": "node packages/narrative/scripts/check-boundary.mjs",
     "framework:check": "npm run framework:core:check && npm run framework:narrative:check",
     "framework:build": "npm run build --workspace=packages/core && npm run build --workspace=packages/narrative",
-    "framework:watch": "tsc --project packages/core/tsconfig.build.json --watch --pretty false",
+    "framework:watch": "node scripts/dev-linked.mjs --config examples/scene-demo/vite.config.ts",
     "framework:watch:check": "node scripts/check-framework-linked-dev.mjs",
     "framework:build:isolated": "node packages/core/scripts/check-isolated-build.mjs",
     "framework:test:prepared": "npm --ignore-scripts --workspace=packages/core run test && npm --ignore-scripts --workspace=packages/narrative run test",
@@ -74,6 +74,7 @@
     "react-dom": "19.2.8",
     "three": "0.186.0",
     "waypoint-rpg-core": "file:packages/core",
+    "waypoint-rpg-narrative": "file:packages/narrative",
     "workbox-window": "7.4.1"
   },
   "devDependencies": {

@@ -10,8 +10,8 @@ import { runNpm } from './framework-consumer-support.mjs';
 const repoRoot = fileURLToPath(new URL('../', import.meta.url));
 const exampleRoot = path.join(repoRoot, 'examples', 'scene-demo');
 
-async function getTarball(temporaryRoot) {
-  const providedTarball = process.env.FRAMEWORK_TARBALL_OUTPUT;
+async function getTarball(temporaryRoot, { workspace, name, outputVariable }) {
+  const providedTarball = process.env[outputVariable];
   if (providedTarball) {
     const resolved = path.resolve(providedTarball);
     await readFile(resolved);
@@ -19,22 +19,21 @@ async function getTarball(temporaryRoot) {
   }
 
   const artifactRoot = path.join(temporaryRoot, 'artifact');
-  await mkdir(artifactRoot);
+  await mkdir(artifactRoot, { recursive: true });
   const packed = runNpm(
     [
       'pack',
       '--json',
       '--ignore-scripts',
-      '--workspace=packages/core',
+      `--workspace=${workspace}`,
       '--pack-destination',
       artifactRoot,
     ],
     { cwd: repoRoot },
   );
   const [packResult] = JSON.parse(packed);
-  assert.ok(packResult, 'npm pack must produce exactly one core package');
-  assert.equal(packResult.name, 'waypoint-rpg-core');
-  assert.equal(packResult.version, '0.1.0');
+  assert.ok(packResult, `npm pack must produce exactly one ${name} package`);
+  assert.equal(packResult.name, name);
   assert.equal(JSON.parse(packed).length, 1);
   return path.join(artifactRoot, packResult.filename);
 }
@@ -56,41 +55,59 @@ export async function checkFrameworkSceneConsumer() {
     runNpm(['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: consumerRoot });
     log('scene consumer development tools: locked npm ci passed');
 
-    const tarballPath = await getTarball(temporaryRoot);
+    const tarballs = [
+      {
+        name: 'waypoint-rpg-core',
+        workspace: 'packages/core',
+        outputVariable: 'FRAMEWORK_TARBALL_OUTPUT',
+      },
+      {
+        name: 'waypoint-rpg-narrative',
+        workspace: 'packages/narrative',
+        outputVariable: 'NARRATIVE_TARBALL_OUTPUT',
+      },
+    ];
+    for (const packageToInstall of tarballs) {
+      packageToInstall.tarball = await getTarball(temporaryRoot, packageToInstall);
+    }
     const manifestPath = path.join(consumerRoot, 'package.json');
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-    const relativeTarballPath = path.relative(consumerRoot, tarballPath).replaceAll(path.sep, '/');
-    manifest.dependencies = {
-      ...manifest.dependencies,
-      'waypoint-rpg-core': `file:${relativeTarballPath}`,
-    };
+    manifest.dependencies = { ...manifest.dependencies };
+    for (const packageToInstall of tarballs) {
+      const relativeTarballPath = path
+        .relative(consumerRoot, packageToInstall.tarball)
+        .replaceAll(path.sep, '/');
+      manifest.dependencies[packageToInstall.name] = `file:${relativeTarballPath}`;
+    }
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     runNpm(['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'], {
       cwd: consumerRoot,
     });
-    const resolved = runNpm(['ls', '--parseable', '--depth=0', 'waypoint-rpg-core'], {
-      cwd: consumerRoot,
-    });
-    const resolvedEntries = await Promise.all(
-      resolved
-        .trim()
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .map((entry) => realpath(path.resolve(entry))),
-    );
     const modulesRoot = await realpath(path.join(consumerRoot, 'node_modules'));
-    const packageRoot = await realpath(path.join(modulesRoot, 'waypoint-rpg-core'));
-    const packageRelativePath = path.relative(modulesRoot, packageRoot);
-    assert.ok(
-      packageRelativePath &&
-        !packageRelativePath.startsWith('..') &&
-        !path.isAbsolute(packageRelativePath),
-      'the installed core package must be inside the independent consumer node_modules',
-    );
-    assert.ok(
-      resolvedEntries.includes(packageRoot),
-      'npm must resolve the core from the independent consumer installation',
-    );
+    for (const packageToInstall of tarballs) {
+      const resolved = runNpm(['ls', '--parseable', '--depth=0', packageToInstall.name], {
+        cwd: consumerRoot,
+      });
+      const resolvedEntries = await Promise.all(
+        resolved
+          .trim()
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((entry) => realpath(path.resolve(entry))),
+      );
+      const packageRoot = await realpath(path.join(modulesRoot, packageToInstall.name));
+      const packageRelativePath = path.relative(modulesRoot, packageRoot);
+      assert.ok(
+        packageRelativePath &&
+          !packageRelativePath.startsWith('..') &&
+          !path.isAbsolute(packageRelativePath),
+        `the installed ${packageToInstall.name} package must be inside the independent consumer node_modules`,
+      );
+      assert.ok(
+        resolvedEntries.includes(packageRoot),
+        `npm must resolve ${packageToInstall.name} from the independent consumer installation`,
+      );
+    }
 
     const chromiumInstallArgs = ['exec', '--', 'playwright', 'install'];
     if (process.env.FRAMEWORK_INSTALL_CHROMIUM === '1') chromiumInstallArgs.push('--with-deps');
@@ -104,7 +121,7 @@ export async function checkFrameworkSceneConsumer() {
     runNpm(['run', 'build'], { cwd: consumerRoot });
     runNpm(['run', 'test:e2e'], { cwd: consumerRoot });
     log(
-      'framework scene consumer: offline tarball install, typecheck, unit tests, Vite build, and Chromium lifecycle smoke passed',
+      'framework scene consumer: offline core+narrative tarball install, typecheck, unit tests, Vite build, and Chromium narrative/lifecycle smoke passed',
     );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });

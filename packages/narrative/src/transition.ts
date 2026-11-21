@@ -73,10 +73,20 @@ export function transitionNarrative(
           'dialogue-unavailable',
           'Dialogue is unknown or its entry condition is not satisfied.',
         );
-      const entry = dialogue.nodes.find((node) => node.id === dialogue.entryNodeId);
+      if (state.suspendedDialogue && state.suspendedDialogue.dialogueId !== dialogue.id)
+        return reject(
+          state,
+          'dialogue-suspended',
+          'Resume or finish the suspended dialogue before opening another one.',
+        );
+      const suspendedNodeId = state.suspendedDialogue?.nodeId;
+      const entry = dialogue.nodes.find(
+        (node) => node.id === (suspendedNodeId ?? dialogue.entryNodeId),
+      );
       if (!entry || (entry.when && !evaluateCondition(entry.when, state)))
         return reject(state, 'node-unavailable', 'Dialogue entry node is unavailable.');
       draft.activeDialogue = { dialogueId: dialogue.id, nodeId: entry.id };
+      draft.suspendedDialogue = null;
       return finish('dialogue');
     }
     case 'advance': {
@@ -123,6 +133,7 @@ export function transitionNarrative(
         return reject(state, 'no-active-dialogue', 'There is no active dialogue to exit.');
       if (current.dialogue.exitPolicy === 'forbidden')
         return reject(state, 'exit-forbidden', 'This dialogue does not permit exit.');
+      draft.suspendedDialogue = state.activeDialogue;
       draft.activeDialogue = null;
       return finish('dialogue');
     }
@@ -133,6 +144,7 @@ export function transitionNarrative(
       if (!current.node.terminal || !current.node.endingId)
         return reject(state, 'not-terminal', 'Only a terminal dialogue node can finish the story.');
       draft.activeDialogue = null;
+      draft.suspendedDialogue = null;
       draft.endingId = current.node.endingId;
       return finish('ending');
     }

@@ -1,4 +1,5 @@
 import { getAnchor } from 'waypoint-rpg-core';
+import { getFact } from 'waypoint-rpg-narrative';
 import type { SceneComponentProps } from '../scene-host.js';
 import { workshopGraph } from '../scene-data.js';
 import { sceneProbe } from '../probe.js';
@@ -6,6 +7,7 @@ import { useDemoState } from './scene-runtime.js';
 
 export function WorkshopScene({ entryAnchorId, runtime }: SceneComponentProps) {
   const state = useDemoState(runtime);
+  const lampLit = getFact(state.narrative, 'lantern-lit') === true;
   const entry = getAnchor(workshopGraph, entryAnchorId);
 
   return (
@@ -24,18 +26,13 @@ export function WorkshopScene({ entryAnchorId, runtime }: SceneComponentProps) {
       <mesh position={[1, 1.2, 1]}>
         <cylinderGeometry args={[0.12, 0.18, 1.5, 12]} />
         <meshStandardMaterial
-          color={state.lampLit ? '#ffe48b' : '#6b7077'}
-          emissive={state.lampLit ? '#ffc83d' : '#000000'}
-          emissiveIntensity={state.lampLit ? 1.5 : 0}
+          color={lampLit ? '#ffe48b' : '#6b7077'}
+          emissive={lampLit ? '#ffc83d' : '#000000'}
+          emissiveIntensity={lampLit ? 1.5 : 0}
         />
       </mesh>
-      <pointLight
-        position={[1, 2, 1]}
-        color="#ffd96b"
-        intensity={state.lampLit ? 2 : 0}
-        distance={6}
-      />
-      <WorkshopProbe lit={state.lampLit} />
+      <pointLight position={[1, 2, 1]} color="#ffd96b" intensity={lampLit ? 2 : 0} distance={6} />
+      <WorkshopProbe lit={lampLit} />
     </group>
   );
 }

@@ -31,6 +31,7 @@ const STATE_KEYS = new Set([
   'appliedChoiceIds',
   'appliedTriggerIds',
   'activeDialogue',
+  'suspendedDialogue',
   'endingId',
 ]);
 
@@ -45,6 +46,7 @@ type Draft = {
   appliedChoiceIds: string[];
   appliedTriggerIds: string[];
   activeDialogue: ActiveDialogue | null;
+  suspendedDialogue: ActiveDialogue | null;
   endingId: string | null;
 };
 
@@ -99,6 +101,7 @@ export function createNarrativeState(
     appliedChoiceIds: [],
     appliedTriggerIds: [],
     activeDialogue: null,
+    suspendedDialogue: null,
     endingId: null,
   });
 }
@@ -252,24 +255,16 @@ export function decodeNarrativeState(
     }
     appliedTriggerIds.push(triggerId);
   }
-  let activeDialogue: ActiveDialogue | null = null;
-  if (input.activeDialogue !== null) {
-    if (
-      !plainRecord(input.activeDialogue) ||
-      Object.keys(input.activeDialogue).sort().join('\0') !==
-        ['dialogueId', 'nodeId'].sort().join('\0') ||
-      typeof input.activeDialogue.dialogueId !== 'string' ||
-      typeof input.activeDialogue.nodeId !== 'string'
-    ) {
-      return decodeFailure('invalid-payload', 'Active dialogue pointer is invalid.');
-    }
-    const dialogue = indexes.dialogues.get(input.activeDialogue.dialogueId);
-    const activeNodeId = input.activeDialogue.nodeId;
-    const node = dialogue?.nodes.find((candidate) => candidate.id === activeNodeId);
-    if (!dialogue || !node)
-      return decodeFailure('invalid-payload', 'Active dialogue pointer refers to missing content.');
-    activeDialogue = { dialogueId: dialogue.id, nodeId: node.id };
-  }
+  const activeResult = decodeDialoguePointer(indexes.dialogues, input.activeDialogue);
+  if (!activeResult.ok)
+    return decodeFailure('invalid-payload', `Active dialogue ${activeResult.message}`);
+  const activeDialogue = activeResult.pointer;
+  const suspendedResult = decodeDialoguePointer(indexes.dialogues, input.suspendedDialogue);
+  if (!suspendedResult.ok)
+    return decodeFailure('invalid-payload', `Suspended dialogue ${suspendedResult.message}`);
+  const suspendedDialogue = suspendedResult.pointer;
+  if (activeDialogue !== null && suspendedDialogue !== null)
+    return decodeFailure('invalid-payload', 'Active and suspended dialogue cannot coexist.');
   if (
     input.endingId !== null &&
     (typeof input.endingId !== 'string' ||
@@ -279,10 +274,10 @@ export function decodeNarrativeState(
   ) {
     return decodeFailure('invalid-payload', 'Ending id is not defined by this story.');
   }
-  if (input.endingId !== null && activeDialogue !== null)
+  if (input.endingId !== null && (activeDialogue !== null || suspendedDialogue !== null))
     return decodeFailure(
       'invalid-payload',
-      'A finished playthrough cannot have an active dialogue.',
+      'A finished playthrough cannot have an active or suspended dialogue.',
     );
   const state = snapshotDraft({
     schemaVersion: 1,
@@ -295,11 +290,13 @@ export function decodeNarrativeState(
     appliedChoiceIds,
     appliedTriggerIds,
     activeDialogue,
+    suspendedDialogue,
     endingId: input.endingId as string | null,
   });
-  if (activeDialogue) {
-    const dialogue = indexes.dialogues.get(activeDialogue.dialogueId)!;
-    const node = dialogue.nodes.find((candidate) => candidate.id === activeDialogue!.nodeId)!;
+  for (const pointer of [activeDialogue, suspendedDialogue]) {
+    if (!pointer) continue;
+    const dialogue = indexes.dialogues.get(pointer.dialogueId)!;
+    const node = dialogue.nodes.find((candidate) => candidate.id === pointer.nodeId)!;
     if (
       (dialogue.when && !evaluateCondition(dialogue.when, state)) ||
       (node.when && !evaluateCondition(node.when, state))
@@ -311,6 +308,29 @@ export function decodeNarrativeState(
     }
   }
   return { ok: true, state };
+}
+
+function decodeDialoguePointer(
+  dialogues: ReadonlyMap<string, CompiledNarrative['definition']['dialogues'][number]>,
+  value: unknown,
+):
+  | { readonly ok: true; readonly pointer: ActiveDialogue | null }
+  | {
+      readonly ok: false;
+      readonly message: string;
+    } {
+  if (value === null) return { ok: true, pointer: null };
+  if (
+    !plainRecord(value) ||
+    Object.keys(value).sort().join('\0') !== ['dialogueId', 'nodeId'].sort().join('\0') ||
+    typeof value.dialogueId !== 'string' ||
+    typeof value.nodeId !== 'string'
+  )
+    return { ok: false, message: 'pointer is invalid.' };
+  const dialogue = dialogues.get(value.dialogueId);
+  const node = dialogue?.nodes.find((candidate) => candidate.id === value.nodeId);
+  if (!dialogue || !node) return { ok: false, message: 'pointer refers to missing content.' };
+  return { ok: true, pointer: { dialogueId: dialogue.id, nodeId: node.id } };
 }
 
 function validJson(value: unknown, seen = new Set<object>(), depth = 0): boolean {
