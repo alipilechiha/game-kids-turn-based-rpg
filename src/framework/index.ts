@@ -1,9 +1,9 @@
 /**
  * The framework's single public entry. Every application import of framework
  * code — including type-only imports — goes through this file; ESLint
- * (`no-restricted-imports`) enforces it. The API here is the smallest viable
- * seam the game needs and is NOT declared stable: `examples/hello-world`
- * validates, refines or removes exports before it is called public.
+ * (`no-restricted-imports`) enforces it. This facade combines the reusable
+ * package API with application-owned capabilities, camera math and gameplay
+ * modules. The hello-world consumer validates the package root directly.
  *
  * Deliberate exception: `core/perfProbe.ts` is NOT re-exported. It must stay a
  * separately addressable lazy chunk — `?perfprobe=1` loads it via a direct
@@ -11,40 +11,7 @@
  * the PWA precache zero bytes.
  */
 
-export type {
-  AnchorId,
-  AreaId,
-  DiscoveryId,
-  LandmarkId,
-  MapId,
-  NpcId,
-  TransitionId,
-} from './core/identifiers.ts';
-
-export type {
-  Anchor,
-  Bounds,
-  Edge,
-  MapTransition,
-  NpcPlacement,
-  WorldArea,
-  WorldMap,
-} from './core/world.ts';
-
-export { insideBounds } from './core/geometry.ts';
-
-export {
-  anchorForLandmark,
-  anchorForNpc,
-  distanceBetween,
-  getAnchor,
-  getAnchorOrNull,
-  neighboursOf,
-} from './core/graph.ts';
-export type { GraphSource } from './core/graph.ts';
-
-export { findPath, nearestWalkableAnchor, pathToPoints } from './core/pathfinding.ts';
-export type { PathPoint } from './core/pathfinding.ts';
+export * from 'waypoint-rpg-core';
 
 export type { QualityTier } from './core/quality.ts';
 export {
@@ -54,23 +21,6 @@ export {
   maxPixelRatioFor,
   prefersReducedMotion,
 } from './core/capabilities.ts';
-
-export type {
-  GameRuntime,
-  GameRuntimeAdapter,
-  GameRuntimeConfig,
-  ReducerContext,
-  RuntimeListener,
-} from './core/runtime.ts';
-export { createGameRuntime } from './core/runtime.ts';
-
-export type {
-  LoadResult,
-  PersistenceAdapter,
-  PersistenceFailure,
-  SaveScope,
-  StorageFallback,
-} from './core/persistence.ts';
 
 export {
   CAMERA_PADDING,

@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      '.release-compat',
       'coverage',
       'playwright-report',
       'test-results',
@@ -69,6 +70,30 @@ export default tseslint.config(
     },
   },
   {
+    // The app consumes the reusable package through its framework facade;
+    // direct package imports are reserved for the independent examples.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/framework/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^waypoint-rpg-core(?:/.*)?$',
+              message:
+                'Import core package APIs via src/framework/index.ts (see docs/framework-api.md).',
+            },
+            {
+              regex: '(?:^|/)packages/core/src/',
+              message: 'Never import package implementation files directly.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Framework files never import application code — the boundary is
     // one-directional (app → framework index).
     files: ['src/framework/**/*.{ts,tsx}'],
@@ -82,6 +107,14 @@ export default tseslint.config(
               message:
                 'Framework code must not import application modules (see docs/framework-extraction.md).',
             },
+            {
+              regex: '^waypoint-rpg-core/.+$',
+              message: 'Framework modules may import only the public package root.',
+            },
+            {
+              regex: '(?:^|/)packages/core/src/',
+              message: 'Never import package implementation files directly.',
+            },
           ],
         },
       ],
@@ -90,5 +123,9 @@ export default tseslint.config(
   {
     files: ['e2e/**/*.ts', 'scripts/**/*.ts', '*.config.{ts,js}'],
     rules: { 'no-restricted-globals': 'off' },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: globals.node },
   },
 );

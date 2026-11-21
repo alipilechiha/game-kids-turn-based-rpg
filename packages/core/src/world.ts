@@ -6,7 +6,7 @@ import type {
   MapId,
   NpcId,
   TransitionId,
-} from './identifiers.ts';
+} from './identifiers.js';
 
 /**
  * World-structure primitives: the reusable half of the world model — bounds,

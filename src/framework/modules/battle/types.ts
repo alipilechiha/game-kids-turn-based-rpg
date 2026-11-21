@@ -1,4 +1,4 @@
-import type { DiscoveryId, NpcId } from '../../core/identifiers.ts';
+import type { DiscoveryId, NpcId } from 'waypoint-rpg-core';
 
 /**
  * Micro turn-based battle — the standalone toy contract (PR I).

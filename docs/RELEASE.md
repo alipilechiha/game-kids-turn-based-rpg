@@ -42,12 +42,31 @@ interrupted mid-play by an update.
 Never merge a change that reloads on install or activate — the safe update
 point is the parent area only.
 
+The focused `e2e/release-rollback.spec.ts` release check builds the pull
+request base and candidate from source, installs the old worker, applies the
+candidate through the parent-area control, resumes offline, saves newer quest
+progress, then serves the old build again on the same origin. It confirms the
+old app reads the newer save without replaying celebration. Run it locally
+after `npm run build` with `npm run release:rollback:prepare -- origin/main`,
+then run the focused test with `RUN_RELEASE_ROLLBACK=1`. PowerShell command:
+`$env:RUN_RELEASE_ROLLBACK='1'; npx playwright test e2e/release-rollback.spec.ts --project=landscape-mobile`.
+POSIX command: `RUN_RELEASE_ROLLBACK=1 npx playwright test e2e/release-rollback.spec.ts --project=landscape-mobile`.
+
 ## 3. Source-map policy
 
-`build.sourcemap: 'hidden'` — maps are emitted in `dist/assets/` for error
-tooling, but no `sourceMappingURL` comment advertises them, and
-`check:budgets` excludes `*.map` from the shipped byte count. Do not upload
-them to a public host; keep them internal if an error reporter consumes them.
+`build.sourcemap: 'hidden'` — Vite emits app maps in `dist/assets/` for
+internal diagnostics, but app JavaScript does not advertise them. Workbox
+maps are disabled explicitly because its generated worker otherwise advertises
+them. `check:deploy` verifies the standard Vite map contains framework source
+content and no built JavaScript advertises a map. `check:budgets` excludes
+`*.map`; the Pages workflow removes map files before uploading its public
+artifact. Keep diagnostic maps internal if an error reporter consumes them.
+
+The deploy-shape check also inspects the built `dist/` tree and generated
+service-worker precache. Package tarballs, declaration files, package/example
+trees, and consumer fixtures must not enter the app artifact. All GLB and
+audio files in the built output must remain precached; `perfProbe` remains
+excluded.
 
 ## 4. CSP
 
@@ -84,6 +103,8 @@ Gate each before calling a build "released":
       (`e2e/pwa.spec.ts`)
 - [ ] Reload after quest completion resumes progress
 - [ ] Corrupted save → quarantine notice + fresh start (`e2e/pwa.spec.ts`)
+- [ ] Same-origin old → candidate → old deployment retains candidate progress
+      (`e2e/release-rollback.spec.ts`)
 - [ ] IndexedDB unavailable → session-only fallback (`e2e/pwa.spec.ts`)
 - [ ] Portrait 360×800 and landscape framings (`navigation.spec.ts`,
       `camera.spec.ts`)

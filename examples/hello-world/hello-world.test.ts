@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHelloRuntime, HelloMemoryPersistence } from './game.ts';
 import { PROP_ANCHOR, worldSource } from './world.ts';
-import { getAnchor, insideBounds } from '../../src/framework/index.ts';
+import { getAnchor, insideBounds } from 'waypoint-rpg-core';
 import { map } from './world.ts';
 
 /**

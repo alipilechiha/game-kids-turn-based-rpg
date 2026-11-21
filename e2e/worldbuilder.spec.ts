@@ -163,6 +163,11 @@ test.describe('world builder acceptance', () => {
 
     // Exercise the authored map transition: walk to the cave entrance, the
     // preview follows it into map-cave exactly like the game.
+    // Approach through the authored park path. A direct midpoint from the
+    // new area passes close to the separate challenge entrance and can tap it
+    // first; the nearby-waypoint path keeps this transition unambiguous.
+    await tapWorldAnchor(page, 'anchor-path-west-far' as AnchorId, source);
+    await tapWorldAnchor(page, 'anchor-park' as AnchorId, source);
     await tapWorldAnchor(page, 'anchor-cave-entrance' as AnchorId, source);
     await expect.poll(() => currentMap(page), { timeout: 30000 }).toBe('map-cave');
     await waitForWalkerIdle(page);

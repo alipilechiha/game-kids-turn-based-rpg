@@ -6,7 +6,7 @@ import type {
 
 /**
  * This game's world-structure types: the framework's generic world primitives
- * (`src/framework/core/world.ts`) extended with application content — Persian
+ * (`waypoint-rpg-core`) extended with application content — Persian
  * labels, the environment presentation model, NPC archetypes/schedules and
  * dialogue references. Pure data — no React, Three.js or DOM.
  *

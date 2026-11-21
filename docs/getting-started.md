@@ -2,9 +2,14 @@
 
 ## Running the game
 
+Use Node.js `>=22.22.2 <23` and npm `>=10 <11` for the root workspace and its
+build tools. The standalone `waypoint-rpg-core` runtime supports Node.js
+`>=22.0.0`; this lower consumer floor does not apply to the app toolchain.
+
 ```bash
-npm install
+npm ci
 npm run dev          # Vite dev server
+npm run dev:linked   # package watch build + Vite for live framework edits
 npm run build        # production build (content validation + bundle budgets + deploy shape)
 npm run preview      # serve the built dist/
 npm run verify       # format + lint + typecheck + unit tests + build — the full gate
@@ -19,18 +24,20 @@ comprehension testing. Docs map: `AGENTS.md` §10.
 
 ## Consuming the framework
 
-`src/framework/` is the reusable layer — game-agnostic primitives plus the
-`createGameRuntime` state-machine seam. Everything public comes through
-`src/framework/index.ts` (one entry point, lint-enforced in both directions).
-API reference: [framework-api.md](framework-api.md). Extraction rationale:
+`packages/core/` is the reusable, dependency-free ESM package containing the
+game-agnostic primitives and `createGameRuntime` state-machine seam. Import its
+public API from `waypoint-rpg-core`; deep imports are rejected. The Kids RPG
+routes its imports through `src/framework/index.ts`, which adds game-owned
+camera, quality, and optional battle APIs. API reference:
+[framework-api.md](framework-api.md). Extraction rationale:
 [framework-extraction.md](framework-extraction.md).
 
 Minimal consumer — the shipped `examples/hello-world/` is the canonical
 walkthrough and the API's validation consumer:
 
 ```ts
-import { createGameRuntime } from '../../src/framework/index.ts';
-import type { GameRuntimeAdapter } from '../../src/framework/index.ts';
+import { createGameRuntime } from 'waypoint-rpg-core';
+import type { GameRuntimeAdapter } from 'waypoint-rpg-core';
 
 type State = { phase: 'idle' | 'celebrated'; taps: number; lastTapAt: number };
 type Command = { type: 'tap-prop' } | { type: 'settle' };
@@ -76,8 +83,9 @@ save is allowed.
 
 ## Rules that apply to consumers too
 
-- Framework imports only via `index.ts` — the lint boundary fires in both
-  directions (`src/**` and `examples/**`).
+- The Kids RPG imports package APIs through its `src/framework/index.ts`
+  facade; application lint rejects direct package and deep source imports.
+- Independent consumers import only `waypoint-rpg-core`, the package root.
 - Game content must never be imported by framework code; app types _extend_
   the primitives (`labelFa`, `environment`, schedules stay app-side).
 - `disposal={null}` on shared resources; scene-unique disposables are counted

@@ -6,7 +6,7 @@ import {
   type PersistenceFailure,
   type SaveScope,
   type StorageFallback,
-} from '../../src/framework/index.ts';
+} from 'waypoint-rpg-core';
 
 /**
  * A trivial application state machine: the child taps the prop, the state

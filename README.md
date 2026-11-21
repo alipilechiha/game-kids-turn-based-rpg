@@ -13,32 +13,36 @@ microphone, geolocation or device identifiers. Progress lives only in the browse
 
 ## Requirements
 
-- Node.js 22.x (the repo is developed on 22.23.x) and npm 10.x
+- Node.js 22.22.2 or newer in the Node 22 line, with npm 10.x (the repo is developed on Node 22.23.5 and npm 10.9.9)
 - On Windows use `npm.cmd` for every command below
 
 ## Setup
 
 ```bash
-npm install
+npm ci
 npm run dev          # http://localhost:5173
 ```
 
 ## Scripts
 
-| Script                             | Purpose                                                                 |
-| ---------------------------------- | ----------------------------------------------------------------------- |
-| `npm run dev`                      | Vite dev server                                                         |
-| `npm run build`                    | Content validation → strict `tsc -b` → production bundle → budget check |
-| `npm run preview`                  | Serve `dist/` on port 4173 (used by Playwright)                         |
-| `npm run typecheck`                | Strict TypeScript project build                                         |
-| `npm run lint` / `lint:fix`        | ESLint (flat config, type-aware)                                        |
-| `npm run format` / `format:check`  | Prettier                                                                |
-| `npm test`                         | Vitest unit + component tests (jsdom)                                   |
-| `npm run test:e2e`                 | Playwright golden paths against the production preview                  |
-| `npm run validate:content`         | Content/provenance validation (development mode: drafts warn)           |
-| `npm run validate:content:release` | Release gate: **fails** while any reachable record is not `approved`    |
-| `npm run check:budgets`            | Gzip transfer budgets over `dist/`                                      |
-| `npm run verify`                   | format:check → lint → typecheck → test → build                          |
+| Script                             | Purpose                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| `npm run dev`                      | Vite dev server                                                           |
+| `npm run dev:linked`               | Package watch build followed by Vite, for live core-library edits         |
+| `npm run framework:watch:check`    | Chromium check for linked updates, failed-build preservation and recovery |
+| `npm run build`                    | Content validation → strict `tsc -b` → production bundle → budget check   |
+| `npm run preview`                  | Serve `dist/` on port 4173 (used by Playwright)                           |
+| `npm run typecheck`                | Strict TypeScript project build                                           |
+| `npm run lint` / `lint:fix`        | ESLint (flat config, type-aware)                                          |
+| `npm run format` / `format:check`  | Prettier                                                                  |
+| `npm test`                         | Vitest unit + component tests (jsdom)                                     |
+| `npm run test:e2e`                 | Playwright golden paths against the production preview                    |
+| `npm run validate:content`         | Content/provenance validation (development mode: drafts warn)             |
+| `npm run validate:content:release` | Release gate: **fails** while any reachable record is not `approved`      |
+| `npm run check:budgets`            | Gzip transfer budgets over `dist/`                                        |
+| `npm run framework:build`          | Compile the dependency-free ESM core package                              |
+| `npm run framework:consumer`       | Pack and verify an isolated tarball consumer                              |
+| `npm run verify`                   | format:check → lint → package boundary/build/tests → app gates            |
 
 ## Architecture
 
@@ -55,6 +59,7 @@ src/
   app/         React provider wiring domain ↔ services ↔ UI, error boundary
 e2e/           Playwright golden paths
 scripts/       content validation and build budget checks
+packages/core/ dependency-free ESM package, public root at waypoint-rpg-core
 ```
 
 Key rules the code enforces:

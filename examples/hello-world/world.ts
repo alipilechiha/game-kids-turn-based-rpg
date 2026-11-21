@@ -8,7 +8,7 @@ import type {
   MapId,
   WorldArea,
   WorldMap,
-} from '../../src/framework/index.ts';
+} from 'waypoint-rpg-core';
 
 /**
  * The smallest world a consumer can declare: one map, one area, one walkable

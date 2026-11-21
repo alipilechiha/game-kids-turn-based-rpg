@@ -1,6 +1,6 @@
 import { createHelloRuntime } from './game.ts';
 import { map, PROP_ANCHOR, worldSource } from './world.ts';
-import { getAnchor, insideBounds } from '../../src/framework/index.ts';
+import { getAnchor, insideBounds } from 'waypoint-rpg-core';
 
 /**
  * hello-world: the smallest consumer of the framework runtime. No React, no

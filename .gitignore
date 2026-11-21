@@ -16,3 +16,4 @@ dev-dist/
 downloaded-models/
 downloaded-musics/
 test-results-*
+.release-compat/

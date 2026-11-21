@@ -1,6 +1,6 @@
-import type { AnchorId, MapId } from './identifiers.ts';
-import type { Anchor } from './world.ts';
-import { distanceBetween, getAnchor, neighboursOf, type GraphSource } from './graph.ts';
+import type { AnchorId, MapId } from './identifiers.js';
+import type { Anchor } from './world.js';
+import { distanceBetween, getAnchor, neighboursOf, type GraphSource } from './graph.js';
 
 /** Nearest *walkable* anchor to a ground-plane point, within an optional radius. */
 export function nearestWalkableAnchor(

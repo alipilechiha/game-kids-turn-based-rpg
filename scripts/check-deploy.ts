@@ -9,11 +9,21 @@
  * Usage: node --experimental-strip-types scripts/check-deploy.ts
  *        (run after `vite build`; respects BASE_URL via the built output)
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 const DIST = join(process.cwd(), 'dist');
 const errors: string[] = [];
+
+function walkFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const absolute = join(dir, entry);
+    if (statSync(absolute).isDirectory()) files.push(...walkFiles(absolute));
+    else files.push(absolute);
+  }
+  return files;
+}
 
 function must(cond: boolean, label: string) {
   if (!cond) errors.push(`[deploy] ${label}`);
@@ -73,6 +83,10 @@ if (existsSync(swPath)) {
     'sw.js precache includes the perfProbe chunk — profiling must cost the PWA nothing',
   );
   must(
+    !/["'][^"']+\.map["']/.test(sw),
+    'sw.js precache includes a source-map URL — maps must never be precached',
+  );
+  must(
     sw.includes('models/'),
     'sw.js precache does not include models/*.glb — GLB landmarks would fail offline',
   );
@@ -83,15 +97,64 @@ if (existsSync(swPath)) {
     !sw.includes('hello-world') && !sw.includes('examples/'),
     'sw.js precache includes example assets — examples are not part of the app bundle',
   );
+
+  for (const file of existsSync(DIST) ? walkFiles(DIST) : []) {
+    const asset = relative(DIST, file).replaceAll('\\', '/');
+    if (/^models\/.*\.glb$/i.test(asset) || /^audio\/.*\.(?:mp3|ogg|wav)$/i.test(asset)) {
+      must(sw.includes(asset), `sw.js precache omits offline asset ${asset}`);
+    }
+  }
 }
 
-// Bundle check: nothing example-flavoured may land in the game dist at all.
-import { readdirSync } from 'node:fs';
-const distFiles = existsSync(DIST) ? readdirSync(DIST, { recursive: true }) : [];
-const exampleLeak = distFiles.find(
-  (entry) => String(entry).includes('hello-world') || String(entry).startsWith('examples'),
+const distFiles = existsSync(DIST) ? walkFiles(DIST) : [];
+const relativeFiles = distFiles.map((file) => relative(DIST, file).replaceAll('\\', '/'));
+const forbiddenArtifact = relativeFiles.find((file) =>
+  /(?:\.tgz$|\.tar(?:\.gz)?$|\.d\.(?:ts|mts|cts)(?:\.map)?$|^|\/)(?:packages|examples|core-consumer|fixtures?)(?:\/|$)|(^|\/)(?:package\.json|package-lock\.json)$/i.test(
+    file,
+  ),
 );
-must(!exampleLeak, `dist contains an example artifact: ${String(exampleLeak)}`);
+must(
+  !forbiddenArtifact,
+  `dist contains a package, declaration, tarball, example, or consumer fixture artifact: ${forbiddenArtifact}`,
+);
+
+// Vite's standard hidden-map processing must keep app maps available to the
+// internal diagnostic build without advertising them from shipped scripts.
+const appMapFile = relativeFiles.find((file) => /^assets\/index-.*\.js\.map$/.test(file));
+must(appMapFile !== undefined, 'dist/assets is missing the hidden Vite app source map');
+if (appMapFile) {
+  try {
+    const map = JSON.parse(readFileSync(join(DIST, appMapFile), 'utf8')) as {
+      version?: number;
+      sources?: string[];
+      sourcesContent?: Array<string | null>;
+    };
+    const coreSourceIndex = map.sources?.findIndex((source) =>
+      source.replaceAll('\\', '/').includes('packages/core/dist/graph.js'),
+    );
+    must(map.version === 3, `${appMapFile} is not a standard version 3 source map`);
+    must(
+      coreSourceIndex !== undefined && coreSourceIndex >= 0,
+      `${appMapFile} does not map the bundled framework graph module`,
+    );
+    must(
+      coreSourceIndex !== undefined &&
+        typeof map.sourcesContent?.[coreSourceIndex] === 'string' &&
+        map.sourcesContent[coreSourceIndex].includes('neighboursOf'),
+      `${appMapFile} is missing embedded framework graph source content`,
+    );
+  } catch (error) {
+    must(false, `${appMapFile} is not valid JSON: ${String(error)}`);
+  }
+}
+
+for (const file of distFiles.filter((entry) => entry.endsWith('.js'))) {
+  const contents = readFileSync(file, 'utf8');
+  must(
+    !/\/[/*]#?\s*sourceMappingURL=/.test(contents),
+    `${relative(DIST, file).replaceAll('\\', '/')} advertises a source map`,
+  );
+}
 
 must(existsSync(join(DIST, 'offline.html')), 'dist/offline.html missing');
 must(existsSync(join(DIST, 'audio/music-hub.mp3')), 'dist/audio missing — audio must be precached');

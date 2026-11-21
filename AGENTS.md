@@ -226,6 +226,7 @@ The child's interaction language is **the physical thing**, never an action icon
 ---
 
 # 10. Presentation UX Enhancements (permitted)**
+
 - Presentation-layer enhancements (layout, spacing, typography, icon size, touch-target padding, dialog sizing, contrast) are allowed without modifying gameplay semantics.
 - All child-facing copy remains in `src/content/fa/*`; no new copy outside content files.
 - No new forced child actions or dialogue taps beyond the §9.2 interaction budget.
