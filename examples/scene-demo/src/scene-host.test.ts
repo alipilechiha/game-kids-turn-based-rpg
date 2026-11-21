@@ -1,4 +1,4 @@
-import type { Anchor, MapId, MapTransition } from 'waypoint-rpg-core';
+import type { Anchor, AnchorId, MapId, MapTransition } from 'waypoint-rpg-core';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createSceneRegistry,
@@ -99,6 +99,87 @@ describe('scene registry', () => {
 });
 
 describe('scene host lifecycle', () => {
+  it('starts at a validated anchor while preserving the default spawn behavior', async () => {
+    const host = new SceneHost(registry());
+
+    expect((await host.start('map-courtyard')).status).toBe('committed');
+    expect(host.getSnapshot().currentAnchorId).toBe('anchor-courtyard-start');
+    expect((await host.start('map-workshop', 'anchor-workshop-lamp')).status).toBe('committed');
+    expect(host.getSnapshot().active?.entryAnchorId).toBe('anchor-workshop-lamp');
+    expect(host.getSnapshot().currentAnchorId).toBe('anchor-workshop-lamp');
+    host.dispose();
+  });
+
+  it('rejects unknown, non-walkable, and wrong-map start anchors without changing the scene', async () => {
+    const workshop = scene('map-workshop', ['workshop-door', 'workshop-lamp']);
+    const blockedWorkshop: SceneDefinition = {
+      ...workshop,
+      graph: {
+        ...workshop.graph,
+        anchors: workshop.graph.anchors.map((anchor) =>
+          anchor.id === 'anchor-workshop-lamp' ? { ...anchor, walkable: false } : anchor,
+        ),
+      },
+    };
+    const host = new SceneHost(registry(undefined, blockedWorkshop));
+    await host.start('map-courtyard');
+    const active = host.getSnapshot().active;
+    const currentAnchorId = host.getSnapshot().currentAnchorId;
+
+    expect((await host.start('map-workshop', 'anchor-missing' as AnchorId)).status).toBe('invalid');
+    expect((await host.start('map-workshop', 'anchor-workshop-lamp')).status).toBe('invalid');
+    expect((await host.start('map-workshop', 'anchor-courtyard-start')).status).toBe('invalid');
+    expect(host.getSnapshot().active).toBe(active);
+    expect(host.getSnapshot().currentAnchorId).toBe(currentAnchorId);
+    host.dispose();
+  });
+
+  it('keeps the previous committed location when an explicit restoration load fails', async () => {
+    const workshop = {
+      ...scene('map-workshop', ['workshop-door', 'workshop-lamp']),
+      load: async () => {
+        throw new Error('restore failed');
+      },
+    };
+    const host = new SceneHost(registry(undefined, workshop));
+    await host.start('map-courtyard');
+    const before = host.getSnapshot();
+
+    expect((await host.start('map-workshop', 'anchor-workshop-lamp')).status).toBe('failed');
+    expect(host.getSnapshot().active).toBe(before.active);
+    expect(host.getSnapshot().currentAnchorId).toBe(before.currentAnchorId);
+    host.dispose();
+  });
+
+  it('cancels a superseded explicit start and cannot commit its late scene result', async () => {
+    let resolveStale!: (resource: SceneResource) => void;
+    let staleSignal: AbortSignal | undefined;
+    const staleDispose = vi.fn();
+    const workshop = {
+      ...scene('map-workshop', ['workshop-door', 'workshop-lamp']),
+      load: (signal: AbortSignal) => {
+        staleSignal = signal;
+        return new Promise<SceneResource>((resolve) => {
+          resolveStale = resolve;
+        });
+      },
+    };
+    const host = new SceneHost(registry(undefined, workshop));
+    await host.start('map-courtyard');
+
+    const stale = host.start('map-workshop', 'anchor-workshop-lamp');
+    const fresh = host.start('map-courtyard', 'anchor-courtyard-door');
+    expect((await fresh).status).toBe('committed');
+    resolveStale({ Component: EmptyScene, dispose: staleDispose });
+
+    expect((await stale).status).toBe('cancelled');
+    expect(staleSignal?.aborted).toBe(true);
+    expect(staleDispose).toHaveBeenCalledOnce();
+    expect(host.getSnapshot().active?.definition.map.id).toBe('map-courtyard');
+    expect(host.getSnapshot().currentAnchorId).toBe('anchor-courtyard-door');
+    host.dispose();
+  });
+
   it('keeps the active scene until the destination loads, then releases it', async () => {
     const oldDispose = vi.fn();
     const newDispose = vi.fn();

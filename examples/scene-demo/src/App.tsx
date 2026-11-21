@@ -6,6 +6,7 @@ import { DialogueDialog } from './DialogueDialog.js';
 import { bloodLeafCopy, bloodLeafNarrative } from './content/blood-leaf.js';
 import { SceneCamera } from './SceneCamera.js';
 import { SceneFrameProbe } from './SceneFrameProbe.js';
+import { browserDemoStorage } from './persistence.js';
 import { createDemoRuntime } from './runtime.js';
 import { SceneHost } from './scene-host.js';
 import { sceneRegistry } from './scenes/registry.js';
@@ -13,14 +14,14 @@ import { subscribeDemoRuntime } from './scenes/scene-runtime.js';
 
 export function App() {
   const host = useMemo(() => new SceneHost(sceneRegistry), []);
-  const runtime = useMemo(() => createDemoRuntime(host), [host]);
+  const runtime = useMemo(() => createDemoRuntime(host, { storage: browserDemoStorage }), [host]);
   const snapshot = useSyncExternalStore(host.subscribe, host.getSnapshot, host.getSnapshot);
   const subscribeRuntime = useCallback(
     (listener: () => void) => subscribeDemoRuntime(runtime, listener),
     [runtime],
   );
   const appState = useSyncExternalStore(subscribeRuntime, runtime.getState, runtime.getState);
-  const { durable, feedback } = appState;
+  const { durable, bootstrap, feedback } = appState;
   const [canvasVersion, setCanvasVersion] = useState(0);
   const [contextLost, setContextLost] = useState(false);
   const canvasLive = useRef(false);
@@ -94,7 +95,11 @@ export function App() {
             <span>Arrival</span>
             <output data-testid="entry-anchor">{active?.entryAnchorId ?? 'loading'}</output>
             <span>Session</span>
-            <output data-testid="session-readiness">{durable.ready ? 'ready' : 'starting'}</output>
+            <output data-testid="session-readiness">
+              {durable.ready ? 'ready' : bootstrap.status}
+            </output>
+            <span>Save</span>
+            <output data-testid="save-mode">{bootstrap.storageMode}</output>
             <span>{bloodLeafCopy.inquiryQuest}</span>
             <output data-testid="quest-status" data-status={questStatus}>
               {bloodLeafCopy.questStatus[questStatus]}
@@ -146,6 +151,16 @@ export function App() {
               {lanternLit ? 'Lantern: lit' : 'Lantern: dark'}
             </button>
           )}
+          <button
+            data-testid="story-reset"
+            type="button"
+            disabled={!durable.ready || Boolean(dialogue)}
+            onClick={() => {
+              if (window.confirm(bloodLeafCopy.confirmReset)) void runtime.resetPlaythrough(true);
+            }}
+          >
+            {bloodLeafCopy.resetStory}
+          </button>
           <output
             className="command-feedback"
             data-testid="command-feedback"
@@ -160,6 +175,25 @@ export function App() {
             {snapshot.error ?? ''}
           </output>
         </section>
+
+        {bootstrap.status === 'recovery-required' && (
+          <section className="save-recovery" role="alert" data-testid="save-recovery">
+            <p>{bootstrap.reason}</p>
+            <p>{bloodLeafCopy.recoveryExplanation}</p>
+            <button
+              data-testid="recover-session"
+              type="button"
+              onClick={() => void runtime.recoverFreshSession()}
+            >
+              {bloodLeafCopy.recoverStory}
+            </button>
+          </section>
+        )}
+        {bootstrap.reason === 'save-write-failed' && (
+          <p className="save-warning" role="status" data-testid="save-warning">
+            {bloodLeafCopy.sessionOnly}
+          </p>
+        )}
 
         <section className="scene-stage" aria-label="3D game scene">
           {active && ActiveScene && target ? (

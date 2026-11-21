@@ -99,6 +99,24 @@ button:disabled {
   font-size: 0.85rem;
 }
 
+.save-recovery,
+.save-warning {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 52rem;
+  margin: 1rem auto;
+  padding: 1rem;
+  border: 2px solid #b56a23;
+  border-radius: 1rem;
+  background: #fff7df;
+  color: #33240c;
+}
+
+.save-recovery button {
+  min-height: var(--touch-min, 44px);
+  justify-self: start;
+}
+
 .scene-stage {
   position: relative;
   min-height: min(62vh, 34rem);

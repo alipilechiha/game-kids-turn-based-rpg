@@ -3,7 +3,7 @@ import { log } from 'node:console';
 import { chromium } from '@playwright/test';
 import { preview } from 'vite';
 
-/* global document, getComputedStyle, window */
+/* global document, getComputedStyle, localStorage, window */
 
 const server = await preview({
   preview: { host: '127.0.0.1', port: 0, strictPort: false },
@@ -257,13 +257,32 @@ try {
   // The second branch reaches a different authored ending and cannot light the conditional lamp.
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForFunction(
-    () => document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready',
+    () =>
+      document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-workshop',
+  );
+  assert.equal(await page.getByTestId('entry-anchor').textContent(), 'anchor-workshop-door');
+  assert.equal(await page.getByTestId('story-ending').textContent(), 'پایان روشنایی');
+  assert.equal(await page.evaluate(() => window.__sceneProbe?.lampLit), true);
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByTestId('story-reset').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard' &&
+      document.querySelector('[data-testid="story-ending"]')?.textContent === '',
   );
   await page.getByTestId('dialogue-open').click();
   await page.getByTestId('dialogue-choice-seek-vengeance').click();
   await page.getByTestId('dialogue-advance').click();
   await page.getByTestId('dialogue-choice-end-with-anger').click();
   await page.getByTestId('dialogue-finish').click();
+  await page.waitForFunction(() => document.activeElement?.tagName.toLowerCase() === 'main');
+  assert.equal(
+    await hasFocus(page.locator('main')),
+    true,
+    'closing after reload restores focus to the main landmark when the opener is disabled',
+  );
   assert.equal(await page.getByTestId('story-ending').textContent(), 'پایان خشم');
   assert.equal(await page.getByTestId('quest-status').getAttribute('data-status'), 'failed');
   await page.getByTestId('scene-transition').click();
@@ -274,8 +293,36 @@ try {
   assert.equal(await page.evaluate(() => window.__sceneProbe?.lampLit), false);
   assert.deepEqual(pageErrors, []);
 
+  const corruptSave = '{preserve-this-corrupt-save';
+  await page.evaluate(
+    (value) => localStorage.setItem('waypoint-rpg-scene-demo:save', value),
+    corruptSave,
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByTestId('save-recovery').waitFor({ state: 'visible' });
+  assert.equal(await page.getByTestId('session-readiness').textContent(), 'recovery-required');
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem('waypoint-rpg-scene-demo:save')),
+    corruptSave,
+  );
+  await page.getByTestId('recover-session').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard' &&
+      document.querySelector('[data-testid="save-mode"]')?.textContent === 'session-only',
+  );
+  await page.getByTestId('dialogue-open').click();
+  await page.getByTestId('narrative-dialog').waitFor({ state: 'visible' });
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem('waypoint-rpg-scene-demo:save')),
+    corruptSave,
+    'session-only recovery must leave the original malformed bytes untouched',
+  );
+  assert.deepEqual(pageErrors, []);
+
   log(
-    'independent Three.js narrative consumer passed Chromium branch, modal, RTL, and lifecycle smoke',
+    'independent Three.js narrative consumer passed Chromium branches, modal, RTL, recovery, persistence, and lifecycle smoke',
   );
 } finally {
   await browser?.close();
