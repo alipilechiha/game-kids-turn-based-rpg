@@ -1,0 +1,142 @@
+:root {
+  color: #1b2630;
+  background: #edf2f5;
+  font-family: system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+}
+
+button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 0.8rem;
+  color: white;
+  background: #285f75;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.demo-shell {
+  display: grid;
+  gap: 1rem;
+  width: min(100% - 2rem, 70rem);
+  margin: 1rem auto;
+}
+
+.demo-header,
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 0.4rem 1.5rem rgb(20 40 50 / 8%);
+}
+
+.demo-header h1 {
+  margin: 0.25rem 0;
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+}
+
+.demo-header p {
+  margin: 0.25rem 0;
+  color: #52636d;
+}
+
+.eyebrow {
+  color: #285f75 !important;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.25rem 0.8rem;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.status-grid output {
+  font-family: ui-monospace, monospace;
+}
+
+.controls {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.error {
+  flex-basis: 100%;
+  min-height: 1.2em;
+  color: #8b2f2f;
+}
+
+.scene-stage {
+  position: relative;
+  min-height: min(62vh, 34rem);
+  overflow: hidden;
+  border: 1px solid #cfdae0;
+  border-radius: 1.2rem;
+  background: #dce7e9;
+  box-shadow: 0 0.6rem 2rem rgb(20 40 50 / 12%);
+}
+
+.scene-stage canvas {
+  display: block;
+  width: 100%;
+  height: min(62vh, 34rem);
+  touch-action: manipulation;
+}
+
+.loading {
+  padding: 2rem;
+  color: #52636d;
+}
+
+.recovery {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 0.4rem 1.5rem rgb(20 40 50 / 25%);
+}
+
+@media (max-width: 600px) {
+  .demo-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .recovery {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

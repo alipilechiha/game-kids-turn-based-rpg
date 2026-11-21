@@ -146,14 +146,15 @@ Acceptance: npm run verify, package job, existing Playwright shards, deploy chec
 
 Phase 1 completion requires independent tarball success before cutover, compiled package entry adoption by game and hello-world, demonstrated linked development, exact API/dependency checks, unchanged game saves/offline behavior, and passing existing application gates. Renderer, narrative, advanced combat, editor, registry publication and independent 3D gameplay remain later work.
 
-Execution follows the six-PR dependency order. PRs 1–5 pass local verification.
-PR 1 was committed separately from the approved formatting prerequisite; PR 2
-and PR 3 passed their package and installed-consumer gates; PR 4 preserved app
-contracts; PR 5 passed the linked-development check on Windows and added that
-check to one shard of the existing Linux Playwright job. PR 6 passes local
-`npm run verify`, the installed tarball consumer, PWA offline/save specs, and
-the same-origin baseline → candidate → offline save → baseline rollback test.
-The test confirms schema 3, IndexedDB v2, preserved newer progress and no
-celebration replay. Linux CI execution remains pending. PR 1 and PR 2 were
-pushed after the user's explicit follow-up request. Keep later work in scoped
-local commits and do not push, publish, or deploy without a later request.
+Execution followed the six-PR dependency order. PRs 1–5 passed local
+verification. PR 1 was committed separately from the approved formatting
+prerequisite; PRs 2 and 3 passed package and installed-consumer gates; PR 4
+preserved app contracts; PR 5 passed the linked-development check on Windows
+and added it to one shard of the existing Linux Playwright job. PR 6 passed
+local `npm run verify`, the installed tarball consumer, PWA offline/save specs,
+and the same-origin baseline → candidate → offline save → baseline rollback
+test. The test confirmed schema 3, IndexedDB v2, preserved newer progress, and
+no celebration replay. PR #110 merged the extraction into main. The post-merge
+package-consumer and Pages checks passed; all four Playwright shards passed
+after shard 2 was rerun. Follow-up commit 20be589 added the deployment-artifact
+guard. Phase 1 is closed; the separate 3D consumer is Phase 2 work.
