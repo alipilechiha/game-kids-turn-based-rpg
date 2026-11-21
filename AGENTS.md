@@ -190,6 +190,7 @@ npm run verify        # format:check + lint + typecheck + unit tests + build (in
 - `*.tsbuildinfo` is gitignored but historically tracked — do not commit changes to it (`git checkout origin/main -- <file>` if a build dirties the diff). Prefer `git rm --cached` cleanup over repeated churn.
 - E2e selectors use `data-testid`; keep them stable and add them for new child-facing controls.
 - Keep PRs scoped: acceptance-style work changes only what evidence shows is broken.
+- After requested work passes its applicable verification, commit only task-scoped files and push the current feature branch to `origin` by default (`git push -u origin <branch>` for its first push). Explicit requests to leave work uncommitted or unpushed, protected branches, and failed approval checks override this rule. Never push directly to `main` or force-push; preserve unrelated worktree changes, and report the commit hash and remote branch. If publishing is blocked, report the reason and exact command to run.
 - On finishing a task that produced a branch, provide the PR link: open the PR when tooling/credentials allow, otherwise output the pre-filled create link `https://github.com/hmmftg/game-kids-turn-based-rpg/pull/new/<branch>`.
 
 ---
