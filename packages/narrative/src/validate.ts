@@ -211,6 +211,7 @@ export function validateNarrative(input: unknown): NarrativeValidationReport {
     id?: unknown;
     when?: unknown;
     effects?: unknown;
+    repeatable?: unknown;
   }[];
   const questIds = new Set<string>();
   const dialogueIds = new Set<string>();
@@ -527,6 +528,14 @@ export function validateNarrative(input: unknown): NarrativeValidationReport {
     else triggerIds.add(trigger.id);
     if (trigger.when !== undefined) validateCondition(trigger.when, `${path}.when`);
     validateEffects(trigger.effects, `${path}.effects`);
+    if (isArray(trigger.effects) && trigger.effects.length === 0)
+      add(
+        'empty-trigger-effects',
+        `${path}.effects`,
+        'A trigger must declare at least one effect.',
+      );
+    if (trigger.repeatable !== undefined && typeof trigger.repeatable !== 'boolean')
+      add('trigger-repeatable', `${path}.repeatable`, 'repeatable must be boolean.');
     if (isArray(trigger.effects))
       for (const effect of trigger.effects) validateEffectReference(effect, `${path}.effects`);
   }

@@ -77,6 +77,8 @@ export interface NarrativeTriggerDefinition {
   readonly id: string;
   readonly when?: NarrativeCondition;
   readonly effects: readonly NarrativeEffect[];
+  /** Defaults to one application per playthrough; repeatable triggers need a later revision. */
+  readonly repeatable?: boolean;
 }
 
 export interface NarrativeDefinition {
@@ -113,3 +115,100 @@ export interface CompiledNarrative {
   readonly compatibilityVersion: string;
   readonly definition: NarrativeDefinition;
 }
+
+export interface ActiveDialogue {
+  readonly dialogueId: string;
+  readonly nodeId: string;
+}
+
+/** Durable state for one playthrough; UI feedback and correlation tokens are excluded. */
+export interface NarrativeState {
+  readonly schemaVersion: 1;
+  readonly storyId: string;
+  readonly compatibilityVersion: string;
+  readonly playthroughId: string;
+  readonly revision: number;
+  readonly facts: Readonly<Record<string, JsonValue>>;
+  readonly quests: Readonly<Record<string, PersistedQuestStatus>>;
+  readonly appliedChoiceIds: readonly string[];
+  readonly appliedTriggerIds: readonly string[];
+  readonly activeDialogue: ActiveDialogue | null;
+  readonly endingId: string | null;
+}
+
+export interface NarrativeCommandBase {
+  readonly playthroughId: string;
+  readonly expectedRevision: number;
+}
+
+export type NarrativeCommand = NarrativeCommandBase &
+  (
+    | { readonly type: 'open-dialogue'; readonly dialogueId: string }
+    | { readonly type: 'advance' }
+    | { readonly type: 'choose'; readonly choiceId: string }
+    | { readonly type: 'exit-dialogue' }
+    | { readonly type: 'finish' }
+    | { readonly type: 'trigger'; readonly triggerId: string }
+  );
+
+export type NarrativeRejectionCode =
+  | 'invalid-command'
+  | 'wrong-playthrough'
+  | 'stale-revision'
+  | 'story-mismatch'
+  | 'compatibility-mismatch'
+  | 'ending-final'
+  | 'dialogue-active'
+  | 'no-active-dialogue'
+  | 'dialogue-unavailable'
+  | 'node-unavailable'
+  | 'not-linear'
+  | 'choice-unavailable'
+  | 'choice-already-applied'
+  | 'exit-forbidden'
+  | 'not-terminal'
+  | 'trigger-unavailable'
+  | 'quest-transition'
+  | 'invalid-effect'
+  | 'revision-overflow';
+
+export type NarrativeTransitionResult =
+  | {
+      readonly accepted: true;
+      readonly state: NarrativeState;
+      readonly change: 'dialogue' | 'choice' | 'trigger' | 'ending';
+    }
+  | {
+      readonly accepted: false;
+      readonly state: NarrativeState;
+      readonly reason: {
+        readonly code: NarrativeRejectionCode;
+        readonly message: string;
+        readonly effectIndex?: number;
+      };
+    };
+
+export interface DialogueChoiceView {
+  readonly id: string;
+  readonly label: string;
+  readonly available: boolean;
+}
+
+export interface DialogueView {
+  readonly dialogueId: string;
+  readonly nodeId: string;
+  readonly speakerId: string;
+  readonly text: string;
+  readonly terminal: boolean;
+  readonly exitAllowed: boolean;
+  readonly choices: readonly DialogueChoiceView[];
+}
+
+export type NarrativeDecodeResult =
+  | { readonly ok: true; readonly state: NarrativeState }
+  | {
+      readonly ok: false;
+      readonly reason:
+        'invalid-payload' | 'unsupported-schema' | 'story-mismatch' | 'incompatible-definition';
+      readonly message: string;
+    };
