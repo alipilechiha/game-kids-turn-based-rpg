@@ -51,12 +51,16 @@
     "framework:test": "npm run framework:check && npm run framework:build && npm run framework:test:prepared",
     "framework:pack": "npm run framework:check && npm run framework:build && npm pack --ignore-scripts --workspace=packages/core",
     "framework:consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-consumer.mjs",
+    "framework:scene-consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-scene-consumer.mjs",
+    "framework:scene-consumer:prepared": "node scripts/check-framework-scene-consumer.mjs",
     "framework:runtime:check": "node scripts/check-framework-runtime.mjs",
     "preexample:build": "npm run framework:build",
     "example:build": "vite build --config examples/hello-world/vite.config.ts",
+    "preexample:scene-build": "npm run framework:build",
+    "example:scene-build": "vite build --config examples/scene-demo/vite.config.ts",
     "preexample:dev": "npm run framework:build",
     "example:dev": "vite --config examples/hello-world/vite.config.ts",
-    "verify": "npm run format:check && npm run lint && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build"
+    "verify": "npm run format:check && npm run lint && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
