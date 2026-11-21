@@ -3,13 +3,17 @@
 ## Running the game
 
 Use Node.js `>=22.22.2 <23` and npm `>=10 <11` for the root workspace and its
-build tools. The standalone `waypoint-rpg-core` runtime supports Node.js
-`>=22.0.0`; this lower consumer floor does not apply to the app toolchain.
+build tools. The standalone `waypoint-rpg-core` and optional
+`waypoint-rpg-narrative` manifests declare Node.js `>=22.0.0` runtime floors;
+the Phase 3 package checks ran on Node.js 22.23.5, not separately on the
+narrative package's declared minimum. These package runtime floors do not apply
+to the app toolchain.
 
 ```bash
 npm ci
 npm run dev          # Vite dev server
-npm run dev:linked   # package watch build + Vite for live framework edits
+npm run dev:linked   # watch both framework packages + root Vite
+npm run framework:watch # watch both packages + the independent 3D consumer
 npm run build        # production build (content validation + bundle budgets + deploy shape)
 npm run preview      # serve the built dist/
 npm run verify       # format + lint + typecheck + unit tests + build — the full gate
@@ -31,6 +35,15 @@ routes its imports through `src/framework/index.ts`, which adds game-owned
 camera, quality, and optional battle APIs. API reference:
 [framework-api.md](framework-api.md). Extraction rationale:
 [framework-extraction.md](framework-extraction.md).
+
+`packages/narrative/` is a separate optional ESM package. It provides
+game-neutral typed definitions, deterministic conditions/effects, dialogue,
+quest transitions, and validated narrative state. It has no dependency on the
+core, React, Three.js, browser storage, or authored game content. The Kids RPG
+does not consume it; the independent `examples/scene-demo/` validates both
+packages together with the original Persian story برگ خون. Narrative API and
+semantics are documented in [framework-api.md](framework-api.md) and
+`packages/narrative/README.md`.
 
 Minimal consumer — the shipped `examples/hello-world/` is the canonical
 walkthrough and the API's validation consumer:
@@ -72,7 +85,14 @@ Run the example:
 ```bash
 npm run example:dev    # dev server for examples/hello-world
 npm run example:build  # build to examples/hello-world/dist (excluded from the game bundle + precache)
+npm run framework:narrative-consumer # independent narrative tarball gate
+npm run framework:scene-consumer     # combined core+narrative 3D tarballs + Chromium
 ```
+
+For the scene-demo linked development workflow, run `npm run framework:watch`.
+It builds and watches both packages before starting Vite with default linked
+package resolution. `npm run framework:watch:check` verifies source edits,
+last-good output during a compile failure, and recovery.
 
 ## What stays in your app
 

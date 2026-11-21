@@ -143,3 +143,50 @@ Each milestone is staged and committed separately. Do not stage user files, gene
 ## Deferred work and known limitations
 
 Phase 4+ may explore reusable renderer packaging after another consumer proves the seam. Combat, cinematic direction, generalized event buses, multi-profile/New Game+, arbitrary script hooks, broad save migrations, child-game migration, authoring tools, and additional renderers are deferred. Phase 3 validates one compact demo and a neutral engine; it does not claim universal narrative design or all browser/device support.
+
+## Execution record — 2026-11-21
+
+Implemented in six dependency-ordered local milestone commits on branch
+`codex/phase3-narrative-quest-engine`, based on
+`04abd81888096f5ad8ad99e1b75243fa3db67481`:
+
+1. P3.1 `bfee651` — validated narrative schema and package boundary.
+2. P3.2 `c870b4b` — deterministic conditions, effects, quests, and dialogue runtime.
+3. P3.3 `434f3e5` — independent package tarball and consumer verification.
+4. P3.4 `77f27af` — Persian story and scene-demo integration.
+5. P3.5 `683675c` — bootstrap, persistence, scene restoration, and reset safety.
+6. P3.6 — compatibility documentation and final verification (this commit).
+
+Local verification used Node.js 22.23.5 and npm 10.9.9:
+
+- `npm run verify` — passed with exit code 0. Formatting, lint, package
+  boundaries/build, 15 core tests, 25 narrative tests, typecheck, 493 app tests
+  across 47 files, content/asset checks, size/deployment checks, and the app,
+  hello-world, and scene-demo builds completed.
+- `npm run framework:consumer` — passed independent core tarball inventory,
+  isolated/offline package install, native ESM, NodeNext/Bundler declarations,
+  Vite build, and Chromium consumer checks.
+- `npm run framework:narrative-consumer` — passed the 24-file narrative
+  tarball install offline, NodeNext/Bundler declarations, native ESM, and deep
+  import rejection.
+- `npm run framework:scene-consumer` — passed combined offline core and
+  narrative tarball installation, typecheck, unit tests, Vite build, and
+  Chromium story/accessibility/lifecycle smoke.
+- `npm run framework:watch:check` — passed cold/warm startup, default Vite
+  resolution, edits from both linked packages, last-good-output preservation
+  during a deliberate compile error, and recovery.
+
+The existing baseline GitHub Actions E2E workflow (four shards and framework
+consumer) and Pages workflow were green when checked for the baseline revision.
+No GitHub Actions run was made for this unpushed feature branch. The narrative
+package declares Node.js `>=22.0.0`; local Phase 3 execution used Node 22.23.5,
+while existing CI package/consumer jobs use 22.22.2. The narrative minimum
+22.0.0 was not separately exercised. Browser execution was tested in Chromium
+only; other browsers and physical devices remain unverified.
+
+Non-failing checks reported lint warnings (18), draft-content warnings (48),
+placeholder-asset warnings (5), canvas/Three.js test-environment notices, and
+bundle-size warnings. They did not cause a verification failure. The Kids RPG
+and Phase 1 core sources/contracts were not migrated or changed; the demo
+remains the only independent 3D narrative validation consumer. No push, pull
+request, or merge was performed.
