@@ -11,6 +11,7 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { isForbiddenDeployArtifact } from './deploy-artifacts.ts';
 
 const DIST = join(process.cwd(), 'dist');
 const errors: string[] = [];
@@ -108,11 +109,7 @@ if (existsSync(swPath)) {
 
 const distFiles = existsSync(DIST) ? walkFiles(DIST) : [];
 const relativeFiles = distFiles.map((file) => relative(DIST, file).replaceAll('\\', '/'));
-const forbiddenArtifact = relativeFiles.find((file) =>
-  /(?:\.tgz$|\.tar(?:\.gz)?$|\.d\.(?:ts|mts|cts)(?:\.map)?$|^|\/)(?:packages|examples|core-consumer|fixtures?)(?:\/|$)|(^|\/)(?:package\.json|package-lock\.json)$/i.test(
-    file,
-  ),
-);
+const forbiddenArtifact = relativeFiles.find(isForbiddenDeployArtifact);
 must(
   !forbiddenArtifact,
   `dist contains a package, declaration, tarball, example, or consumer fixture artifact: ${forbiddenArtifact}`,
