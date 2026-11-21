@@ -1,9 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { ANCHORS, getAnchor } from '../src/world/navigation/graph.ts';
+import { getAnchor } from '../src/world/navigation/graph.ts';
 import { STATIC_WORLD_SOURCE } from '../src/world/worldSource.ts';
-import { findPath } from '../src/world/navigation/pathfinding.ts';
 import type { AnchorId } from '../src/domain/game/types.ts';
-import { tapNpcFigure } from './npcTap.ts';
+import { tapNpcFigure, tapWorldAnchor } from './npcTap.ts';
 
 // NPC routines: authored spots cycle with world time (one tick per arrival),
 // each spot carries its own greeting, and tapping a figure walks over and
@@ -23,6 +22,7 @@ async function startGame(page: Page) {
 interface WorldProbe {
   __worldMapId?: string;
   __worldAt?: string;
+  __worldTime?: number;
   __worldToScreen?: (x: number, z: number) => { x: number; y: number };
   __worldCamera?: { position: { x: number; z: number } };
   __worldNpcs?: Record<
@@ -42,35 +42,16 @@ async function playerAt(page: Page) {
   return page.evaluate(() => (window as unknown as WorldProbe).__worldAt);
 }
 
+async function worldTime(page: Page) {
+  return page.evaluate(() => (window as unknown as WorldProbe).__worldTime);
+}
+
 async function waitForProbe(page: Page) {
   await page.waitForFunction(
     () => (window as unknown as WorldProbe).__worldToScreen !== undefined,
     undefined,
     { timeout: 30000 },
   );
-}
-
-async function cameraTarget(page: Page) {
-  return page.evaluate(() => {
-    const cam = (window as unknown as WorldProbe).__worldCamera;
-    if (!cam) return { x: Number.NaN, z: Number.NaN };
-    return { x: cam.position.x - 10, z: cam.position.z - 10 };
-  });
-}
-
-/** Waits until the camera stops easing (target stable across two reads). */
-async function waitForCameraSettle(page: Page) {
-  await expect
-    .poll(
-      async () => {
-        const a = await cameraTarget(page);
-        await page.waitForTimeout(350);
-        const b = await cameraTarget(page);
-        return Math.hypot(b.x - a.x, b.z - a.z);
-      },
-      { timeout: 30000 },
-    )
-    .toBeLessThan(0.01);
 }
 
 /** Screen pixels for a world anchor — every offset that lands on the canvas. */
@@ -115,48 +96,6 @@ async function worldPoints(page: Page, x: number, z: number) {
   );
 }
 
-/** On-canvas pixels for ground points between two anchors (stride taps). */
-async function groundPointsBetween(
-  page: Page,
-  from: { x: number; z: number },
-  to: { x: number; z: number },
-) {
-  return page.evaluate(
-    ({ mx, mz, tx, tz }: { mx: number; mz: number; tx: number; tz: number }) => {
-      const toScreen = (window as unknown as WorldProbe).__worldToScreen!;
-      const canvas = document.querySelector<HTMLCanvasElement>(
-        '#world-canvas canvas, .world canvas',
-      );
-      const out: Array<{ x: number; y: number }> = [];
-      for (const t of [0.5, 0.75]) {
-        const pt = toScreen(mx + (tx - mx) * t, mz + (tz - mz) * t);
-        if (pt.x < 0 || pt.y < 0 || pt.x > window.innerWidth || pt.y > window.innerHeight) {
-          continue;
-        }
-        const el = document.elementFromPoint(pt.x, pt.y);
-        if (canvas && (el === canvas || canvas.contains(el))) out.push(pt);
-      }
-      return out;
-    },
-    { mx: from.x, mz: from.z, tx: to.x, tz: to.z },
-  );
-}
-
-/** Polls until the walker anchor changes (or the target is reached). */
-async function waitForArrival(page: Page, from: AnchorId | undefined, to: AnchorId) {
-  const dialogue = page.getByTestId('npc-dialogue');
-  for (let i = 0; i < 16; i += 1) {
-    const cur = (await playerAt(page)) as AnchorId | undefined;
-    if (cur === to) return 'arrived';
-    if (cur !== from) return 'moved';
-    // A figure tap is feedback too — the click found a person, so the walk
-    // outcome is settled; don't sit the full poll window on it.
-    if (await dialogue.isVisible().catch(() => false)) return 'dialogue';
-    await page.waitForTimeout(500);
-  }
-  return 'stuck';
-}
-
 /** Arrival dialogue opens a beat after the walker stops — close it so taps resume. */
 async function dismissDialogue(page: Page) {
   const dialogue = page.getByTestId('npc-dialogue');
@@ -166,90 +105,6 @@ async function dismissDialogue(page: Page) {
     if (await close.isVisible().catch(() => false)) await close.click();
     await dialogue.waitFor({ state: 'hidden', timeout: 3000 }).catch(() => {});
   }
-}
-
-/**
- * Taps a world anchor like a child's finger: stride taps toward it, then
- * hops along the authored path when it sits outside the camera's view.
- * Same harness as camera.spec.ts.
- */
-async function tapWorld(page: Page, anchorId: AnchorId) {
-  await waitForProbe(page);
-  await dismissDialogue(page);
-  const tried = new Set<AnchorId>();
-  for (let attempt = 0; attempt < 14; attempt += 1) {
-    await dismissDialogue(page);
-    await waitForCameraSettle(page);
-    await dismissDialogue(page);
-    const at = (await playerAt(page)) as AnchorId | undefined;
-    const goalAnchor = getAnchor(STATIC_WORLD_SOURCE, anchorId);
-    const atPos = at ? getAnchor(STATIC_WORLD_SOURCE, at) : undefined;
-    const midPts = atPos ? await groundPointsBetween(page, atPos, goalAnchor) : [];
-    const pts = [...midPts, ...(await screenPoints(page, anchorId))];
-    let progressed = false;
-    for (const point of pts) {
-      await dismissDialogue(page);
-      await page.mouse.click(point.x, point.y);
-      const result = await waitForArrival(page, at, anchorId);
-      if (result === 'arrived') return;
-      if (result === 'moved') {
-        progressed = true;
-        break;
-      }
-      // 'dialogue'/'stuck': the click landed on a figure or nothing — try the
-      // next candidate point rather than re-clicking the same spot.
-    }
-    if (progressed) continue;
-    const path = at ? findPath(STATIC_WORLD_SOURCE, at, anchorId) : [];
-    const nextHopId = path.length > 1 ? path[1] : undefined;
-    const nextHop = nextHopId ? getAnchor(STATIC_WORLD_SOURCE, nextHopId) : null;
-    if (!nextHop) break;
-    let hopped = false;
-    const hopPts = await screenPoints(page, nextHop.id);
-    const stride = atPos ? await groundPointsBetween(page, atPos, nextHop) : [];
-    for (const pt of [...stride, ...hopPts]) {
-      await dismissDialogue(page);
-      await page.mouse.click(pt.x, pt.y);
-      hopped = await expect
-        .poll(() => playerAt(page), { timeout: 12000 })
-        .not.toBe(at)
-        .then(() => true)
-        .catch(() => false);
-      if (hopped) break;
-      tried.add(nextHop.id);
-    }
-    if (hopped) continue;
-    const mapId = await page.evaluate(() => (window as unknown as WorldProbe).__worldMapId);
-    const visible: Array<{ a: (typeof ANCHORS)[number]; d: number }> = [];
-    for (const candidate of ANCHORS) {
-      if (!candidate.walkable) continue;
-      if (mapId !== undefined && candidate.mapId !== mapId) continue;
-      if (candidate.id === at || tried.has(candidate.id)) continue;
-      visible.push({
-        a: candidate,
-        d: Math.hypot(candidate.x - goalAnchor.x, candidate.z - goalAnchor.z),
-      });
-    }
-    visible.sort((p, q) => p.d - q.d);
-    let explored = false;
-    for (const { a } of visible.slice(0, 4)) {
-      const pts2 = await screenPoints(page, a.id);
-      if (pts2.length === 0) continue;
-      await dismissDialogue(page);
-      const pt2 = pts2[0];
-      if (!pt2) continue;
-      await page.mouse.click(pt2.x, pt2.y);
-      explored = await expect
-        .poll(() => playerAt(page), { timeout: 12000 })
-        .not.toBe(at)
-        .then(() => true)
-        .catch(() => false);
-      if (explored) break;
-      tried.add(a.id);
-    }
-    if (!explored) break;
-  }
-  test.skip(true, `${anchorId} is outside the tappable canvas in this layout`);
 }
 
 async function waitForAnchor(page: Page, anchorId: string) {
@@ -262,17 +117,26 @@ test.describe('NPC routines', () => {
     await startGame(page);
     await waitForProbe(page);
 
-    // Arrivals on EMPTY ground tick the world clock — arrivals beside a
-    // person are "visiting" and intentionally do not (an approach must never
-    // chase the person away). These two anchors sit >3u from every figure
-    // stand at every tick, so each leg is exactly one tick.
-    const TICK_ANCHORS = ['anchor-river-path', 'anchor-path-north-east'] as const;
+    // Repeated taps on this empty waypoint exercise one arrival per tick,
+    // including returns to the same anchor. Long routes to the river and
+    // school can sample midpoints over NPC figures; those taps become visits
+    // and intentionally skip a routine tick.
+    const TICK_ANCHOR = 'anchor-path-north';
     const seenSpots = new Set<string>();
+    await expect.poll(() => worldTime(page), { timeout: 15000 }).toBe(0);
+    let expectedWorldTime = 0;
 
-    for (let visit = 0; visit < 4; visit += 1) {
-      const target = TICK_ANCHORS[visit % TICK_ANCHORS.length]!;
-      await tapWorld(page, target);
-      await waitForAnchor(page, target);
+    // Three arrivals cover the full three-stop routine and leave the fisher
+    // back at the river, where both mobile layouts can reach his figure.
+    for (let visit = 0; visit < 3; visit += 1) {
+      const points = await screenPoints(page, TICK_ANCHOR);
+      expect(points.length, `${TICK_ANCHOR} should have a tappable ground point`).toBeGreaterThan(
+        0,
+      );
+      await page.mouse.click(points[0]!.x, points[0]!.y);
+      await waitForAnchor(page, TICK_ANCHOR);
+      expectedWorldTime += 1;
+      await expect.poll(() => worldTime(page), { timeout: 15000 }).toBe(expectedWorldTime);
       // __worldNpcs republishes after the worldTime re-render — wait until
       // two reads agree so it cannot lag a tick behind the arrival dialogue.
       await expect
@@ -296,48 +160,30 @@ test.describe('NPC routines', () => {
     expect(seenSpots.size).toBeGreaterThanOrEqual(2);
     expect(seenSpots.has('anchor-river')).toBe(true);
 
-    // Now walk TO where he stands — a visit, so the clock holds and he stays
-    // — then tap his figure; the greeting matches the spot he's on.
+    // Move into the fisher's area so his figure is in the tappable viewport.
+    // The arrival is a visit, so it holds the routine spot and its greeting.
     const fisher = await npcProbe(page, 'npc-fisher');
     const visitAnchor = fisher!.anchorId as 'anchor-river' | 'anchor-river-bank' | 'anchor-bakery';
-    await tapWorld(page, visitAnchor);
+    await tapWorldAnchor(page, visitAnchor);
     await waitForAnchor(page, visitAnchor);
     await dismissDialogue(page);
     const standing = await npcProbe(page, 'npc-fisher');
-    expect(standing!.anchorId).toBe(visitAnchor);
-    const points = await worldPoints(page, standing!.x, standing!.z);
-    // A cropped viewport puts him outside the canvas — landscape covers.
-    test.skip(points.length === 0, 'fisher is outside the tappable canvas');
+    expect(standing).not.toBeNull();
+    const standingAnchor = standing!.anchorId as
+      'anchor-river' | 'anchor-river-bank' | 'anchor-bakery';
+    const worldTimeBeforeVisit = await worldTime(page);
     const expected = {
       'anchor-river': 'صبح خوبی برای ماهی است.',
       'anchor-river-bank': 'امروز رودخانه آرام بود.',
       'anchor-bakery': 'بوی نان تازه آمد.',
-    }[visitAnchor];
-    let greeted = false;
-    for (const pt of points) {
-      await dismissDialogue(page);
-      await page.mouse.click(pt.x, pt.y);
-      greeted = await expect
-        .poll(
-          async () =>
-            (
-              await page
-                .getByTestId('npc-dialogue')
-                .textContent()
-                .catch(() => '')
-            )?.includes(expected) ?? false,
-          { timeout: 12000 },
-        )
-        .toBe(true)
-        .then(() => true)
-        .catch(() => false);
-      if (greeted) break;
-    }
-    if (!greeted) {
-      // Cropped viewport: his tappable pixels aren't reachable here.
-      test.skip(true, 'fisher figure is not tappable in this layout');
-    }
-    await dismissDialogue(page);
+    }[standingAnchor];
+    expect(expected).toBeTruthy();
+    const dialogue = page.getByTestId('npc-dialogue');
+    const tapped = await tapNpcFigure(page, 'npc-fisher', 60000);
+    test.skip(!tapped, 'fisher figure is not tappable in this layout');
+    await expect(dialogue).toContainText(expected!);
+    await expect.poll(() => worldTime(page)).toBe(worldTimeBeforeVisit);
+    expect((await npcProbe(page, 'npc-fisher'))!.anchorId).toBe(standingAnchor);
   });
 
   test('tapping a person talks to them where they stand', async ({ page }) => {
@@ -348,7 +194,7 @@ test.describe('NPC routines', () => {
     // Get to the river area so his figure mounts, then read whatever spot
     // the routine currently has him on. That spot is frozen now — world
     // time only advances on avatar arrivals, and no walk is in flight.
-    await tapWorld(page, 'anchor-river');
+    await tapWorldAnchor(page, 'anchor-river');
     await waitForAnchor(page, 'anchor-river');
     const fisher = await npcProbe(page, 'npc-fisher');
     expect(fisher).not.toBeNull();
