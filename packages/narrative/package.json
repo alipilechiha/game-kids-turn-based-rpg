@@ -1,0 +1,31 @@
+{
+  "name": "waypoint-rpg-narrative",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dependency-free deterministic narrative definitions and quest logic for RPGs.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --test",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}
