@@ -97,6 +97,93 @@ test('rejects direct and indirect unconditional active-prerequisite cycles', () 
   assert.equal(hasCode(validateNarrative(indirect), 'quest-prerequisite-cycle'), true);
 });
 
+test('rejects cycles through completed, failed, and cancelled quest statuses', () => {
+  const selfCompleted = definition();
+  selfCompleted.quests = [
+    {
+      id: 'self',
+      prerequisites: { op: 'quest-status', questId: 'self', status: 'completed' },
+    },
+  ];
+  assert.equal(hasCode(validateNarrative(selfCompleted), 'quest-prerequisite-cycle'), true);
+
+  const completedCycle = definition();
+  completedCycle.quests = [
+    {
+      id: 'first',
+      prerequisites: { op: 'quest-status', questId: 'second', status: 'completed' },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'completed' },
+    },
+  ];
+  assert.equal(hasCode(validateNarrative(completedCycle), 'quest-prerequisite-cycle'), true);
+
+  const mixedCycle = definition();
+  mixedCycle.quests = [
+    {
+      id: 'first',
+      prerequisites: { op: 'quest-status', questId: 'second', status: 'active' },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'third', status: 'failed' },
+    },
+    {
+      id: 'third',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'cancelled' },
+    },
+  ];
+  assert.equal(hasCode(validateNarrative(mixedCycle), 'quest-prerequisite-cycle'), true);
+});
+
+test('keeps a viable any alternative non-fatal and dependencies under not non-positive', () => {
+  const alternative = definition();
+  alternative.quests = [
+    { id: 'clue-quest' },
+    { id: 'independent-root' },
+    {
+      id: 'first',
+      prerequisites: {
+        op: 'any',
+        conditions: [
+          { op: 'quest-status', questId: 'second', status: 'completed' },
+          { op: 'quest-status', questId: 'independent-root', status: 'active' },
+        ],
+      },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'failed' },
+    },
+  ];
+  const alternativeReport = validateNarrative(alternative);
+  assert.equal(alternativeReport.ok, true, JSON.stringify(alternativeReport.diagnostics));
+  assert.equal(hasCode(alternativeReport, 'quest-prerequisite-cycle'), false);
+  assert.equal(hasCode(alternativeReport, 'conditional-quest-cycle'), true);
+
+  const negated = definition();
+  negated.quests = [
+    { id: 'clue-quest' },
+    {
+      id: 'first',
+      prerequisites: {
+        op: 'not',
+        condition: { op: 'quest-status', questId: 'second', status: 'completed' },
+      },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'cancelled' },
+    },
+  ];
+  const negatedReport = validateNarrative(negated);
+  assert.equal(negatedReport.ok, true, JSON.stringify(negatedReport.diagnostics));
+  assert.equal(hasCode(negatedReport, 'quest-prerequisite-cycle'), false);
+  assert.equal(hasCode(negatedReport, 'conditional-quest-cycle'), false);
+});
+
 test('warns when a prerequisite cycle depends on a condition that cannot be solved statically', () => {
   const value = definition();
   value.quests = [

@@ -651,7 +651,7 @@ function report(diagnostics: NarrativeDiagnostic[]): NarrativeValidationReport {
 
 function questDependencies(condition: NarrativeCondition, mandatory: boolean): Set<string> {
   if (!isObject(condition)) return new Set();
-  if (condition.op === 'quest-status' && condition.status === 'active')
+  if (condition.op === 'quest-status' && STATUSES.has(condition.status))
     return new Set([condition.questId]);
   if (condition.op === 'not') return new Set();
   if (condition.op === 'all' && isArray(condition.conditions))
