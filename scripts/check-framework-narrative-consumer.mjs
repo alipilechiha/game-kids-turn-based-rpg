@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -65,6 +65,12 @@ try {
   assert.ok(packed?.filename, 'npm pack did not return a tarball');
   assert.ok(!packed.files.some((file) => /(?:^|\/)(?:src|test|scripts)\//.test(file.path)));
   const tarball = path.join(temporaryRoot, packed.filename);
+  const artifactOutput = process.env.NARRATIVE_TARBALL_OUTPUT;
+  if (artifactOutput) {
+    const persistentOutput = path.resolve(artifactOutput);
+    await mkdir(path.dirname(persistentOutput), { recursive: true });
+    await copyFile(tarball, persistentOutput);
+  }
 
   const consumer = path.join(temporaryRoot, 'consumer');
   const nodeNext = path.join(consumer, 'node-next');

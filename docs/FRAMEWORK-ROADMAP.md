@@ -223,8 +223,12 @@ Distinguish these compatibility claims:
 - Narrative runtime: package manifest declares Node >=22.0.0 and the pure
   browser-neutral TypeScript ESM runtime uses no Node-specific APIs. Phase 3
   local package checks ran on Node 22.23.5; the declared 22.0.0 narrative
-  minimum was not separately exercised. Root and demo build tooling still
-  require the root engine versions below.
+  minimum was not separately exercised. Phase 4 P4.0f adds a CI gate that
+  prepares both installed archives under Node 22.22.2, then probes their native
+  ESM runtime under Node 22.0.0 without invoking npm or build tools; that new
+  branch configuration still requires its GitHub Actions run for execution
+  evidence. Root and demo build tooling still require the root engine versions
+  below.
 - Root project and build tools: `engines` requires Node >=22.22.2 <23 and npm >=10 <11. CI pins Node 22.22.2 for the workspace, application build and development tools.
 - Offline package installation: install the zero-runtime-dependency local tarball from disk with npm offline, separately from development-tool installation. Phase 1 additionally tests native Node installation with an empty npm cache.
 - Development-tool installation: install the consumer's locked Vite/TypeScript/React/Three.js/Playwright toolchain with `npm ci`; network/cache availability for tools is distinct from offline package installation.

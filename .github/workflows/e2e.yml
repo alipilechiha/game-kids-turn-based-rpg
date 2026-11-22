@@ -23,29 +23,44 @@ jobs:
             package-lock.json
             packages/core-consumer/package-lock.json
             examples/scene-demo/package-lock.json
-      - name: Install only framework workspace dependencies
-        run: npm ci --workspace=packages/core --include-workspace-root=false
+      - name: Install core and narrative build tools
+        run: npm ci --workspace=packages/core --workspace=packages/narrative --include-workspace-root=false
       - name: Build and verify the independent tarball consumer
         run: npm run framework:consumer
         env:
           FRAMEWORK_INSTALL_CHROMIUM: '1'
           FRAMEWORK_TARBALL_OUTPUT: ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
+      - name: Build and verify the standalone narrative tarball consumer
+        run: npm run framework:narrative-consumer:prepared
+        env:
+          NARRATIVE_TARBALL_OUTPUT: ${{ runner.temp }}/waypoint-rpg-narrative-0.1.0.tgz
       - name: Verify independent Three.js scene consumer
         run: npm run framework:scene-consumer:prepared
         env:
           FRAMEWORK_INSTALL_CHROMIUM: 'browser-only'
           FRAMEWORK_TARBALL_OUTPUT: ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
+          NARRATIVE_TARBALL_OUTPUT: ${{ runner.temp }}/waypoint-rpg-narrative-0.1.0.tgz
+      - name: Prepare runtime-only consumer installs before switching Node versions
+        run: >-
+          node scripts/check-framework-runtime.mjs --prepare
+          "$RUNNER_TEMP/waypoint-rpg-core-0.1.0.tgz"
+          "$RUNNER_TEMP/waypoint-rpg-narrative-0.1.0.tgz"
+          "$RUNNER_TEMP/framework-runtime-consumer"
       - uses: actions/upload-artifact@v4
         with:
-          name: waypoint-rpg-core-tarball
-          path: ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
+          name: waypoint-rpg-package-tarballs
+          path: |
+            ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
+            ${{ runner.temp }}/waypoint-rpg-narrative-0.1.0.tgz
           if-no-files-found: error
           retention-days: 14
       - uses: actions/setup-node@v4
         with:
           node-version: 22.0.0
-      - name: Verify native Node runtime at the declared minimum
-        run: npm run framework:runtime:check -- "$RUNNER_TEMP/waypoint-rpg-core-0.1.0.tgz"
+      - name: Verify only native ESM runtimes at the declared minimum
+        run: node scripts/check-framework-runtime.mjs --probe "$RUNNER_TEMP/framework-runtime-consumer"
+        env:
+          FRAMEWORK_EXPECT_RUNTIME_NODE: 22.0.0
 
   e2e:
     runs-on: ubuntu-latest
