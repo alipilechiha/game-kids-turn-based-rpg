@@ -221,7 +221,7 @@ test('dialogue-closing nodes are distinct from story endings and cannot continue
   });
   assert.equal(validateNarrative(valid).ok, true);
 
-  const invalid = structuredClone(valid);
+  const invalid = JSON.parse(JSON.stringify(valid));
   invalid.dialogues[0].nodes.find((node) => node.id === 'close').endingId = 'ending-truth';
   const report = validateNarrative(invalid);
   assert.equal(hasCode(report, 'node-close-dialogue'), true);
