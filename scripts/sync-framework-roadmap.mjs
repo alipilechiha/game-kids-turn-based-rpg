@@ -18,76 +18,100 @@ const symbols = {
 
 function extractPhases(markdown) {
   const heading = markdown.indexOf("### Roadmap and gates");
-  if (heading < 0) throw new Error("Missing ### Roadmap and gates heading");
+  if (heading < 0) throw new Error("Missing roadmap heading");
   const lines = markdown.slice(heading).split(/\r?\n/);
-  const header = lines.findIndex((line) =>
-    /^\|\s*Phase\s*\|\s*Status\s*\|/.test(line) &&
-    line.includes("| Evidence"),
-  );
-  if (header < 0) throw new Error("Roadmap table must include Phase, Status and Evidence");
+  const header = lines.findIndex((line) => line.startsWith("| Phase"));
+  if (header < 0) throw new Error("Missing phase table");
+  const columns = lines[header].split("|").map((cell) => cell.trim());
+  if (!columns.includes("Status") || !columns.includes("Evidence")) {
+    throw new Error("Roadmap table needs Status and Evidence columns");
+  }
+
   const phases = [];
-  for (let i = header + 2; i < lines.length && /^\s*\|/.test(lines[i]); i++) {
-    const cells = lines[i].split("|").slice(1, -1).map((cell) => cell.trim());
-    if (cells.length !== 5) throw new Error("Expected five roadmap columns at row " + i);
-    const match = /^(\d+)\.\s+(.+)$/.exec(cells[0]);
-    if (!match) throw new Error("Invalid roadmap phase identifier: " + cells[0]);
+  for (const line of lines.slice(header + 2)) {
+    if (!line.startsWith("|")) break;
+    const cells = line.split("|").slice(1, -1);
+    const values = cells.map((cell) => cell.trim());
+    if (values.length !== 5) throw new Error("Expected five columns");
+    const match = /^(\d+)\.\s+(.+)$/.exec(values[0]);
+    if (!match) throw new Error("Invalid phase identifier");
     const number = Number(match[1]);
     if (number !== phases.length + 1) {
-      throw new Error("Roadmap phases must be sequential, starting at 1");
+      throw new Error("Phases must be sequential, starting at 1");
     }
-    if (!allowed.has(cells[1])) {
-      throw new Error("Unsupported roadmap status for phase " + number + ": " + cells[1]);
+    if (!allowed.has(values[1])) {
+      throw new Error("Unsupported status for phase " + number);
     }
-    if (!cells[2] || !cells[3]) throw new Error("Missing phase description or exit gate");
-    phases.push({ number, title: match[2], status: cells[1], evidence: cells[4] });
+    if (!values[2] || !values[3]) {
+      throw new Error("Missing deliverable or exit gate");
+    }
+    phases.push({
+      number,
+      title: match[2],
+      status: values[1],
+      evidence: values[4],
+    });
   }
   if (!phases.length) throw new Error("No roadmap phases found");
-  if (phases.filter((phase) => phase.status === "Next").length > 1) {
-    throw new Error("Only one phase may be marked Next");
-  }
+  const nextCount = phases.filter((phase) => phase.status === "Next").length;
+  if (nextCount > 1) throw new Error("Multiple Next phases");
   return phases;
 }
 
 function renderRoadmap(phases) {
-  const completed = phases.filter((phase) => phase.status === "Complete");
-  const upcoming = phases.find((phase) => phase.status === "In progress") ||
-    phases.find((phase) => phase.status === "Next") ||
-    phases.find((phase) => phase.status === "Planned");
-  const summary = "**" + completed.length + "/" + phases.length +
-    " phases completed**" + (upcoming ? " · Next: **Phase " +
-    upcoming.number + " — " + upcoming.title + "**" : "");
+  const complete = phases.filter((phase) => phase.status === "Complete");
+  let upcoming = phases.find((phase) => phase.status === "In progress");
+  if (!upcoming) upcoming = phases.find((phase) => phase.status === "Next");
+  if (!upcoming) upcoming = phases.find((phase) => phase.status === "Planned");
+
+  let summary = "**" + complete.length + "/" + phases.length;
+  summary += " phases completed**";
+  if (upcoming) {
+    const label = "Phase " + upcoming.number + " — " + upcoming.title;
+    summary += " · Next: **" + label + "**";
+  }
+
+  const nodes = [];
+  for (const phase of phases) {
+    const title = phase.title.replace(/["<>]/g, "");
+    const label = phase.number + ". " + title;
+    nodes.push("P" + phase.number + "[\"" + label + "\"]");
+  }
   const diagram = [
     "flowchart LR",
-    "  " + phases.map((phase) =>
-      "P" + phase.number + "[\"" + phase.number + ". " +
-      phase.title.replace(/["<>]/g, "") + "\"]",
-    ).join(" --> "),
+    "  " + nodes.join(" --> "),
     "  classDef complete fill:#dcfce7,stroke:#15803d,color:#14532d",
     "  classDef next fill:#fef3c7,stroke:#b45309,color:#78350f",
     "  classDef planned fill:#e5e7eb,stroke:#6b7280,color:#1f2937",
   ];
-  for (const [status, css] of [
+  const classes = [
     ["Complete", "complete"],
     ["In progress", "next"],
     ["Next", "next"],
     ["Planned", "planned"],
     ["Blocked", "planned"],
-  ]) {
-    const matching = phases.filter((phase) => phase.status === status)
-      .map((phase) => "P" + phase.number);
-    if (matching.length) diagram.push("  class " + matching.join(",") + " " + css);
+  ];
+  for (const [status, css] of classes) {
+    const matching = phases.filter((phase) => phase.status === status);
+    const ids = matching.map((phase) => "P" + phase.number);
+    if (ids.length) diagram.push("  class " + ids.join(",") + " " + css);
   }
-  const rows = phases.map((phase) =>
-    "| " + phase.number + ". " + phase.title + " | " +
-    symbols[phase.status] + " | " + (phase.evidence || "—") + " |",
-  );
+
+  const rows = phases.map((phase) => {
+    const title = phase.number + ". " + phase.title;
+    const evidence = phase.evidence || "—";
+    return "| " + title + " | " + symbols[phase.status] + " | " + evidence + " |";
+  });
+  const link = "[Full roadmap and exit gates](" + roadmapPath + ")";
+  const sourceLink = "[docs/FRAMEWORK-ROADMAP.md](" + roadmapPath + ")";
+  const note = "_Generated from the canonical roadmap. Update status and evidence in ";
   return [
     begin,
     "<!-- prettier-ignore-start -->",
     "",
     "## Framework roadmap",
     "",
-    summary + " · [Full roadmap and exit gates](" + roadmapPath + ")",
+    summary + " · " + link,
     "",
     "```mermaid",
     ...diagram,
@@ -97,9 +121,7 @@ function renderRoadmap(phases) {
     "| --- | --- | --- |",
     ...rows,
     "",
-    "_Generated from the canonical roadmap. Update status and evidence in " +
-      "[docs/FRAMEWORK-ROADMAP.md](" + roadmapPath + "), then run " +
-      "npm run roadmap:sync._",
+    note + sourceLink + ", then run npm run roadmap:sync._",
     "",
     "<!-- prettier-ignore-end -->",
     end,
@@ -110,28 +132,30 @@ function updateReadme(readme, generated) {
   const start = readme.indexOf(begin);
   const finish = readme.indexOf(end);
   if ((start >= 0) !== (finish >= 0)) {
-    throw new Error("README has unmatched generated roadmap markers");
+    throw new Error("Unmatched generated roadmap markers");
   }
   if (start >= 0) {
-    if (finish < start) throw new Error("Invalid generated roadmap marker order");
-    return readme.slice(0, start) + generated + readme.slice(finish + end.length);
+    if (finish < start) throw new Error("Invalid roadmap marker order");
+    const before = readme.slice(0, start);
+    const after = readme.slice(finish + end.length);
+    return before + generated + after;
   }
   const anchor = "\n## Requirements\n";
   const pos = readme.indexOf(anchor);
-  if (pos < 0) throw new Error("README missing ## Requirements insertion anchor");
+  if (pos < 0) throw new Error("Missing README insertion anchor");
   return readme.slice(0, pos) + "\n" + generated + "\n" + readme.slice(pos);
 }
 
 const args = process.argv.slice(2);
 if (args.some((arg) => arg !== "--check")) {
-  throw new Error("Usage: node scripts/sync-framework-roadmap.mjs [--check]");
+  throw new Error("Usage: sync-framework-roadmap.mjs [--check]");
 }
 const phases = extractPhases(readFileSync(roadmapPath, "utf8"));
 const existing = readFileSync(readmePath, "utf8");
 const updated = updateReadme(existing, renderRoadmap(phases));
 if (updated !== existing) {
   if (args.includes("--check")) {
-    console.error("README roadmap is stale. Run npm run roadmap:sync and commit README.md.");
+    console.error("README roadmap is stale. Run npm run roadmap:sync.");
     process.exitCode = 1;
   } else {
     writeFileSync(readmePath, updated, "utf8");
