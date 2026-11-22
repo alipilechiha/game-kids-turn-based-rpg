@@ -25,6 +25,11 @@ jobs:
           node-version: '22'
       - name: Check formatting of roadmap-related files
         run: npx --yes prettier@3.9.7 --check README.md docs/FRAMEWORK-ROADMAP.md scripts/sync-framework-roadmap.mjs .github/workflows/framework-roadmap.yml package.json
+      - name: Show sample-file formatter differences for diagnosis
+        if: always()
+        run: |
+          npx --yes prettier@3.9.7 --write docs/MAHALLE-LIBRARY-ADOPTION.md scripts/sync-sample-gallery.mjs tsconfig.node.json
+          git --no-pager diff -- docs/MAHALLE-LIBRARY-ADOPTION.md scripts/sync-sample-gallery.mjs tsconfig.node.json
       - name: Ensure README reflects the canonical roadmap
         run: node scripts/sync-framework-roadmap.mjs --check
 
