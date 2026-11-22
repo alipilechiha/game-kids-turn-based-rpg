@@ -1,0 +1,158 @@
+@import 'vazirmatn/Vazirmatn-Variable-font-face.css';
+
+:root {
+  font-family: Vazirmatn, Tahoma, sans-serif;
+  color: #263c35;
+  background: #f7f0df;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --touch-min: 48px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+button:focus-visible {
+  outline: 3px solid #df8544;
+  outline-offset: 3px;
+}
+
+.garden-shell {
+  width: min(100%, 1040px);
+  min-height: 100vh;
+  margin-inline: auto;
+  padding: clamp(16px, 4vw, 40px);
+}
+
+.garden-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto 24px;
+}
+
+.garden-mark {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: #d9e7c8;
+  color: #587c4c;
+  font-size: 30px;
+}
+
+h1 {
+  margin: 0;
+  color: #2f4b3c;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.garden-header p {
+  margin: 4px 0 0;
+  color: #566b5b;
+  line-height: 1.7;
+}
+
+.title-card,
+.game-shell {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #e5dbc2;
+  border-radius: 28px;
+  background: #fffaf0;
+  box-shadow: 0 18px 48px rgb(76 79 48 / 10%);
+}
+
+.title-card {
+  display: grid;
+  min-height: 340px;
+  place-items: center;
+  gap: 8px;
+  padding: 32px;
+}
+
+.title-art {
+  color: #738e50;
+  font-size: clamp(5rem, 20vw, 9rem);
+  line-height: 1;
+}
+
+.primary-button {
+  min-height: var(--touch-min);
+  min-width: 180px;
+  padding: 10px 28px;
+  border: 0;
+  border-radius: 999px;
+  background: #4b7758;
+  color: #fffaf0;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary-button:hover {
+  background: #3a6448;
+}
+
+.scene-frame {
+  height: min(62vh, 520px);
+  min-height: 300px;
+  background: #b8d9c2;
+}
+.scene-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.location-label {
+  margin: 0;
+  padding: 12px 18px;
+  color: #435b43;
+}
+
+@media (max-width: 560px) {
+  .garden-shell {
+    padding: 14px;
+  }
+  .garden-header {
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+  .garden-mark {
+    width: 48px;
+    height: 48px;
+    font-size: 25px;
+  }
+  .title-card {
+    min-height: 310px;
+  }
+  .scene-frame {
+    height: min(58vh, 440px);
+    min-height: 320px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
