@@ -18,7 +18,7 @@ microphone, geolocation or device identifiers. Progress lives only in the browse
 
 **3/7 phases completed** · Next: **Phase 4 — Gameplay modules** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
 
-~~~mermaid
+```mermaid
 flowchart LR
   P1["1. Reusable core"] --> P2["2. World/renderer"] --> P3["3. Narrative/quests"] --> P4["4. Gameplay modules"] --> P5["5. Animation/cinematics"] --> P6["6. Developer tools"] --> P7["7. Shahnameh proof of concept"]
   classDef complete fill:#dcfce7,stroke:#15803d,color:#14532d
@@ -27,7 +27,7 @@ flowchart LR
   class P1,P2,P3 complete
   class P4 next
   class P5,P6,P7 planned
-~~~
+```
 
 | Phase | Status | Evidence |
 | --- | --- | --- |
