@@ -19,6 +19,7 @@ export type {
   GameplayEncounterParticipantDefinition,
   GameplayEncounterState,
   GameplayEquipmentSlotDefinition,
+  GameplayGrantCommand,
   GameplayItemDefinition,
   GameplayItemEquipmentDefinition,
   GameplayJsonPrimitive,
@@ -44,3 +45,11 @@ export type {
 } from './definition.js';
 export { compileGameplay, GameplayDefinitionError } from './compile.js';
 export { validateGameplay } from './validate.js';
+export {
+  createGameplayState,
+  getCharacterAttributes,
+  getCharacterLevel,
+  getInventorySlotCount,
+  getUnlockedAbilityIds,
+} from './state.js';
+export { applyGameplayGrant, transitionGameplay } from './transition.js';

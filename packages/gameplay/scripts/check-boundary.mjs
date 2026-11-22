@@ -27,6 +27,7 @@ export const EXPECTED_EXPORTS = [
   'GameplayEncounterParticipantDefinition',
   'GameplayEncounterState',
   'GameplayEquipmentSlotDefinition',
+  'GameplayGrantCommand',
   'GameplayItemDefinition',
   'GameplayItemEquipmentDefinition',
   'GameplayJsonPrimitive',
@@ -50,6 +51,13 @@ export const EXPECTED_EXPORTS = [
   'GameplayTransitionResult',
   'GameplayValidationReport',
   'compileGameplay',
+  'applyGameplayGrant',
+  'createGameplayState',
+  'getCharacterAttributes',
+  'getCharacterLevel',
+  'getInventorySlotCount',
+  'getUnlockedAbilityIds',
+  'transitionGameplay',
   'validateGameplay',
 ];
 

@@ -56,5 +56,5 @@ test('manifest policy rejects runtime dependencies, Node drift, and package subp
 test('all gameplay source conforms to the exact root public API and import boundary', async () => {
   const result = await checkBoundary();
   assert.ok(result.sourceCount >= 4);
-  assert.ok(result.exportCount >= 40);
+  assert.ok(result.exportCount >= 50);
 });

@@ -199,7 +199,6 @@ export interface CompiledGameplay {
 
 export interface GameplayCharacterProgressState {
   readonly experience: number;
-  readonly level: number;
 }
 
 export interface GameplayStatusInstance {
@@ -243,7 +242,6 @@ export interface GameplayState {
   readonly characterProgress: Readonly<Record<string, GameplayCharacterProgressState>>;
   readonly inventory: Readonly<Record<string, number>>;
   readonly equipment: Readonly<Record<string, Readonly<Record<string, string>>>>;
-  readonly unlockedAbilityIds: readonly string[];
   readonly encounter: GameplayEncounterState | null;
   readonly appliedRewardIds: readonly string[];
   readonly outcomeMarkers: readonly GameplayOutcomeMarker[];
@@ -257,6 +255,14 @@ export interface GameplayCommandBase {
 
 /** Player-submitted intents only; enemy decisions and reward grants stay internal. */
 export type GameplayPlayerIntent =
+  | { readonly type: 'consume-item'; readonly itemId: string; readonly quantity: number }
+  | {
+      readonly type: 'equip-item';
+      readonly characterId: string;
+      readonly slotId: string;
+      readonly itemId: string;
+    }
+  | { readonly type: 'unequip-item'; readonly characterId: string; readonly slotId: string }
   | { readonly type: 'start-encounter'; readonly encounterId: string; readonly instanceId: string }
   | { readonly type: 'move'; readonly participantId: string; readonly destination: GameplayCell }
   | {
@@ -271,8 +277,20 @@ export type GameplayPlayerIntent =
 
 export type GameplayCommand = GameplayCommandBase & GameplayPlayerIntent;
 
+/** Application-owned setup/reward grant. Never accept this as raw UI input. */
+export interface GameplayGrantCommand {
+  readonly playthroughId: string;
+  readonly expectedRevision: number;
+  /** Stable within this playthrough; the same grant cannot be applied twice. */
+  readonly rewardId: string;
+  readonly experience?: readonly GameplayRewardExperience[];
+  readonly items?: readonly GameplayRewardItem[];
+  readonly equipment?: readonly GameplayRewardEquipment[];
+}
+
 export type GameplayRejectionCode =
   | 'invalid-definition'
+  | 'invalid-command'
   | 'wrong-playthrough'
   | 'stale-revision'
   | 'wrong-encounter-instance'
@@ -280,6 +298,10 @@ export type GameplayRejectionCode =
   | 'encounter-inactive'
   | 'terminal-encounter'
   | 'invalid-turn'
+  | 'unknown-character'
+  | 'unknown-item'
+  | 'unknown-slot'
+  | 'invalid-quantity'
   | 'illegal-move'
   | 'illegal-target'
   | 'insufficient-resource'
