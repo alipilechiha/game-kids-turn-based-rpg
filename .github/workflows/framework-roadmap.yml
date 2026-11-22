@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check formatting of roadmap-related files
+        run: npx --yes prettier@3.9.7 --check README.md docs/FRAMEWORK-ROADMAP.md scripts/sync-framework-roadmap.mjs .github/workflows/framework-roadmap.yml package.json
       - name: Ensure README reflects the canonical roadmap
         run: node scripts/sync-framework-roadmap.mjs --check
 
