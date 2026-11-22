@@ -10,17 +10,16 @@ import { setTier } from '../scripts/drive-world.ts';
  * documentation promotion; they are never used as exact pixel assertions.
  */
 const output = 'docs/previews/legacy-sample';
-const snapshots = [
-  '01-title.png',
-  '02-avatar-select.png',
-  '03-headwear-select.png',
-  '04-town-hub.png',
-  '05-town-portrait.png',
-  '06-guardian-dialogue.png',
-  '07-encounter-choice.png',
-] as const;
+type SnapshotFilename =
+  | '01-title.png'
+  | '02-avatar-select.png'
+  | '03-headwear-select.png'
+  | '04-town-hub.png'
+  | '05-town-portrait.png'
+  | '06-guardian-dialogue.png'
+  | '07-encounter-choice.png';
 
-async function capture(page: Page, filename: (typeof snapshots)[number]) {
+async function capture(page: Page, filename: SnapshotFilename) {
   mkdirSync(output, { recursive: true });
   const path = join(output, filename);
   await page.screenshot({ path, fullPage: true, animations: 'disabled', caret: 'hide' });
