@@ -68,15 +68,13 @@ if (before >= 0 || after >= 0) {
   if (before < 0 || after < before) {
     throw new Error('Invalid sample gallery markers');
   }
-  updated =
-    original.slice(0, before) + section + original.slice(after + end.length);
+  updated = original.slice(0, before) + section + original.slice(after + end.length);
 } else {
   const anchor = '<!-- framework-roadmap:end -->';
   const offset = original.indexOf(anchor);
   if (offset < 0) throw new Error('Missing framework roadmap insertion point');
   const position = offset + anchor.length;
-  updated =
-    original.slice(0, position) + '\n\n' + section + original.slice(position);
+  updated = original.slice(0, position) + '\n\n' + section + original.slice(position);
 }
 if (updated !== original) {
   writeFileSync(readmePath, updated, 'utf8');
