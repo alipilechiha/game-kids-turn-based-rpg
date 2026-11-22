@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  applyGameplayGrant,
   compileGameplay,
   createGameplayState,
   getEffectiveCharacterAttributes,
@@ -19,6 +20,9 @@ function content(options = {}) {
     compatibilityVersion: 'shape-1',
     movementAttributeId: 'movement',
     healthResourceId: 'health',
+    ...(options.inventoryCapacity === undefined
+      ? {}
+      : { inventoryCapacity: options.inventoryCapacity }),
     progression: { maxLevel: 1, experienceThresholds: [] },
     attributes: [
       { id: 'movement', minimum: 1, maximum: 8, defaultValue: 2 },
@@ -39,9 +43,10 @@ function content(options = {}) {
         id: 'guardian',
         baseAttributes: { movement: 2, power: 2 },
         startingResources: { health: enemyHealth, focus: 4 },
+        startingAbilityIds: options.enemyCanAttack ? ['enemy-strike'] : [],
       },
     ],
-    items: [],
+    items: options.items ?? [{ id: 'token', stackLimit: 1 }],
     equipmentSlots: [],
     abilities: [
       {
@@ -78,6 +83,12 @@ function content(options = {}) {
           { op: 'apply-status', statusEffectId: 'tag-refresh' },
         ],
       },
+      {
+        id: 'enemy-strike',
+        resourceCosts: {},
+        target: { kind: 'enemy', minimumRange: 1, maximumRange: 1 },
+        effects: [{ op: 'damage', amount: 4 }],
+      },
     ],
     statusEffects: [
       {
@@ -94,7 +105,7 @@ function content(options = {}) {
       {
         id: 'guardian-trial',
         boardId: 'arena',
-        maxTurns: 10,
+        maxTurns: options.maxTurns ?? 10,
         allowWithdrawal: true,
         participants: [
           {
@@ -112,7 +123,9 @@ function content(options = {}) {
             initiative: 1,
           },
         ],
-        victoryRewards: { experience: [{ characterId: 'hero', amount: 5 }] },
+        victoryRewards: options.victoryRewards ?? {
+          experience: [{ characterId: 'hero', amount: 5 }],
+        },
         outcomeMappings: [
           { outcome: 'victory', consequenceId: 'won' },
           { outcome: 'defeat', consequenceId: 'lost' },
@@ -427,4 +440,210 @@ test('a terminal player action is final and does not invent an enemy victory act
   });
   assert.equal(after.accepted, false);
   assert.equal(after.state, won.state);
+});
+
+test('enemy movement follows a deterministic shortest approach toward the player', () => {
+  const firstCompiled = content();
+  const firstStart = start(firstCompiled, 'approach-one');
+  assert.equal(firstStart.accepted, true);
+  if (!firstStart.accepted) return;
+  const firstWait = playerCommand(firstCompiled, firstStart.state, {
+    type: 'wait',
+    participantId: 'hero-seat',
+  });
+  assert.equal(firstWait.accepted, true);
+  if (!firstWait.accepted) return;
+  const firstPosition = combatant(firstWait.state, 'guardian-seat').position;
+  assert.ok(Math.abs(firstPosition.x) + Math.abs(firstPosition.y) < 8);
+  assert.deepEqual(firstPosition, { x: 4, y: 2 });
+
+  const secondCompiled = content();
+  const secondStart = start(secondCompiled, 'approach-two');
+  assert.equal(secondStart.accepted, true);
+  if (!secondStart.accepted) return;
+  const secondWait = playerCommand(secondCompiled, secondStart.state, {
+    type: 'wait',
+    participantId: 'hero-seat',
+  });
+  assert.equal(secondWait.accepted, true);
+  if (!secondWait.accepted) return;
+  assert.deepEqual(combatant(secondWait.state, 'guardian-seat').position, firstPosition);
+});
+
+test('enemy attacks use validated abilities and can produce a deterministic defeat', () => {
+  const compiled = content({
+    enemyPosition: { x: 1, y: 0 },
+    enemyCanAttack: true,
+  });
+  const begun = start(compiled);
+  assert.equal(begun.accepted, true);
+  if (!begun.accepted) return;
+
+  let state = begun.state;
+  for (const expectedHealth of [6, 2, 0]) {
+    const waited = playerCommand(compiled, state, {
+      type: 'wait',
+      participantId: 'hero-seat',
+    });
+    assert.equal(waited.accepted, true);
+    if (!waited.accepted) return;
+    state = waited.state;
+    assert.equal(combatant(state, 'hero-seat').resources.health, expectedHealth);
+  }
+  assert.equal(state.encounter.outcome, 'defeat');
+  assert.equal(state.characterProgress.hero.experience, 0);
+  assert.deepEqual(state.outcomeMarkers, [
+    {
+      encounterInstanceId: 'trial-instance',
+      outcome: 'defeat',
+      consequenceId: 'lost',
+    },
+  ]);
+});
+
+test('preflights the whole victory reward bundle before starting combat', () => {
+  const compiled = content({
+    inventoryCapacity: 1,
+    victoryRewards: { items: [{ itemId: 'token', quantity: 2 }] },
+  });
+  const fresh = createGameplayState(compiled, 'playthrough-one');
+  const rejected = transitionGameplay(compiled, fresh, {
+    type: 'start-encounter',
+    playthroughId: fresh.playthroughId,
+    expectedRevision: fresh.revision,
+    encounterId: 'guardian-trial',
+    instanceId: 'capacity-rejected',
+  });
+  assert.equal(rejected.accepted, false);
+  assert.equal(rejected.state, fresh);
+  if (!rejected.accepted) assert.equal(rejected.reason.code, 'inventory-capacity');
+});
+
+test('preflights XP overflow and unique-item ownership before combat can begin', () => {
+  const xpCompiled = content();
+  const fresh = createGameplayState(xpCompiled, 'playthrough-one');
+  const maxExperience = applyGameplayGrant(xpCompiled, fresh, {
+    playthroughId: fresh.playthroughId,
+    expectedRevision: fresh.revision,
+    rewardId: 'max-experience',
+    experience: [{ characterId: 'hero', amount: Number.MAX_SAFE_INTEGER }],
+  });
+  assert.equal(maxExperience.accepted, true);
+  if (!maxExperience.accepted) return;
+  const overflow = transitionGameplay(xpCompiled, maxExperience.state, {
+    type: 'start-encounter',
+    playthroughId: maxExperience.state.playthroughId,
+    expectedRevision: maxExperience.state.revision,
+    encounterId: 'guardian-trial',
+    instanceId: 'xp-overflow',
+  });
+  assert.equal(overflow.accepted, false);
+  assert.equal(overflow.state, maxExperience.state);
+  if (!overflow.accepted) assert.equal(overflow.reason.code, 'invalid-quantity');
+
+  const itemCompiled = content({
+    items: [{ id: 'token', stackLimit: 1, unique: true }],
+    victoryRewards: { items: [{ itemId: 'token', quantity: 1 }] },
+  });
+  const itemFresh = createGameplayState(itemCompiled, 'playthrough-one');
+  const owned = applyGameplayGrant(itemCompiled, itemFresh, {
+    playthroughId: itemFresh.playthroughId,
+    expectedRevision: itemFresh.revision,
+    rewardId: 'already-owned',
+    items: [{ itemId: 'token', quantity: 1 }],
+  });
+  assert.equal(owned.accepted, true);
+  if (!owned.accepted) return;
+  const duplicateUnique = transitionGameplay(itemCompiled, owned.state, {
+    type: 'start-encounter',
+    playthroughId: owned.state.playthroughId,
+    expectedRevision: owned.state.revision,
+    encounterId: 'guardian-trial',
+    instanceId: 'unique-item-conflict',
+  });
+  assert.equal(duplicateUnique.accepted, false);
+  assert.equal(duplicateUnique.state, owned.state);
+  if (!duplicateUnique.accepted) assert.equal(duplicateUnique.reason.code, 'item-unavailable');
+});
+
+test('turn-limit and withdrawal produce their own persistent terminal markers', () => {
+  const limited = content({ maxTurns: 1 });
+  const begun = start(limited, 'one-round');
+  assert.equal(begun.accepted, true);
+  if (!begun.accepted) return;
+  const endedByLimit = playerCommand(limited, begun.state, {
+    type: 'wait',
+    participantId: 'hero-seat',
+  });
+  assert.equal(endedByLimit.accepted, true);
+  if (!endedByLimit.accepted) return;
+  assert.equal(endedByLimit.state.encounter.outcome, 'turn-limit');
+  assert.equal(endedByLimit.state.outcomeMarkers[0]?.consequenceId, 'timed-out');
+
+  const withdrawCompiled = content();
+  const withdrawStart = start(withdrawCompiled, 'withdrawn-trial');
+  assert.equal(withdrawStart.accepted, true);
+  if (!withdrawStart.accepted) return;
+  const withdrawn = playerCommand(withdrawCompiled, withdrawStart.state, {
+    type: 'withdraw',
+  });
+  assert.equal(withdrawn.accepted, true);
+  if (!withdrawn.accepted) return;
+  assert.equal(withdrawn.state.encounter.outcome, 'withdrawn');
+  assert.equal(withdrawn.state.outcomeMarkers[0]?.consequenceId, 'withdrew');
+  assert.equal(withdrawn.state.characterProgress.hero.experience, 0);
+});
+
+test('terminal outcomes apply rewards and markers once and allow a new instance', () => {
+  const compiled = content({ enemyPosition: { x: 1, y: 0 } });
+  const begun = start(compiled, 'first-trial');
+  assert.equal(begun.accepted, true);
+  if (!begun.accepted) return;
+  const won = playerCommand(compiled, begun.state, {
+    type: 'use-ability',
+    participantId: 'hero-seat',
+    abilityId: 'lethal-mark',
+    targetParticipantId: 'guardian-seat',
+  });
+  assert.equal(won.accepted, true);
+  if (!won.accepted) return;
+  assert.equal(won.state.characterProgress.hero.experience, 5);
+  assert.deepEqual(won.state.appliedRewardIds, ['encounter:first-trial:victory']);
+  assert.deepEqual(won.state.outcomeMarkers, [
+    {
+      encounterInstanceId: 'first-trial',
+      outcome: 'victory',
+      consequenceId: 'won',
+    },
+  ]);
+
+  const staleTerminal = transitionGameplay(compiled, won.state, {
+    type: 'wait',
+    playthroughId: won.state.playthroughId,
+    encounterInstanceId: 'first-trial',
+    expectedRevision: won.state.revision,
+    participantId: 'hero-seat',
+  });
+  assert.equal(staleTerminal.accepted, false);
+  assert.equal(staleTerminal.state, won.state);
+
+  const reused = transitionGameplay(compiled, won.state, {
+    type: 'start-encounter',
+    playthroughId: won.state.playthroughId,
+    expectedRevision: won.state.revision,
+    encounterId: 'guardian-trial',
+    instanceId: 'first-trial',
+  });
+  assert.equal(reused.accepted, false);
+  assert.equal(reused.state, won.state);
+
+  const replay = transitionGameplay(compiled, won.state, {
+    type: 'start-encounter',
+    playthroughId: won.state.playthroughId,
+    expectedRevision: won.state.revision,
+    encounterId: 'guardian-trial',
+    instanceId: 'second-trial',
+  });
+  assert.equal(replay.accepted, true);
+  if (replay.accepted) assert.equal(replay.state.characterProgress.hero.experience, 5);
 });

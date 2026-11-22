@@ -5,6 +5,8 @@ import type {
   GameplayCombatantState,
   GameplayEncounterDefinition,
   GameplayEncounterState,
+  GameplayGrantCommand,
+  GameplayOutcome,
   GameplayPlayerIntent,
   GameplayRejectionCode,
   GameplayState,
@@ -17,6 +19,7 @@ import {
   type GameplayDraft,
 } from './internal.js';
 import { getEffectiveCharacterAttributes, getUnlockedAbilityIds } from './state.js';
+import { applyGrantToDraft } from './rewards.js';
 
 const SAFE_ID = /^[A-Za-z][A-Za-z0-9._:-]{0,127}$/;
 const DIRECTIONS = [
@@ -55,8 +58,12 @@ function startEncounter(
 ): GameplayTransitionResult {
   if (state.encounter?.outcome === null)
     return rejectGameplay(state, 'encounter-active', 'An encounter is already active.');
-  if (!isSafeId(command.instanceId))
-    return rejectGameplay(state, 'invalid-command', 'Encounter instance ID is invalid.');
+  if (!isSafeId(command.instanceId) || command.instanceId.length > 110)
+    return rejectGameplay(
+      state,
+      'invalid-command',
+      'Encounter instance ID must be a stable identifier of at most 110 characters.',
+    );
   if (state.outcomeMarkers.some((marker) => marker.encounterInstanceId === command.instanceId))
     return rejectGameplay(
       state,
@@ -70,6 +77,29 @@ function startEncounter(
       'invalid-command',
       'The requested encounter definition does not exist.',
     );
+  const missingOutcome = requiredOutcomes(definition).find(
+    (outcome) => !definition.outcomeMappings.some((mapping) => mapping.outcome === outcome),
+  );
+  if (missingOutcome)
+    return rejectGameplay(
+      state,
+      'invalid-definition',
+      'Encounter is missing the required ' + missingOutcome + ' outcome mapping.',
+    );
+  if (definition.victoryRewards) {
+    const preflightDraft = cloneGameplayValue(state) as GameplayDraft;
+    const preflightFailure = applyGrantToDraft(
+      compiled,
+      preflightDraft,
+      victoryGrant(state, command.instanceId, definition),
+    );
+    if (preflightFailure)
+      return rejectGameplay(
+        state,
+        preflightFailure.code,
+        'Victory reward preflight failed: ' + preflightFailure.message,
+      );
+  }
 
   const draft = cloneGameplayValue(state) as GameplayDraft;
   const combatants: DraftCombatant[] = definition.participants.map((participant) => {
@@ -172,6 +202,8 @@ function takePlayerTurn(
     !advanceUntilPlayer(compiled, draft, encounterDefinition(compiled, draftEncounter)!)
   )
     return rejectGameplay(state, 'revision-overflow', 'Gameplay revision cannot advance safely.');
+  const outcomeFailure = resolveOutcome(compiled, draft);
+  if (outcomeFailure) return rejectGameplay(state, outcomeFailure.code, outcomeFailure.message);
   return acceptedSnapshot(draft, command.type);
 }
 
@@ -400,13 +432,125 @@ function advanceUntilPlayer(
       (participant) => participant.id === draft.encounter!.activeParticipantId,
     )!;
     const baseRevision = draft.revision;
-    completeTurn(draft, actor, baseRevision);
+    const selected = chooseEnemyIntent(compiled, draft, actor, definition);
+    const internalCommand = {
+      playthroughId: draft.playthroughId,
+      encounterInstanceId: draft.encounter!.instanceId,
+      expectedRevision: baseRevision,
+      intent: selected,
+    };
+    if (!isCurrentInternalCommand(draft, actor, internalCommand)) return false;
+    let failure = applyPlayerIntent(compiled, draft, selected);
+    let executed = selected;
+    if (failure) {
+      const fallback: GameplayPlayerIntent = { type: 'wait', participantId: actor.id };
+      failure = applyPlayerIntent(compiled, draft, fallback);
+      executed = fallback;
+    }
+    if (failure) return false;
+    completeTurn(
+      draft,
+      actor,
+      baseRevision,
+      executed.type === 'use-ability' ? executed.abilityId : undefined,
+    );
     determineOutcome(draft.encounter!, compiled.definition.healthResourceId);
     if (draft.encounter!.outcome === null)
       advanceTurn(draft, definition, compiled.definition.healthResourceId);
     draft.revision += 1;
   }
   return true;
+}
+
+function chooseEnemyIntent(
+  compiled: CompiledGameplay,
+  draft: GameplayDraft,
+  actor: DraftCombatant,
+  definition: GameplayEncounterDefinition,
+): GameplayPlayerIntent {
+  const opponents = draft
+    .encounter!.combatants.filter(
+      (participant) =>
+        participant.team !== actor.team &&
+        (participant.resources[compiled.definition.healthResourceId] ?? 0) > 0,
+    )
+    .sort((left, right) => compareIds(left.id, right.id));
+  const abilities = [...compiled.definition.abilities]
+    .filter(
+      (ability) =>
+        ability.target.kind === 'enemy' &&
+        ability.effects.some((effect) => effect.op === 'damage' && effect.amount > 0),
+    )
+    .sort((left, right) => compareIds(left.id, right.id));
+  const attackTargets = [...opponents].sort(
+    (left, right) =>
+      manhattan(actor.position, left.position) - manhattan(actor.position, right.position) ||
+      compareIds(left.id, right.id),
+  );
+  for (const ability of abilities) {
+    for (const target of attackTargets) {
+      const intent: GameplayPlayerIntent = {
+        type: 'use-ability',
+        participantId: actor.id,
+        abilityId: ability.id,
+        targetParticipantId: target.id,
+      };
+      const probe = cloneGameplayValue(draft) as GameplayDraft;
+      if (!applyPlayerIntent(compiled, probe, intent)) return intent;
+    }
+  }
+
+  if (opponents.some((target) => manhattan(actor.position, target.position) === 1))
+    return { type: 'wait', participantId: actor.id };
+  const board = compiled.definition.boards.find((item) => item.id === definition.boardId)!;
+  const paths: Array<{ targetId: string; path: GameplayCell[]; directionOrder: number }> = [];
+  for (const target of opponents) {
+    DIRECTIONS.forEach((direction, directionOrder) => {
+      const destination = {
+        x: target.position.x + direction.x,
+        y: target.position.y + direction.y,
+      };
+      const path = findPath(board, draft.encounter!.combatants, actor, destination);
+      if (path && path.length > 1) paths.push({ targetId: target.id, path, directionOrder });
+    });
+  }
+  paths.sort(
+    (left, right) =>
+      left.path.length - right.path.length ||
+      compareIds(left.targetId, right.targetId) ||
+      left.directionOrder - right.directionOrder,
+  );
+  const selectedPath = paths[0]?.path;
+  if (!selectedPath) return { type: 'wait', participantId: actor.id };
+  const movement =
+    getEffectiveCharacterAttributes(compiled, draft as GameplayState, actor.characterId, actor.id)[
+      compiled.definition.movementAttributeId
+    ] ?? 1;
+  const destination = selectedPath[Math.min(movement, selectedPath.length - 1)]!;
+  return { type: 'move', participantId: actor.id, destination };
+}
+
+function isCurrentInternalCommand(
+  draft: GameplayDraft,
+  actor: DraftCombatant,
+  command: {
+    readonly playthroughId: string;
+    readonly encounterInstanceId: string;
+    readonly expectedRevision: number;
+    readonly intent: GameplayPlayerIntent;
+  },
+): boolean {
+  return (
+    draft.encounter !== null &&
+    draft.encounter.outcome === null &&
+    command.playthroughId === draft.playthroughId &&
+    command.encounterInstanceId === draft.encounter.instanceId &&
+    command.expectedRevision === draft.revision &&
+    draft.encounter.activeParticipantId === actor.id &&
+    actor.team === 'enemy' &&
+    'participantId' in command.intent &&
+    command.intent.participantId === actor.id
+  );
 }
 
 function advanceTurn(
@@ -467,6 +611,65 @@ function determineOutcome(encounter: DraftEncounter, healthResourceId: string): 
   );
   if (!enemiesAlive) encounter.outcome = 'victory';
   else if (!playersAlive) encounter.outcome = 'defeat';
+}
+
+function resolveOutcome(
+  compiled: CompiledGameplay,
+  draft: GameplayDraft,
+): { code: GameplayRejectionCode; message: string } | null {
+  const encounter = draft.encounter;
+  if (!encounter || encounter.outcome === null) return null;
+  if (draft.outcomeMarkers.some((marker) => marker.encounterInstanceId === encounter.instanceId))
+    return {
+      code: 'invalid-transition',
+      message: 'This encounter instance already has a terminal outcome marker.',
+    };
+  const definition = encounterDefinition(compiled, encounter);
+  const mapping = definition?.outcomeMappings.find(
+    (candidate) => candidate.outcome === encounter.outcome,
+  );
+  if (!definition || !mapping)
+    return {
+      code: 'invalid-definition',
+      message: 'The terminal outcome has no authored application consequence mapping.',
+    };
+  if (encounter.outcome === 'victory' && definition.victoryRewards) {
+    const rewardFailure = applyGrantToDraft(
+      compiled,
+      draft,
+      victoryGrant(draft as GameplayState, encounter.instanceId, definition),
+    );
+    if (rewardFailure)
+      return {
+        code: rewardFailure.code,
+        message: 'Victory reward could not be committed: ' + rewardFailure.message,
+      };
+  }
+  draft.outcomeMarkers.push({
+    encounterInstanceId: encounter.instanceId,
+    outcome: encounter.outcome,
+    consequenceId: mapping.consequenceId,
+  });
+  return null;
+}
+
+function victoryGrant(
+  state: GameplayState,
+  instanceId: string,
+  definition: GameplayEncounterDefinition,
+): GameplayGrantCommand {
+  return {
+    playthroughId: state.playthroughId,
+    expectedRevision: state.revision,
+    rewardId: 'encounter:' + instanceId + ':victory',
+    ...definition.victoryRewards,
+  };
+}
+
+function requiredOutcomes(definition: GameplayEncounterDefinition): GameplayOutcome[] {
+  return definition.allowWithdrawal
+    ? ['victory', 'defeat', 'turn-limit', 'withdrawn']
+    : ['victory', 'defeat', 'turn-limit'];
 }
 
 function findPath(

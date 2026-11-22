@@ -12,8 +12,9 @@ import {
   rejectGameplay,
   type GameplayDraft,
 } from './internal.js';
-import { getCharacterAttributes, getInventorySlotCount } from './state.js';
+import { getCharacterAttributes } from './state.js';
 import { transitionCombat } from './combat.js';
+import { applyGrantToDraft } from './rewards.js';
 
 const SAFE_ID = /^[A-Za-z][A-Za-z0-9._:-]{0,127}$/;
 
@@ -26,176 +27,17 @@ export function applyGameplayGrant(
   assertCompiledGameplay(compiled);
   const envelopeFailure = validateEnvelope(compiled, state, grant);
   if (envelopeFailure) return envelopeFailure;
-  if (!isSafeId(grant.rewardId))
-    return rejectGameplay(state, 'invalid-command', 'Reward ID must be a stable identifier.');
   if (state.encounter?.outcome === null)
     return rejectGameplay(
       state,
       'encounter-active',
       'Rewards cannot be granted during an active encounter.',
     );
-  if (state.appliedRewardIds.includes(grant.rewardId))
-    return rejectGameplay(
-      state,
-      'reward-already-applied',
-      'This reward was already applied in this playthrough.',
-    );
-  if (
-    (grant.experience !== undefined && !Array.isArray(grant.experience)) ||
-    (grant.items !== undefined && !Array.isArray(grant.items)) ||
-    (grant.equipment !== undefined && !Array.isArray(grant.equipment))
-  )
-    return rejectGameplay(state, 'invalid-command', 'Reward entries must be arrays.');
-  if (!hasEffects(grant))
-    return rejectGameplay(
-      state,
-      'invalid-command',
-      'A reward grant must contain experience, items, or equipment.',
-    );
-
   const draft = cloneGameplayValue(state) as GameplayDraft;
-  for (const row of grant.experience ?? []) {
-    if (!isRecord(row) || !isSafeId(row.characterId))
-      return rejectGameplay(state, 'invalid-command', 'Experience reward entry is malformed.');
-    const progress = draft.characterProgress[row.characterId];
-    if (!progress || !compiled.definition.characters.some((item) => item.id === row.characterId))
-      return rejectGameplay(
-        state,
-        'unknown-character',
-        `Unknown character ${String(row.characterId)} in experience grant.`,
-      );
-    if (typeof row.amount !== 'number' || !Number.isSafeInteger(row.amount) || row.amount <= 0)
-      return rejectGameplay(
-        state,
-        'invalid-quantity',
-        'Experience grants must be positive safe integers.',
-      );
-    const next = progress.experience + row.amount;
-    if (!Number.isSafeInteger(next))
-      return rejectGameplay(
-        state,
-        'invalid-quantity',
-        'Experience grant would exceed safe integer bounds.',
-      );
-    progress.experience = next;
-  }
-
-  const grantedItems = new Set<string>();
-  for (const row of grant.items ?? []) {
-    if (!isRecord(row) || !isSafeId(row.itemId))
-      return rejectGameplay(state, 'invalid-command', 'Item reward entry is malformed.');
-    const item = compiled.definition.items.find((candidate) => candidate.id === row.itemId);
-    if (!item)
-      return rejectGameplay(
-        state,
-        'unknown-item',
-        `Unknown item ${String(row.itemId)} in reward grant.`,
-      );
-    if (
-      typeof row.quantity !== 'number' ||
-      !Number.isSafeInteger(row.quantity) ||
-      row.quantity <= 0
-    )
-      return rejectGameplay(
-        state,
-        'invalid-quantity',
-        'Item quantities must be positive safe integers.',
-      );
-    const next = (draft.inventory[item.id] ?? 0) + row.quantity;
-    if (!Number.isSafeInteger(next))
-      return rejectGameplay(
-        state,
-        'invalid-quantity',
-        `Quantity for ${item.id} would exceed safe integer bounds.`,
-      );
-    if (item.unique && next > 1)
-      return rejectGameplay(state, 'item-unavailable', `Unique item ${item.id} is already owned.`);
-    draft.inventory[item.id] = next;
-    grantedItems.add(item.id);
-  }
-
-  const assignedSlots = new Set<string>();
-  for (const reward of grant.equipment ?? []) {
-    if (
-      !isRecord(reward) ||
-      !isSafeId(reward.characterId) ||
-      !isSafeId(reward.itemId) ||
-      !isSafeId(reward.slotId)
-    )
-      return rejectGameplay(state, 'invalid-command', 'Equipment reward entry is malformed.');
-    if (!compiled.definition.characters.some((item) => item.id === reward.characterId))
-      return rejectGameplay(
-        state,
-        'unknown-character',
-        `Unknown character ${String(reward.characterId)} in equipment grant.`,
-      );
-    const slotExists = compiled.definition.equipmentSlots.some((slot) => slot.id === reward.slotId);
-    if (!slotExists)
-      return rejectGameplay(
-        state,
-        'unknown-slot',
-        `Unknown equipment slot ${String(reward.slotId)}.`,
-      );
-    const item = compiled.definition.items.find((candidate) => candidate.id === reward.itemId);
-    if (!item)
-      return rejectGameplay(
-        state,
-        'unknown-item',
-        `Unknown equipment item ${String(reward.itemId)}.`,
-      );
-    if (!grantedItems.has(item.id) || (draft.inventory[item.id] ?? 0) < 1)
-      return rejectGameplay(
-        state,
-        'item-unavailable',
-        'An equipment grant must include ownership in the same reward bundle.',
-      );
-    if (!item.equipment || item.equipment.slotId !== reward.slotId)
-      return rejectGameplay(
-        state,
-        'equipment-ineligible',
-        `Item ${item.id} is not compatible with slot ${reward.slotId}.`,
-      );
-    const key = `${reward.characterId}:${reward.slotId}`;
-    if (assignedSlots.has(key))
-      return rejectGameplay(
-        state,
-        'invalid-command',
-        'A grant cannot assign one equipment slot more than once.',
-      );
-    assignedSlots.add(key);
-    const attributes = getCharacterAttributes(
-      compiled,
-      draft as GameplayState,
-      reward.characterId,
-      reward.slotId,
-    );
-    if (
-      (item.equipment.requirements ?? []).some(
-        (requirement) =>
-          (attributes[requirement.attributeId] ?? Number.MIN_SAFE_INTEGER) < requirement.minimum,
-      )
-    )
-      return rejectGameplay(
-        state,
-        'equipment-ineligible',
-        `Character ${reward.characterId} does not meet the requirements for ${item.id}.`,
-      );
-    const equipped = (draft.equipment[reward.characterId] ??= {});
-    equipped[reward.slotId] = item.id;
-  }
-
-  const capacity = compiled.definition.inventoryCapacity;
-  if (capacity !== undefined && getInventorySlotCount(compiled, draft as GameplayState) > capacity)
-    return rejectGameplay(
-      state,
-      'inventory-capacity',
-      'The reward would exceed inventory capacity.',
-    );
-
-  draft.appliedRewardIds.push(grant.rewardId);
+  const failure = applyGrantToDraft(compiled, draft, grant);
+  if (failure) return rejectGameplay(state, failure.code, failure.message);
   return finishGameplay(state, draft, 'reward');
 }
-
 /** Player state transition for equipment and inventory actions; combat is handled in P4.2b. */
 export function transitionGameplay(
   compiled: CompiledGameplay,
@@ -356,10 +198,6 @@ function validateEnvelope(
   if (state.revision >= Number.MAX_SAFE_INTEGER)
     return rejectGameplay(state, 'revision-overflow', 'Gameplay revision cannot advance safely.');
   return null;
-}
-
-function hasEffects(grant: GameplayGrantCommand): boolean {
-  return Boolean(grant.experience?.length || grant.items?.length || grant.equipment?.length);
 }
 
 function isSafeId(value: unknown): value is string {
