@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { getDialogueView, getFact, getQuestStatus } from 'waypoint-rpg-narrative';
 import { faUi } from './content/fa/ui.js';
 import { createGardenRuntime } from './game/runtime.js';
 import { GardenScene } from './scenes/GardenScene.js';
@@ -9,8 +10,41 @@ export function App() {
   const runtime = useMemo(() => createGardenRuntime(), []);
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
   const [rendererReady, setRendererReady] = useState(false);
+  const [recapOpen, setRecapOpen] = useState(false);
+  const dialogue = getDialogueView(runtime.compiledNarrative, state.narrative, 'fa');
+  const storyPath = getFact(state.narrative, 'story-path');
+  const questId =
+    storyPath === 'gardener' ? 'gardener-quest' : storyPath === 'lantern' ? 'lantern-quest' : null;
+  const questStatus = questId
+    ? getQuestStatus(runtime.compiledNarrative, state.narrative, questId)
+    : null;
+  const seedFound = getFact(state.narrative, 'seed-found') === true;
+  const clueFound = getFact(state.narrative, 'clue-found') === true;
+  const questObjective =
+    storyPath === 'gardener'
+      ? seedFound
+        ? faUi.gardenerPlantObjective
+        : faUi.gardenerSeedObjective
+      : storyPath === 'lantern'
+        ? clueFound
+          ? faUi.travelerLanternObjective
+          : faUi.travelerClueObjective
+        : faUi.talkToChoosePath;
 
   useEffect(() => () => runtime.dispose(), [runtime]);
+
+  useEffect(() => {
+    if (state.narrative.endingId) setRecapOpen(true);
+  }, [state.narrative.endingId]);
+
+  useEffect(() => {
+    if (!dialogue) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') runtime.dispatch({ type: 'DIALOGUE_EXIT' });
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [dialogue?.dialogueId, dialogue?.nodeId, runtime]);
 
   const onTargetPress = useCallback(
     (targetId: GardenTargetId) => {
@@ -19,6 +53,10 @@ export function App() {
       const target = getGardenTarget(targetId);
       if (!target || target.mapId !== current.mapId) return;
       if (target.anchorId === current.anchorId && !current.walk) {
+        if (targetId === 'recap-bench' && current.narrative.endingId) {
+          setRecapOpen(true);
+          return;
+        }
         runtime.dispatch({ type: 'INTERACT', targetId });
         return;
       }
@@ -52,6 +90,16 @@ export function App() {
             onClick={() => runtime.dispatch({ type: 'NEW_GAME' })}
           >
             {faUi.newGame}
+          </button>
+        ) : null}
+        {state.narrative.endingId ? (
+          <button
+            className="quiet-button"
+            data-testid="garden-view-recap"
+            type="button"
+            onClick={() => setRecapOpen(true)}
+          >
+            {faUi.viewRecap}
           </button>
         ) : null}
       </header>
@@ -105,6 +153,11 @@ export function App() {
               <p className="movement-status" role="status" data-testid="movement-status">
                 {statusText}
               </p>
+              <p className="quest-status" data-testid="quest-status" aria-live="polite">
+                {questId && questStatus
+                  ? `${questId === 'gardener-quest' ? faUi.gardenerQuest : faUi.lanternQuest} · ${faUi.questStatus[questStatus]} · ${questObjective}`
+                  : questObjective}
+              </p>
             </div>
             <nav className="target-navigation" aria-label={faUi.targetsHeading}>
               {gardenTargets
@@ -136,6 +189,88 @@ export function App() {
                 })}
             </nav>
           </div>
+          {dialogue ? (
+            <div className="dialogue-layer" data-testid="dialogue-layer">
+              <button
+                className="dialogue-backdrop"
+                type="button"
+                aria-label={faUi.dialogueBackdropLabel}
+                onClick={() => runtime.dispatch({ type: 'DIALOGUE_EXIT' })}
+              />
+              <section
+                className="dialogue-panel"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="garden-dialogue-heading"
+                data-testid="dialogue-panel"
+              >
+                <p className="dialogue-speaker">
+                  {faUi.speakers[dialogue.speakerId as keyof typeof faUi.speakers] ??
+                    faUi.dialogueHeading}
+                </p>
+                <h2 id="garden-dialogue-heading">{dialogue.text}</h2>
+                <div className="dialogue-choices" aria-label={faUi.dialogueHeading}>
+                  {dialogue.choices.map((choice, index) => (
+                    <button
+                      key={choice.id}
+                      className="dialogue-choice"
+                      data-testid={`dialogue-choice-${choice.id}`}
+                      type="button"
+                      disabled={!choice.available}
+                      autoFocus={index === 0 && choice.available}
+                      onClick={() =>
+                        runtime.dispatch({ type: 'DIALOGUE_CHOICE', choiceId: choice.id })
+                      }
+                    >
+                      {choice.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="quiet-button dialogue-exit"
+                  data-testid="dialogue-exit"
+                  type="button"
+                  onClick={() => runtime.dispatch({ type: 'DIALOGUE_EXIT' })}
+                >
+                  {faUi.closeDialogue}
+                </button>
+              </section>
+            </div>
+          ) : null}
+          {state.narrative.endingId && recapOpen ? (
+            <div className="dialogue-layer" data-testid="ending-layer">
+              <button
+                className="dialogue-backdrop"
+                type="button"
+                aria-label={faUi.closeRecap}
+                onClick={() => setRecapOpen(false)}
+              />
+              <section
+                className="dialogue-panel ending-panel"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="garden-ending-heading"
+                data-testid="ending-panel"
+              >
+                <p className="dialogue-speaker">{faUi.recapHeading}</p>
+                <h2 id="garden-ending-heading">
+                  {state.narrative.endingId === 'ending-garden'
+                    ? faUi.gardenerEnding
+                    : faUi.lanternEnding}
+                </h2>
+                <p>{questObjective}</p>
+                <button
+                  className="primary-button"
+                  data-testid="ending-close"
+                  type="button"
+                  autoFocus
+                  onClick={() => setRecapOpen(false)}
+                >
+                  {faUi.closeRecap}
+                </button>
+              </section>
+            </div>
+          ) : null}
         </section>
       )}
     </main>

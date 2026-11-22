@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera, Vector3, type Group } from 'three';
+import { getFact } from 'waypoint-rpg-narrative';
 import { getAnchor, type AnchorId } from 'waypoint-rpg-core';
 import type { GardenRuntime, GardenState } from '../game/runtime.js';
 import {
@@ -23,11 +24,13 @@ export function GardenScene({ runtime, state, onTargetPress }: GardenSceneProps)
   const definition = sceneForMap(state.mapId);
   const entry = getAnchor(definition.graph, state.anchorId);
   const targets = gardenTargets.filter((target) => target.mapId === state.mapId);
+  const treeGrown = getFact(state.narrative, 'tree-grown') === true;
+  const lanternLit = getFact(state.narrative, 'lantern-lit') === true;
 
   return (
     <group name={`garden-scene-${state.mapId}`}>
       <SceneCamera mapId={state.mapId} anchorId={state.anchorId} />
-      <SceneProbe mapId={state.mapId} />
+      <SceneProbe mapId={state.mapId} treeGrown={treeGrown} lanternLit={lanternLit} />
       <ArrivalDriver runtime={runtime} state={state} />
       <color attach="background" args={[state.mapId === 'village' ? '#c7e2cf' : '#a9c8aa']} />
       <ambientLight intensity={1.7} />
@@ -37,9 +40,14 @@ export function GardenScene({ runtime, state, onTargetPress }: GardenSceneProps)
         <meshStandardMaterial color={state.mapId === 'village' ? '#819c69' : '#71875f'} />
       </mesh>
       <Pathway mapId={state.mapId} />
-      <LandmarkDecorations mapId={state.mapId} />
+      <LandmarkDecorations mapId={state.mapId} treeGrown={treeGrown} />
       {targets.map((target) => (
-        <WorldTarget key={target.id} target={target} onPress={onTargetPress} />
+        <WorldTarget
+          key={target.id}
+          target={target}
+          onPress={onTargetPress}
+          lanternLit={lanternLit}
+        />
       ))}
       <PlayerCharacter anchor={entry} previousAnchorId={state.lastAnchorId} mapId={state.mapId} />
     </group>
@@ -61,7 +69,15 @@ function ArrivalDriver({ runtime, state }: Pick<GardenSceneProps, 'runtime' | 's
   return null;
 }
 
-function SceneProbe({ mapId }: { readonly mapId: GardenMapId }) {
+function SceneProbe({
+  mapId,
+  treeGrown,
+  lanternLit,
+}: {
+  readonly mapId: GardenMapId;
+  readonly treeGrown: boolean;
+  readonly lanternLit: boolean;
+}) {
   const { camera, scene, gl, invalidate, size } = useThree();
 
   useEffect(() => {
@@ -90,6 +106,14 @@ function SceneProbe({ mapId }: { readonly mapId: GardenMapId }) {
       frameCount: 0,
       cleanupCount,
       targetPoints,
+      renderedConsequences: [
+        ...(treeGrown && scene.getObjectByName('garden-grown-tree')?.visible
+          ? ['grown-tree' as const]
+          : []),
+        ...(lanternLit && scene.getObjectByName('lantern-warm-light')?.visible
+          ? ['lit-lantern' as const]
+          : []),
+      ],
     };
     window.__gardenProbe = probe;
     invalidate();
@@ -100,7 +124,7 @@ function SceneProbe({ mapId }: { readonly mapId: GardenMapId }) {
         window.__gardenProbe = { ...probe, cleanupCount: probe.cleanupCount + 1 };
       }
     };
-  }, [camera, gl, invalidate, mapId, scene, size.height, size.width]);
+  }, [camera, gl, invalidate, lanternLit, mapId, scene, size.height, size.width, treeGrown]);
 
   useFrame(() => {
     const probe = currentGardenProbe();
@@ -141,7 +165,13 @@ function Pathway({ mapId }: { readonly mapId: GardenMapId }) {
   );
 }
 
-function LandmarkDecorations({ mapId }: { readonly mapId: GardenMapId }) {
+function LandmarkDecorations({
+  mapId,
+  treeGrown,
+}: {
+  readonly mapId: GardenMapId;
+  readonly treeGrown: boolean;
+}) {
   if (mapId === 'village') {
     return (
       <group>
@@ -157,6 +187,7 @@ function LandmarkDecorations({ mapId }: { readonly mapId: GardenMapId }) {
       <SimpleTree position={[6.1, 0, -4.5]} leafColor="#637f45" />
       <SimpleTree position={[-6.1, 0, 3.3]} leafColor="#4a7446" />
       <SimpleTree position={[6.1, 0, 3.3]} leafColor="#718947" />
+      {treeGrown ? <BlossomTree position={[0, 0, -1.8]} /> : null}
     </group>
   );
 }
@@ -236,9 +267,11 @@ function PlayerCharacter({
 function WorldTarget({
   target,
   onPress,
+  lanternLit,
 }: {
   readonly target: GardenTarget;
   readonly onPress: GardenSceneProps['onTargetPress'];
+  readonly lanternLit: boolean;
 }) {
   const click = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
@@ -247,7 +280,7 @@ function WorldTarget({
 
   return (
     <group position={target.position} name={`world-target-${target.id}`}>
-      <TargetModel kind={target.kind} />
+      <TargetModel kind={target.kind} lanternLit={lanternLit} />
       <mesh position={[0, 0.9, 0]} onClick={click}>
         <sphereGeometry args={[0.9, 12, 10]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
@@ -256,7 +289,13 @@ function WorldTarget({
   );
 }
 
-function TargetModel({ kind }: { readonly kind: GardenTarget['kind'] }) {
+function TargetModel({
+  kind,
+  lanternLit,
+}: {
+  readonly kind: GardenTarget['kind'];
+  readonly lanternLit: boolean;
+}) {
   if (kind === 'fountain') return <FountainModel />;
   if (kind === 'market') return <MarketModel />;
   if (kind === 'basket') return <BasketModel />;
@@ -265,7 +304,7 @@ function TargetModel({ kind }: { readonly kind: GardenTarget['kind'] }) {
   if (kind === 'gate') return <GateModel />;
   if (kind === 'bed') return <PlantBedModel />;
   if (kind === 'stone') return <ClueStoneModel />;
-  if (kind === 'lantern') return <LanternModel />;
+  if (kind === 'lantern') return <LanternModel lit={lanternLit} />;
   return <BenchModel />;
 }
 
@@ -388,9 +427,18 @@ function ClueStoneModel() {
   );
 }
 
-function LanternModel() {
+function LanternModel({ lit }: { readonly lit: boolean }) {
   return (
     <group>
+      {lit ? (
+        <pointLight
+          name="lantern-warm-light"
+          position={[0, 2.45, 0]}
+          color="#ffd875"
+          intensity={2.4}
+          distance={7}
+        />
+      ) : null}
       <mesh position={[0, 1.1, 0]} castShadow>
         <cylinderGeometry args={[0.1, 0.15, 2.2, 8]} />
         <meshStandardMaterial color="#6f573d" />
@@ -401,7 +449,34 @@ function LanternModel() {
       </mesh>
       <mesh position={[0, 2.4, 0.01]}>
         <boxGeometry args={[0.4, 0.5, 0.39]} />
-        <meshStandardMaterial color="#c7a763" emissive="#000000" />
+        <meshStandardMaterial
+          color={lit ? '#fff0a6' : '#c7a763'}
+          emissive={lit ? '#ffc943' : '#000000'}
+          emissiveIntensity={lit ? 1.4 : 0}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function BlossomTree({ position }: { readonly position: [number, number, number] }) {
+  return (
+    <group position={position} name="garden-grown-tree">
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <cylinderGeometry args={[0.2, 0.28, 1.8, 8]} />
+        <meshStandardMaterial color="#805637" />
+      </mesh>
+      <mesh position={[0, 2.05, 0]} castShadow>
+        <sphereGeometry args={[1.05, 18, 14]} />
+        <meshStandardMaterial color="#5e9b58" />
+      </mesh>
+      <mesh position={[-0.5, 2.2, 0.65]}>
+        <sphereGeometry args={[0.32, 12, 10]} />
+        <meshStandardMaterial color="#f2c8c0" />
+      </mesh>
+      <mesh position={[0.46, 2.55, 0.54]}>
+        <sphereGeometry args={[0.3, 12, 10]} />
+        <meshStandardMaterial color="#f7e0a0" />
       </mesh>
     </group>
   );

@@ -2,7 +2,9 @@ import { createGameRuntime, findPath, type AnchorId, type GameRuntime } from 'wa
 import {
   compileNarrative,
   createNarrativeState,
+  transitionNarrative,
   type NarrativeDefinition,
+  type NarrativeCommand,
   type NarrativeState,
   validateNarrative,
 } from 'waypoint-rpg-narrative';
@@ -37,7 +39,9 @@ export type GardenCommand =
   | { readonly type: 'NEW_GAME' }
   | { readonly type: 'MOVE_TO'; readonly targetId: GardenTargetId }
   | { readonly type: 'ARRIVE'; readonly routeId: string; readonly anchorId: AnchorId }
-  | { readonly type: 'INTERACT'; readonly targetId: GardenTargetId };
+  | { readonly type: 'INTERACT'; readonly targetId: GardenTargetId }
+  | { readonly type: 'DIALOGUE_CHOICE'; readonly choiceId: string }
+  | { readonly type: 'DIALOGUE_EXIT' };
 
 export interface GardenRuntime extends GameRuntime<GardenState, GardenCommand> {
   readonly compiledNarrative: ReturnType<typeof compileNarrative>;
@@ -59,6 +63,63 @@ function compileDefinition(definition: NarrativeDefinition) {
     );
   }
   return compileNarrative(definition);
+}
+
+type NarrativeIntent =
+  | { readonly type: 'open-dialogue'; readonly dialogueId: string }
+  | { readonly type: 'choose'; readonly choiceId: string }
+  | { readonly type: 'exit-dialogue' }
+  | { readonly type: 'advance' }
+  | { readonly type: 'finish' }
+  | { readonly type: 'trigger'; readonly triggerId: string };
+
+function applyNarrativeIntent(
+  compiled: ReturnType<typeof compileNarrative>,
+  state: NarrativeState,
+  intent: NarrativeIntent,
+): NarrativeState {
+  const result = transitionNarrative(compiled, state, {
+    ...intent,
+    playthroughId: state.playthroughId,
+    expectedRevision: state.revision,
+  } as NarrativeCommand);
+  return result.accepted ? result.state : state;
+}
+
+function finishAvailableEnding(
+  compiled: ReturnType<typeof compileNarrative>,
+  state: NarrativeState,
+): NarrativeState {
+  const path = state.facts['story-path'];
+  const expectedNode = path === 'gardener' ? 'gardener-wait' : 'traveler-wait';
+  if (
+    state.endingId ||
+    state.activeDialogue ||
+    state.suspendedDialogue?.dialogueId !== 'village-story' ||
+    state.suspendedDialogue.nodeId !== expectedNode
+  ) {
+    return state;
+  }
+
+  const opened = transitionNarrative(compiled, state, {
+    type: 'open-dialogue',
+    dialogueId: 'village-story',
+    playthroughId: state.playthroughId,
+    expectedRevision: state.revision,
+  });
+  if (!opened.accepted) return state;
+  const advanced = transitionNarrative(compiled, opened.state, {
+    type: 'advance',
+    playthroughId: state.playthroughId,
+    expectedRevision: opened.state.revision,
+  });
+  if (!advanced.accepted) return state;
+  const finished = transitionNarrative(compiled, advanced.state, {
+    type: 'finish',
+    playthroughId: state.playthroughId,
+    expectedRevision: advanced.state.revision,
+  });
+  return finished.accepted ? finished.state : state;
 }
 
 export function createGardenRuntime(options: GardenRuntimeOptions = {}): GardenRuntime {
@@ -83,6 +144,28 @@ export function createGardenRuntime(options: GardenRuntimeOptions = {}): GardenR
     reducer(state, command) {
       if (command.type === 'NEW_GAME') return createNewGame();
       if (state.phase !== 'playing') return state;
+
+      if (command.type === 'DIALOGUE_EXIT') {
+        const narrative = applyNarrativeIntent(compiledNarrative, state.narrative, {
+          type: 'exit-dialogue',
+        });
+        return narrative === state.narrative ? state : { ...state, narrative };
+      }
+
+      if (command.type === 'DIALOGUE_CHOICE') {
+        const chosen = applyNarrativeIntent(compiledNarrative, state.narrative, {
+          type: 'choose',
+          choiceId: command.choiceId,
+        });
+        if (chosen === state.narrative) return state;
+        const narrative =
+          command.choiceId === 'help-gardener' || command.choiceId === 'follow-light'
+            ? applyNarrativeIntent(compiledNarrative, chosen, { type: 'exit-dialogue' })
+            : chosen;
+        return { ...state, narrative };
+      }
+
+      if (state.narrative.activeDialogue && command.type !== 'ARRIVE') return state;
 
       if (command.type === 'MOVE_TO') {
         const target = getGardenTarget(command.targetId);
@@ -129,18 +212,46 @@ export function createGardenRuntime(options: GardenRuntimeOptions = {}): GardenR
             candidate.fromAnchor === target.anchorId,
         );
         const nextMapId = transition ? gardenMapName(transition.toMap) : null;
-        if (!transition || !nextMapId) {
-          return { ...state, lastInteractionTarget: target.id };
+        if (transition && nextMapId)
+          return {
+            ...state,
+            mapId: nextMapId,
+            anchorId: transition.toAnchor,
+            lastAnchorId: null,
+            walk: null,
+            lastInteractionTarget: null,
+          };
+
+        if (target.id === 'gardener' || target.id === 'traveler') {
+          if (state.mapId !== 'village' || state.narrative.endingId) return state;
+          const narrative = applyNarrativeIntent(compiledNarrative, state.narrative, {
+            type: 'open-dialogue',
+            dialogueId: 'village-story',
+          });
+          return narrative === state.narrative ? state : { ...state, narrative };
         }
 
-        return {
-          ...state,
-          mapId: nextMapId,
-          anchorId: transition.toAnchor,
-          lastAnchorId: null,
-          walk: null,
-          lastInteractionTarget: null,
+        const triggerByTarget: Partial<Record<GardenTargetId, string>> = {
+          'seed-basket': 'find-garden-seed',
+          'planting-bed': 'plant-garden-seed',
+          'clue-stone': 'find-lantern-clue',
+          'ancient-lantern': 'light-ancient-lantern',
         };
+        const triggerId = triggerByTarget[target.id];
+        if (triggerId) {
+          const triggered = applyNarrativeIntent(compiledNarrative, state.narrative, {
+            type: 'trigger',
+            triggerId,
+          });
+          if (triggered === state.narrative) return state;
+          return {
+            ...state,
+            narrative: finishAvailableEnding(compiledNarrative, triggered),
+            lastInteractionTarget: target.id,
+          };
+        }
+
+        return { ...state, lastInteractionTarget: target.id };
       }
 
       return state;

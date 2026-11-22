@@ -12,6 +12,7 @@ export interface GardenSceneProbe {
   readonly frameCount: number;
   readonly cleanupCount: number;
   readonly targetPoints: Readonly<Record<string, GardenScreenPoint>>;
+  readonly renderedConsequences: readonly ('grown-tree' | 'lit-lantern')[];
 }
 
 declare global {

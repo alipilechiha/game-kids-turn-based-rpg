@@ -10,8 +10,8 @@ describe('Garden game runtime', () => {
     expect(runtime.getState().mapId).toBe('village');
     expect(runtime.getState().narrative.playthroughId).toBe('garden-test');
     expect(
-      getQuestStatus(runtime.compiledNarrative, runtime.getState().narrative, 'gardener'),
-    ).toBe('available');
+      getQuestStatus(runtime.compiledNarrative, runtime.getState().narrative, 'gardener-quest'),
+    ).toBe('locked');
     expect(getFact(runtime.getState().narrative, 'tree-grown')).toBeUndefined();
 
     runtime.dispatch({ type: 'NEW_GAME' });
