@@ -44,7 +44,6 @@ _Generated from the canonical roadmap. Update status and evidence in [docs/FRAME
 <!-- prettier-ignore-end -->
 <!-- framework-roadmap:end -->
 
-
 ## Library-backed reference game
 
 This repository's root app, **محله مهربانی**, is a real first-party
