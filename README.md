@@ -11,6 +11,39 @@ built to the specification in [`.plans/1st.md`](.plans/1st.md).
 No backend, accounts, analytics, ads, third-party runtime requests, remote fonts, combat,
 microphone, geolocation or device identifiers. Progress lives only in the browser's IndexedDB.
 
+<!-- framework-roadmap:begin -->
+<!-- prettier-ignore-start -->
+
+## Framework roadmap
+
+**3/7 phases completed** · Next: **Phase 4 — Gameplay modules** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
+
+```mermaid
+flowchart LR
+  P1["1. Reusable core"] --> P2["2. World/renderer"] --> P3["3. Narrative/quests"] --> P4["4. Gameplay modules"] --> P5["5. Animation/cinematics"] --> P6["6. Developer tools"] --> P7["7. Shahnameh proof of concept"]
+  classDef complete fill:#dcfce7,stroke:#15803d,color:#14532d
+  classDef next fill:#fef3c7,stroke:#b45309,color:#78350f
+  classDef planned fill:#e5e7eb,stroke:#6b7280,color:#1f2937
+  class P1,P2,P3 complete
+  class P4 next
+  class P5,P6,P7 planned
+```
+
+| Phase | Status | Evidence |
+| --- | --- | --- |
+| 1. Reusable core | ✅ Complete | [PR #110](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/110) |
+| 2. World/renderer | ✅ Complete | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111) |
+| 3. Narrative/quests | ✅ Complete | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113) |
+| 4. Gameplay modules | ➡️ Next | — |
+| 5. Animation/cinematics | ⏳ Planned | — |
+| 6. Developer tools | ⏳ Planned | — |
+| 7. Shahnameh proof of concept | ⏳ Planned | — |
+
+_Generated from the canonical roadmap. Update status and evidence in [docs/FRAMEWORK-ROADMAP.md](docs/FRAMEWORK-ROADMAP.md), then run npm run roadmap:sync._
+
+<!-- prettier-ignore-end -->
+<!-- framework-roadmap:end -->
+
 ## Requirements
 
 - Node.js 22.22.2 or newer in the Node 22 line, with npm 10.x (the repo is developed on Node 22.23.5 and npm 10.9.9)
