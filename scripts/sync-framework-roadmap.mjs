@@ -7,7 +7,13 @@ const roadmapPath = "docs/FRAMEWORK-ROADMAP.md";
 const readmePath = "README.md";
 const begin = "<!-- framework-roadmap:begin -->";
 const end = "<!-- framework-roadmap:end -->";
-const allowed = new Set(["Complete", "In progress", "Next", "Planned", "Blocked"]);
+const allowed = new Set([
+  "Complete",
+  "In progress",
+  "Next",
+  "Planned",
+  "Blocked",
+]);
 const symbols = {
   Complete: "✅ Complete",
   "In progress": "🚧 In progress",
@@ -100,11 +106,13 @@ function renderRoadmap(phases) {
   const rows = phases.map((phase) => {
     const title = phase.number + ". " + phase.title;
     const evidence = phase.evidence || "—";
-    return "| " + title + " | " + symbols[phase.status] + " | " + evidence + " |";
+    const statusText = symbols[phase.status];
+    return "| " + title + " | " + statusText + " | " + evidence + " |";
   });
   const link = "[Full roadmap and exit gates](" + roadmapPath + ")";
   const sourceLink = "[docs/FRAMEWORK-ROADMAP.md](" + roadmapPath + ")";
-  const note = "_Generated from the canonical roadmap. Update status and evidence in ";
+  const note =
+    "_Generated from the canonical roadmap. Update status and evidence in ";
   return [
     begin,
     "<!-- prettier-ignore-start -->",
