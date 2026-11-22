@@ -1,0 +1,67 @@
+name: Reference game screenshots
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-sample-previews
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.2'
+          cache: npm
+      - name: Install locked application dependencies
+        run: npm ci
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Install emoji font for headless screenshots
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-color-emoji
+      - name: Build the actual Kids RPG application
+        run: npm run build
+      - name: Capture real rendered scenes using Playwright
+        run: npm run sample:previews
+      - name: Update README with the captured gallery
+        run: npm run sample:gallery
+      - name: Upload source-rendered PNGs for every merge
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mahalle-ye-mehrabani-source-previews
+          path: docs/previews/legacy-sample/*.png
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Propose updated visual documentation for review
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/legacy-sample-previews
+          base: main
+          add-paths: |
+            README.md
+            docs/previews/legacy-sample
+          commit-message: 'docs: refresh real Kids RPG Playwright previews'
+          title: 'docs: refresh reference game screenshots'
+          body: |
+            These screenshots were captured by Playwright from the production-built
+            Kids RPG following a push/merge to main. They are not AI-generated
+            concepts or exact-pixel regression baselines.
+
+            Review visual differences, Persian RTL, interaction screens, and
+            draft-content policy before merging this documentation PR.
+
+            Source: the workflow run linked under this pull request's checks.
+          delete-branch: true
