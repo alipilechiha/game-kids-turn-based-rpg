@@ -197,17 +197,39 @@ function applyEffects(
       return { code: 'invalid-effect', message: 'Effect data is invalid.', effectIndex };
     switch (effect.op) {
       case 'set-flag':
-        if (typeof effect.key !== 'string' || typeof effect.value !== 'boolean')
+        if (
+          typeof effect.key !== 'string' ||
+          typeof effect.value !== 'boolean' ||
+          !matchesDeclaredFact(compiled, effect.key, effect.value, 'boolean')
+        )
           return invalidEffect(effectIndex, 'set-flag operands are invalid.');
         draft.facts[effect.key] = effect.value;
         break;
       case 'clear-flag':
-        if (typeof effect.key !== 'string')
+        if (
+          typeof effect.key !== 'string' ||
+          !matchesDeclaredFact(compiled, effect.key, false, 'boolean')
+        )
           return invalidEffect(effectIndex, 'clear-flag key is invalid.');
         draft.facts[effect.key] = false;
         break;
+      case 'clear-fact': {
+        if (typeof effect.key !== 'string')
+          return invalidEffect(effectIndex, 'clear-fact key is invalid.');
+        const declaration = compiled.definition.facts?.find((fact) => fact.key === effect.key);
+        if (compiled.definition.facts && !declaration)
+          return invalidEffect(effectIndex, 'clear-fact key is not declared.');
+        if (declaration && Object.hasOwn(declaration, 'default'))
+          draft.facts[effect.key] = cloneJson(declaration.default) as JsonValue;
+        else delete draft.facts[effect.key];
+        break;
+      }
       case 'set-fact':
-        if (typeof effect.key !== 'string' || !validJson(effect.value))
+        if (
+          typeof effect.key !== 'string' ||
+          !validJson(effect.value) ||
+          !matchesDeclaredFact(compiled, effect.key, effect.value)
+        )
           return invalidEffect(effectIndex, 'set-fact operands are invalid.');
         draft.facts[effect.key] = cloneJson(effect.value);
         break;
@@ -215,7 +237,8 @@ function applyEffects(
         if (
           typeof effect.key !== 'string' ||
           !Number.isSafeInteger(effect.amount) ||
-          effect.amount === 0
+          effect.amount === 0 ||
+          !matchesDeclaredFact(compiled, effect.key, 0, 'integer')
         )
           return invalidEffect(effectIndex, 'increment-fact operands are invalid.');
         const oldValue = Object.hasOwn(draft.facts, effect.key) ? draft.facts[effect.key] : 0;
@@ -271,6 +294,22 @@ function applyEffects(
     }
   }
   return null;
+}
+
+function matchesDeclaredFact(
+  compiled: CompiledNarrative,
+  key: string,
+  value: unknown,
+  requiredType?: 'boolean' | 'integer',
+): boolean {
+  const definitions = compiled.definition.facts;
+  if (!definitions) return true;
+  const declaration = definitions.find((fact) => fact.key === key);
+  if (!declaration || (requiredType && declaration.type !== requiredType)) return false;
+  if (declaration.type === 'boolean') return typeof value === 'boolean';
+  if (declaration.type === 'integer')
+    return typeof value === 'number' && Number.isSafeInteger(value);
+  return typeof value === 'string';
 }
 
 function setQuestOutcome(

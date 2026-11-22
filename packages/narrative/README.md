@@ -41,6 +41,11 @@ const story = {
   id: 'lantern-story',
   contentVersion: 'copy-1',
   compatibilityVersion: 'structure-1',
+  defaultLocale: 'en',
+  facts: [
+    { key: 'helped', type: 'boolean', default: false },
+    { key: 'trust', type: 'integer', default: 0 },
+  ],
   entryDialogueId: 'greeting',
   dialogues: [
     {
@@ -86,6 +91,15 @@ not implement a general save-migration framework.
 it. Later mutation through the original object cannot alter the compiled
 definition or its internal indexes.
 
+`facts` is optional for compatibility with existing definitions. When present,
+it declares every fact key and its `boolean`, safe `integer`, or `string` type;
+an optional default is materialized when a playthrough is created or decoded.
+Hydration adds missing declared defaults without advancing the narrative
+revision. `defaultLocale` is also optional. Localized text resolves by exact
+requested locale, base language, declared default locale, then the legacy
+deterministic fallback. A declared default locale must be present in every
+localized text field.
+
 ## Conditions and effects
 
 Conditions include boolean flags, primitive `eq`/`neq`, safe-integer ordering,
@@ -97,8 +111,10 @@ predicates accept only persisted states (`active`, `completed`, `failed`,
 `cancelled`); `getQuestStatus` also derives `available` and `locked` for
 queries.
 
-Effects are a closed data vocabulary: set/clear flags, set JSON facts,
-increment integer facts, and start/complete/fail/cancel quests. The complete
+Effects are a closed data vocabulary: set/clear flags, set or clear fact
+overrides, increment integer facts, and start/complete/fail/cancel quests.
+`clear-flag` explicitly writes `false`; `clear-fact` removes an optional
+override and restores its declared default when one exists. The complete
 ordered effect list is applied to a private draft. A valid `start-quest` then
 `complete-quest` sequence commits together; any invalid operation rejects the
 whole command without changing state or revision. Failed and cancelled quests

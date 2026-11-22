@@ -136,6 +136,61 @@ function story() {
   };
 }
 
+function typedStory() {
+  return {
+    schemaVersion: 1,
+    id: 'typed-story',
+    contentVersion: 'copy-1',
+    compatibilityVersion: 'typed-structure-1',
+    defaultLocale: 'fa',
+    facts: [
+      { key: 'clue-found', type: 'boolean', default: true },
+      { key: 'trust', type: 'integer', default: 2 },
+      { key: 'approach', type: 'string', default: 'patient' },
+    ],
+    entryDialogueId: 'guardian-dialogue',
+    quests: [],
+    dialogues: [
+      {
+        id: 'guardian-dialogue',
+        entryNodeId: 'question',
+        exitPolicy: 'allowed',
+        nodes: [
+          {
+            id: 'question',
+            speakerId: 'guardian',
+            text: {
+              fa: 'متن فارسی',
+              'fa-IR': 'متن ایران',
+              en: 'English text',
+            },
+            choices: [
+              {
+                id: 'finish-demo',
+                label: { fa: 'پایان', en: 'Finish' },
+                targetNodeId: 'terminal',
+              },
+            ],
+          },
+          {
+            id: 'terminal',
+            speakerId: 'guardian',
+            text: { fa: 'تمام شد.' },
+            terminal: true,
+            endingId: 'demo-ending',
+          },
+        ],
+      },
+    ],
+    triggers: [
+      { id: 'clear-flag', effects: [{ op: 'clear-flag', key: 'clue-found' }] },
+      { id: 'clear-override', effects: [{ op: 'clear-fact', key: 'clue-found' }] },
+      { id: 'set-trust', effects: [{ op: 'set-fact', key: 'trust', value: 9 }] },
+      { id: 'reset-trust', effects: [{ op: 'clear-fact', key: 'trust' }] },
+    ],
+  };
+}
+
 function setup() {
   const compiled = compileNarrative(story());
   const state = createNarrativeState(compiled, 'playthrough-one');
@@ -165,6 +220,62 @@ test('missing-fact semantics distinguish neq from not(eq), with no coercion', ()
   assert.equal(evaluateCondition({ op: 'int-gte', key: 'fractional', value: 2 }, withFacts), false);
   assert.equal(evaluateCondition({ op: 'int-gte', key: 'number', value: 2.5 }, state), false);
   assert.equal(evaluateCondition({ op: 'unknown-op' }, state), false);
+});
+
+test('typed defaults hydrate without revision changes and declared fact saves are validated', () => {
+  const compiled = compileNarrative(typedStory());
+  const state = createNarrativeState(compiled, 'typed-playthrough');
+  assert.deepEqual(state.facts, { 'clue-found': true, trust: 2, approach: 'patient' });
+  assert.equal(state.revision, 0);
+
+  const oldPayload = JSON.parse(JSON.stringify({ ...state, facts: {} }));
+  const restored = decodeNarrativeState(compiled, oldPayload);
+  assert.equal(restored.ok, true);
+  if (!restored.ok) return;
+  assert.equal(restored.state.revision, state.revision);
+  assert.deepEqual(restored.state.facts, state.facts);
+
+  assert.equal(decodeNarrativeState(compiled, { ...oldPayload, facts: { trust: '9' } }).ok, false);
+  assert.equal(
+    decodeNarrativeState(compiled, { ...oldPayload, facts: { unexpected: true } }).ok,
+    false,
+  );
+});
+
+test('locale resolution uses exact locale, base language, then declared default', () => {
+  const compiled = compileNarrative(typedStory());
+  const state = createNarrativeState(compiled, 'typed-locale-playthrough');
+  const opened = transitionNarrative(
+    compiled,
+    state,
+    command(state, 'open-dialogue', { dialogueId: 'guardian-dialogue' }),
+  );
+  assert.equal(opened.accepted, true);
+  if (!opened.accepted) return;
+
+  assert.equal(getDialogueView(compiled, opened.state, 'fa-IR')?.text, 'متن ایران');
+  assert.equal(getDialogueView(compiled, opened.state, 'fa-AF')?.text, 'متن فارسی');
+  assert.equal(getDialogueView(compiled, opened.state, 'en-US')?.text, 'English text');
+  assert.equal(getDialogueView(compiled, opened.state, 'tr-TR')?.text, 'متن فارسی');
+});
+
+test('clear-flag writes false while clear-fact restores the declared default', () => {
+  const compiled = compileNarrative(typedStory());
+  let state = createNarrativeState(compiled, 'typed-effects-playthrough');
+  const apply = (triggerId) => {
+    const result = transitionNarrative(compiled, state, command(state, 'trigger', { triggerId }));
+    assert.equal(result.accepted, true);
+    if (result.accepted) state = result.state;
+  };
+
+  apply('clear-flag');
+  assert.equal(getFact(state, 'clue-found'), false);
+  apply('clear-override');
+  assert.equal(getFact(state, 'clue-found'), true);
+  apply('set-trust');
+  assert.equal(getFact(state, 'trust'), 9);
+  apply('reset-trust');
+  assert.equal(getFact(state, 'trust'), 2);
 });
 
 test('derived quest availability is queryable but persisted state predicates stay explicit', () => {

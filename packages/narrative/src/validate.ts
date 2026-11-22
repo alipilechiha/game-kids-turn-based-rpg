@@ -233,6 +233,69 @@ export function validateNarrative(input: unknown): NarrativeValidationReport {
     }
     return true;
   };
+  const factTypes = new Map<string, string>();
+  if (input.facts !== undefined && !isArray(input.facts)) {
+    add('fact-declarations', '$.facts', 'Fact declarations must be an array when present.');
+  } else if (isArray(input.facts)) {
+    for (const [index, rawFact] of input.facts.entries()) {
+      const path = `$.facts[${index}]`;
+      if (!isObject(rawFact)) {
+        add('fact-declaration', path, 'Fact declaration must be an object.');
+        continue;
+      }
+      const keyIsValid = factKey(rawFact.key, `${path}.key`);
+      const typeIsValid =
+        rawFact.type === 'boolean' || rawFact.type === 'integer' || rawFact.type === 'string';
+      if (!typeIsValid)
+        add('fact-type', `${path}.type`, 'Fact type must be boolean, integer, or string.');
+      if (keyIsValid && typeof rawFact.key === 'string') {
+        if (factTypes.has(rawFact.key))
+          add('duplicate-fact-key', `${path}.key`, `Fact key ${rawFact.key} is duplicated.`);
+        else if (typeIsValid)
+          factTypes.set(rawFact.key, rawFact.type as 'boolean' | 'integer' | 'string');
+      }
+      if (Object.hasOwn(rawFact, 'default') && typeIsValid) {
+        const validDefault =
+          (rawFact.type === 'boolean' && typeof rawFact.default === 'boolean') ||
+          (rawFact.type === 'integer' &&
+            typeof rawFact.default === 'number' &&
+            Number.isSafeInteger(rawFact.default)) ||
+          (rawFact.type === 'string' && typeof rawFact.default === 'string');
+        if (!validDefault)
+          add(
+            'fact-default',
+            `${path}.default`,
+            `Default value must match the declared ${rawFact.type} fact type.`,
+          );
+      }
+    }
+  }
+  if (
+    input.defaultLocale !== undefined &&
+    (typeof input.defaultLocale !== 'string' || !LOCALE.test(input.defaultLocale))
+  )
+    add('default-locale', '$.defaultLocale', 'defaultLocale must be a BCP-47-like locale tag.');
+  const defaultLocale = typeof input.defaultLocale === 'string' ? input.defaultLocale : undefined;
+  const factReference = (value: unknown, path: string, expectedType?: string): void => {
+    if (!factKey(value, path) || !isArray(input.facts)) return;
+    const actualType = factTypes.get(value);
+    if (!actualType) {
+      add('unknown-fact-reference', path, `Fact ${value} is not declared.`);
+      return;
+    }
+    if (expectedType && actualType !== expectedType)
+      add(
+        'fact-type',
+        path,
+        `Fact ${value} is ${actualType}; this operation requires ${expectedType}.`,
+      );
+  };
+  const literalFactType = (value: unknown): string | undefined => {
+    if (typeof value === 'boolean') return 'boolean';
+    if (typeof value === 'string') return 'string';
+    if (typeof value === 'number' && Number.isSafeInteger(value)) return 'integer';
+    return undefined;
+  };
   const localized = (value: unknown, path: string): void => {
     if (!isObject(value) || Object.keys(value).length === 0) {
       add('localized-text', path, 'Text must provide at least one locale.');
@@ -244,6 +307,12 @@ export function validateNarrative(input: unknown): NarrativeValidationReport {
       if (typeof text !== 'string' || text.length === 0)
         add('localized-text', `${path}.${locale}`, 'Localized text must be a non-empty string.');
     }
+    if (defaultLocale && !Object.hasOwn(value, defaultLocale))
+      add(
+        'default-locale-missing',
+        path,
+        `Localized text must include the declared default locale ${defaultLocale}.`,
+      );
   };
 
   const validateCondition = (raw: unknown, path: string): void => {
@@ -253,25 +322,34 @@ export function validateNarrative(input: unknown): NarrativeValidationReport {
     }
     switch (raw.op) {
       case 'flag':
-        factKey(raw.key, `${path}.key`);
+        factReference(raw.key, `${path}.key`, 'boolean');
         if (typeof raw.equals !== 'boolean')
           add('condition-operand', `${path}.equals`, 'Flag equality requires a boolean.');
         break;
       case 'eq':
       case 'neq':
-        factKey(raw.key, `${path}.key`);
+        factReference(raw.key, `${path}.key`);
         if (
           !(raw.value === null || ['string', 'number', 'boolean'].includes(typeof raw.value)) ||
           (typeof raw.value === 'number' && !Number.isFinite(raw.value))
         ) {
           add('condition-operand', `${path}.value`, 'Equality requires a finite JSON primitive.');
+        } else if (isArray(input.facts) && typeof raw.key === 'string') {
+          const expectedType = factTypes.get(raw.key);
+          const actualType = literalFactType(raw.value);
+          if (expectedType && expectedType !== actualType)
+            add(
+              'fact-type',
+              `${path}.value`,
+              `Condition value does not match declared ${expectedType} fact ${raw.key}.`,
+            );
         }
         break;
       case 'int-gte':
       case 'int-gt':
       case 'int-lte':
       case 'int-lt':
-        factKey(raw.key, `${path}.key`);
+        factReference(raw.key, `${path}.key`, 'integer');
         if (typeof raw.value !== 'number' || !Number.isSafeInteger(raw.value))
           add(
             'condition-operand',
@@ -322,13 +400,26 @@ export function validateNarrative(input: unknown): NarrativeValidationReport {
         return;
       }
       if (effect.op === 'set-flag') {
-        factKey(effect.key, `${effectPath}.key`);
+        factReference(effect.key, `${effectPath}.key`, 'boolean');
         if (typeof effect.value !== 'boolean')
           add('effect-operand', `${effectPath}.value`, 'set-flag requires a boolean value.');
-      } else if (effect.op === 'clear-flag') factKey(effect.key, `${effectPath}.key`);
-      else if (effect.op === 'set-fact') factKey(effect.key, `${effectPath}.key`);
-      else if (effect.op === 'increment-fact') {
-        factKey(effect.key, `${effectPath}.key`);
+      } else if (effect.op === 'clear-flag')
+        factReference(effect.key, `${effectPath}.key`, 'boolean');
+      else if (effect.op === 'clear-fact') factReference(effect.key, `${effectPath}.key`);
+      else if (effect.op === 'set-fact') {
+        factReference(effect.key, `${effectPath}.key`);
+        if (isArray(input.facts) && typeof effect.key === 'string') {
+          const expectedType = factTypes.get(effect.key);
+          const actualType = literalFactType(effect.value);
+          if (expectedType && expectedType !== actualType)
+            add(
+              'fact-type',
+              `${effectPath}.value`,
+              `Value does not match declared ${expectedType} fact ${effect.key}.`,
+            );
+        }
+      } else if (effect.op === 'increment-fact') {
+        factReference(effect.key, `${effectPath}.key`, 'integer');
         if (
           typeof effect.amount !== 'number' ||
           !Number.isSafeInteger(effect.amount) ||

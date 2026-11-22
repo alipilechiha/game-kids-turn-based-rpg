@@ -184,6 +184,49 @@ test('keeps a viable any alternative non-fatal and dependencies under not non-po
   assert.equal(hasCode(negatedReport, 'conditional-quest-cycle'), false);
 });
 
+test('validates optional fact declarations, defaults, and default locale', () => {
+  const valid = definition();
+  valid.defaultLocale = 'fa';
+  valid.facts = [
+    { key: 'clue-found', type: 'boolean', default: false },
+    { key: 'trust', type: 'integer', default: 2 },
+    { key: 'approach', type: 'string', default: 'patient' },
+  ];
+  assert.equal(validateNarrative(valid).ok, true);
+
+  const duplicate = definition();
+  duplicate.facts = [
+    { key: 'trust', type: 'integer' },
+    { key: 'trust', type: 'integer' },
+  ];
+  assert.equal(hasCode(validateNarrative(duplicate), 'duplicate-fact-key'), true);
+
+  const invalidDefault = definition();
+  invalidDefault.facts = [{ key: 'trust', type: 'integer', default: 1.5 }];
+  assert.equal(hasCode(validateNarrative(invalidDefault), 'fact-default'), true);
+
+  const invalidLocale = definition();
+  invalidLocale.defaultLocale = 'not a locale';
+  assert.equal(hasCode(validateNarrative(invalidLocale), 'default-locale'), true);
+});
+
+test('declared fact conditions and effects must use matching types and known keys', () => {
+  const value = definition();
+  value.facts = [{ key: 'trust', type: 'integer', default: 0 }];
+  value.dialogues[0].nodes[0].choices[0].when = {
+    op: 'flag',
+    key: 'trust',
+    equals: true,
+  };
+  value.dialogues[0].nodes[0].choices[0].effects.push(
+    { op: 'set-fact', key: 'trust', value: 'high' },
+    { op: 'increment-fact', key: 'missing', amount: 1 },
+  );
+  const report = validateNarrative(value);
+  assert.equal(hasCode(report, 'fact-type'), true);
+  assert.equal(hasCode(report, 'unknown-fact-reference'), true);
+});
+
 test('warns when a prerequisite cycle depends on a condition that cannot be solved statically', () => {
   const value = definition();
   value.quests = [

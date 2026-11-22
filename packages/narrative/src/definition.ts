@@ -5,6 +5,14 @@ export type JsonValue =
 
 export type PersistedQuestStatus = 'active' | 'completed' | 'failed' | 'cancelled';
 export type QuestStatus = 'locked' | 'available' | PersistedQuestStatus;
+export type NarrativeFactType = 'boolean' | 'integer' | 'string';
+export type NarrativeFactValue = boolean | number | string;
+
+export interface NarrativeFactDefinition {
+  readonly key: string;
+  readonly type: NarrativeFactType;
+  readonly default?: NarrativeFactValue;
+}
 
 export type NarrativeCondition =
   | { readonly op: 'flag'; readonly key: string; readonly equals: boolean }
@@ -26,6 +34,7 @@ export type NarrativeCondition =
 export type NarrativeEffect =
   | { readonly op: 'set-flag'; readonly key: string; readonly value: boolean }
   | { readonly op: 'clear-flag'; readonly key: string }
+  | { readonly op: 'clear-fact'; readonly key: string }
   | { readonly op: 'set-fact'; readonly key: string; readonly value: JsonValue }
   | { readonly op: 'increment-fact'; readonly key: string; readonly amount: number }
   | { readonly op: 'start-quest'; readonly questId: string }
@@ -88,6 +97,10 @@ export interface NarrativeDefinition {
   readonly contentVersion: string;
   /** Explicit compatibility key for structural state/content changes. */
   readonly compatibilityVersion: string;
+  /** Fallback locale after exact and base-language matches; omitted keeps legacy fallback. */
+  readonly defaultLocale?: string;
+  /** Omit to keep legacy untyped JSON fact behavior. */
+  readonly facts?: readonly NarrativeFactDefinition[];
   readonly entryDialogueId: string;
   readonly dialogues: readonly DialogueDefinition[];
   readonly quests: readonly QuestDefinition[];

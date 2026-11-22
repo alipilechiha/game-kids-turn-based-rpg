@@ -3,6 +3,7 @@ import type {
   CompiledNarrative,
   DialogueView,
   JsonValue,
+  NarrativeFactDefinition,
   NarrativeDecodeResult,
   NarrativeState,
   PersistedQuestStatus,
@@ -78,6 +79,21 @@ export function snapshotDraft(draft: Draft): NarrativeState {
   return freezeDeep(cloneJson(draft));
 }
 
+function defaultFacts(
+  definitions: readonly NarrativeFactDefinition[] | undefined,
+): Record<string, JsonValue> {
+  const facts: Record<string, JsonValue> = {};
+  for (const fact of definitions ?? [])
+    if (Object.hasOwn(fact, 'default')) facts[fact.key] = fact.default as JsonValue;
+  return facts;
+}
+
+function matchesFactType(value: unknown, type: NarrativeFactDefinition['type']): boolean {
+  if (type === 'boolean') return typeof value === 'boolean';
+  if (type === 'integer') return typeof value === 'number' && Number.isSafeInteger(value);
+  return typeof value === 'string';
+}
+
 export function draftFromState(state: NarrativeState): Draft {
   return cloneJson(state) as Draft;
 }
@@ -96,7 +112,7 @@ export function createNarrativeState(
     compatibilityVersion: compiled.compatibilityVersion,
     playthroughId,
     revision: 0,
-    facts: {},
+    facts: defaultFacts(compiled.definition.facts),
     quests: {},
     appliedChoiceIds: [],
     appliedTriggerIds: [],
@@ -136,7 +152,7 @@ export function getDialogueView(
   if (!dialogue || !node || (node.when && !evaluateCondition(node.when, state))) return null;
   const choices = (node.choices ?? []).map((choice) => ({
     id: choice.id,
-    label: localized(choice.label, locale),
+    label: localized(choice.label, locale, compiled.definition.defaultLocale),
     available:
       (!choice.when || evaluateCondition(choice.when, state)) &&
       (choice.repeatable === true || !state.appliedChoiceIds.includes(choice.id)),
@@ -145,17 +161,22 @@ export function getDialogueView(
     dialogueId: dialogue.id,
     nodeId: node.id,
     speakerId: node.speakerId,
-    text: localized(node.text, locale),
+    text: localized(node.text, locale, compiled.definition.defaultLocale),
     terminal: node.terminal === true,
     exitAllowed: dialogue.exitPolicy === 'allowed',
     choices: Object.freeze(choices.map((choice) => Object.freeze(choice))),
   });
 }
 
-function localized(values: Readonly<Record<string, string>>, locale: string): string {
+function localized(
+  values: Readonly<Record<string, string>>,
+  locale: string,
+  defaultLocale?: string,
+): string {
   if (values[locale]) return values[locale]!;
   const language = locale.split('-')[0];
   if (values[language!]) return values[language!]!;
+  if (defaultLocale && values[defaultLocale]) return values[defaultLocale]!;
   const fallback = Object.keys(values).sort()[0];
   return fallback ? values[fallback]! : '';
 }
@@ -205,12 +226,25 @@ export function decodeNarrativeState(
       'Facts, quest states, and applied event ids have invalid shapes.',
     );
   }
+  const factDeclarations = compiled.definition.facts;
+  const declaredFacts =
+    factDeclarations === undefined
+      ? null
+      : new Map(factDeclarations.map((fact) => [fact.key, fact]));
   const facts: Record<string, JsonValue> = {};
   for (const [key, value] of Object.entries(input.facts)) {
     if (!SAFE_FACT_KEY.test(key) || UNSAFE_KEYS.has(key) || !validJson(value))
       return decodeFailure('invalid-payload', `Fact ${key} is not safe JSON.`);
+    const declaration = declaredFacts?.get(key);
+    if (declaredFacts && !declaration)
+      return decodeFailure('invalid-payload', `Fact ${key} is not declared by this story.`);
+    if (declaration && !matchesFactType(value, declaration.type))
+      return decodeFailure('invalid-payload', `Fact ${key} does not match its declared type.`);
     facts[key] = cloneJson(value) as JsonValue;
   }
+  for (const declaration of factDeclarations ?? [])
+    if (!Object.hasOwn(facts, declaration.key) && Object.hasOwn(declaration, 'default'))
+      facts[declaration.key] = declaration.default as JsonValue;
   const quests: Record<string, PersistedQuestStatus> = {};
   for (const [questId, status] of Object.entries(input.quests)) {
     if (
