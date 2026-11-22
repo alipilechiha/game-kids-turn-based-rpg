@@ -1,0 +1,61 @@
+name: Framework roadmap synchronization
+
+on:
+  pull_request:
+    paths:
+      - README.md
+      - docs/FRAMEWORK-ROADMAP.md
+      - scripts/sync-framework-roadmap.mjs
+      - .github/workflows/framework-roadmap.yml
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ensure README reflects the canonical roadmap
+        run: node scripts/sync-framework-roadmap.mjs --check
+
+  synchronize:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: framework-roadmap-sync
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate README roadmap from the canonical document
+        run: node scripts/sync-framework-roadmap.mjs
+      - name: Open or update a synchronization PR when needed
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/sync-framework-roadmap
+          base: main
+          add-paths: README.md
+          commit-message: 'docs: sync README framework roadmap'
+          title: 'docs: synchronize framework roadmap in README'
+          body: |
+            Automatically generated from `docs/FRAMEWORK-ROADMAP.md` after an update to `main`.
+
+            The canonical roadmap status is edited in the roadmap document;
+            the README is a generated overview. The workflow is idempotent
+            and never advances phase statuses based solely on a merge.
+
+            The PR keeps branch-protection and ordinary review intact.
+          delete-branch: true
