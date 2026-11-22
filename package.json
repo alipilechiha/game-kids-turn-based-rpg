@@ -26,6 +26,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "roadmap:sync": "node scripts/sync-framework-roadmap.mjs",
+    "roadmap:check": "node scripts/sync-framework-roadmap.mjs --check",
     "pretest": "npm run framework:build",
     "test": "vitest run",
     "pretest:watch": "npm run framework:build",
@@ -65,7 +67,7 @@
     "example:scene-build": "vite build --config examples/scene-demo/vite.config.ts",
     "preexample:dev": "npm run framework:build",
     "example:dev": "vite --config examples/hello-world/vite.config.ts",
-    "verify": "npm run format:check && npm run lint && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run framework:narrative-consumer:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
+    "verify": "npm run format:check && npm run roadmap:check && npm run lint && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run framework:narrative-consumer:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
