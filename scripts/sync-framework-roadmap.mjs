@@ -60,8 +60,8 @@ function extractPhases(markdown) {
 
 function renderRoadmap(phases) {
   const complete = phases.filter((phase) => phase.status === 'Complete');
-  let upcoming = phases.find((phase) => phase.status === 'In progress');
-  if (!upcoming) upcoming = phases.find((phase) => phase.status === 'Next');
+  let upcoming = phases.find((phase) => phase.status === 'Next');
+  if (!upcoming) upcoming = phases.find((phase) => phase.status === 'In progress');
   if (!upcoming) upcoming = phases.find((phase) => phase.status === 'Planned');
 
   let summary = '**' + complete.length + '/' + phases.length;
