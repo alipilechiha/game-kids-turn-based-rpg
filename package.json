@@ -35,6 +35,8 @@
     "pretest:coverage": "npm run framework:build",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "sample:previews": "playwright test --config=playwright.previews.config.ts --project=legacy-preview",
+    "sample:gallery": "node scripts/sync-sample-gallery.mjs",
     "prevalidate:content": "npm run framework:build",
     "validate:content": "node --experimental-strip-types scripts/validate-content.ts",
     "prevalidate:content:release": "npm run framework:build",
