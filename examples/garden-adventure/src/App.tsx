@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { getDialogueView, getFact, getQuestStatus } from 'waypoint-rpg-narrative';
 import { faUi } from './content/fa/ui.js';
 import { createGardenRuntime } from './game/runtime.js';
@@ -17,15 +17,29 @@ export function App() {
   const runtime = useMemo(() => createGardenRuntime(), []);
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
   const [rendererReady, setRendererReady] = useState(false);
-  const [recapOpen, setRecapOpen] = useState(false);
+  const [manualRecapOpen, setManualRecapOpen] = useState(false);
+  const [dismissedEndingId, setDismissedEndingId] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
-  const [saveInspection, setSaveInspection] = useState<
-    GardenSaveInspection | { readonly status: 'checking' }
-  >({ status: 'checking' });
-  const [storageMode, setStorageMode] = useState<'persistent' | 'session-only'>('persistent');
+  const [initialInspection] = useState<GardenSaveInspection>(() => {
+    try {
+      return inspectGardenSave(window.localStorage, runtime.compiledNarrative);
+    } catch {
+      return { status: 'unavailable' };
+    }
+  });
+  const [saveInspection, setSaveInspection] = useState(initialInspection);
+  const initialStorageMode =
+    initialInspection.status === 'unavailable' ? 'session-only' : 'persistent';
+  const storageModeRef = useRef<'persistent' | 'session-only'>(initialStorageMode);
+  const [storageMode, setStorageModeState] = useState<'persistent' | 'session-only'>(
+    initialStorageMode,
+  );
   const [saveFeedback, setSaveFeedback] = useState('');
   const [offlineStatus, setOfflineStatus] = useState<'checking' | 'ready' | 'failed'>('checking');
   const dialogue = getDialogueView(runtime.compiledNarrative, state.narrative, 'fa');
+  const dialogueOpen = dialogue !== null;
+  const endingId = state.narrative.endingId;
+  const recapVisible = manualRecapOpen || Boolean(endingId && endingId !== dismissedEndingId);
   const storyPath = getFact(state.narrative, 'story-path');
   const questId =
     storyPath === 'gardener' ? 'gardener-quest' : storyPath === 'lantern' ? 'lantern-quest' : null;
@@ -47,6 +61,11 @@ export function App() {
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
+  const setStorageMode = useCallback((mode: 'persistent' | 'session-only') => {
+    storageModeRef.current = mode;
+    setStorageModeState(mode);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     void registerGardenServiceWorker().then((ready) => {
@@ -58,55 +77,59 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    try {
-      const inspection = inspectGardenSave(window.localStorage, runtime.compiledNarrative);
-      setSaveInspection(inspection);
-      if (inspection.status === 'unavailable') setStorageMode('session-only');
-    } catch {
-      setSaveInspection({ status: 'unavailable' });
-      setStorageMode('session-only');
-    }
-  }, [runtime]);
+    const unsubscribe = runtime.subscribe(() => {
+      if (storageModeRef.current !== 'persistent') return;
+      const current = runtime.getState();
+      if (current.phase !== 'playing' || current.walk) return;
+      try {
+        writeGardenSave(window.localStorage, {
+          mapId: current.mapId,
+          anchorId: current.anchorId,
+          narrative: current.narrative,
+        });
+        setSaveFeedback(faUi.saveComplete);
+      } catch {
+        setStorageMode('session-only');
+        setSaveFeedback(faUi.saveFailed);
+      }
+    });
+    return unsubscribe;
+  }, [runtime, setStorageMode]);
+
+  const closeRecap = useCallback(() => {
+    setManualRecapOpen(false);
+    if (endingId) setDismissedEndingId(endingId);
+  }, [endingId]);
 
   useEffect(() => {
-    if (state.phase !== 'playing' || state.walk || storageMode !== 'persistent') return;
-    try {
-      writeGardenSave(window.localStorage, {
-        mapId: state.mapId,
-        anchorId: state.anchorId,
-        narrative: state.narrative,
-      });
-      setSaveFeedback(faUi.saveComplete);
-    } catch {
-      setStorageMode('session-only');
-      setSaveFeedback(faUi.saveFailed);
-    }
-  }, [state, storageMode]);
-
-  useEffect(() => {
-    if (state.narrative.endingId) setRecapOpen(true);
-  }, [state.narrative.endingId]);
-
-  useEffect(() => {
-    if (!dialogue && !recapOpen && !resetOpen) return;
+    if (!dialogueOpen && !recapVisible && !resetOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (dialogue) runtime.dispatch({ type: 'DIALOGUE_EXIT' });
+      if (dialogueOpen) runtime.dispatch({ type: 'DIALOGUE_EXIT' });
       else if (resetOpen) setResetOpen(false);
-      else setRecapOpen(false);
+      else closeRecap();
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [dialogue?.dialogueId, dialogue?.nodeId, recapOpen, resetOpen, runtime]);
+  }, [
+    closeRecap,
+    dialogue?.dialogueId,
+    dialogue?.nodeId,
+    dialogueOpen,
+    recapVisible,
+    resetOpen,
+    runtime,
+  ]);
 
   const startFresh = useCallback(
     (mode: 'persistent' | 'session-only') => {
       setStorageMode(mode);
       setSaveFeedback(mode === 'session-only' ? faUi.sessionOnly : '');
-      setRecapOpen(false);
+      setManualRecapOpen(false);
+      setDismissedEndingId(null);
       runtime.dispatch({ type: 'NEW_GAME' });
     },
-    [runtime],
+    [runtime, setStorageMode],
   );
 
   const continueGame = useCallback(() => {
@@ -114,7 +137,7 @@ export function App() {
     setStorageMode('persistent');
     setSaveFeedback('');
     runtime.dispatch({ type: 'RESTORE_GAME', ...saveInspection.snapshot });
-  }, [runtime, saveInspection]);
+  }, [runtime, saveInspection, setStorageMode]);
 
   const clearAndStartFresh = useCallback(() => {
     let mode: 'persistent' | 'session-only' = 'persistent';
@@ -144,7 +167,7 @@ export function App() {
       setStorageMode('session-only');
       setSaveFeedback(faUi.saveFailed);
     }
-  }, [runtime, storageMode]);
+  }, [runtime, setStorageMode, storageMode]);
 
   const onTargetPress = useCallback(
     (targetId: GardenTargetId) => {
@@ -154,7 +177,7 @@ export function App() {
       if (!target || target.mapId !== current.mapId) return;
       if (target.anchorId === current.anchorId && !current.walk) {
         if (targetId === 'recap-bench' && current.narrative.endingId) {
-          setRecapOpen(true);
+          setManualRecapOpen(true);
           return;
         }
         runtime.dispatch({ type: 'INTERACT', targetId });
@@ -210,12 +233,12 @@ export function App() {
             {faUi.newGame}
           </button>
         ) : null}
-        {state.narrative.endingId ? (
+        {endingId ? (
           <button
             className="quiet-button"
             data-testid="garden-view-recap"
             type="button"
-            onClick={() => setRecapOpen(true)}
+            onClick={() => setManualRecapOpen(true)}
           >
             {faUi.viewRecap}
           </button>
@@ -227,7 +250,6 @@ export function App() {
           <div className="title-art" aria-hidden="true">
             🌱
           </div>
-          {saveInspection.status === 'checking' ? <p role="status">{faUi.saveChecking}</p> : null}
           {saveInspection.status === 'ready' ? (
             <>
               <button
@@ -258,9 +280,7 @@ export function App() {
               {faUi.start}
             </button>
           ) : null}
-          {saveInspection.status !== 'checking' &&
-          saveInspection.status !== 'ready' &&
-          saveInspection.status !== 'empty' ? (
+          {saveInspection.status !== 'ready' && saveInspection.status !== 'empty' ? (
             <>
               <h2>{faUi.saveRecoveryTitle}</h2>
               <p role="status">
@@ -416,13 +436,13 @@ export function App() {
               </section>
             </div>
           ) : null}
-          {state.narrative.endingId && recapOpen ? (
+          {endingId && recapVisible ? (
             <div className="dialogue-layer" data-testid="ending-layer">
               <button
                 className="dialogue-backdrop"
                 type="button"
                 aria-label={faUi.closeRecap}
-                onClick={() => setRecapOpen(false)}
+                onClick={closeRecap}
               />
               <section
                 className="dialogue-panel ending-panel"
@@ -433,9 +453,7 @@ export function App() {
               >
                 <p className="dialogue-speaker">{faUi.recapHeading}</p>
                 <h2 id="garden-ending-heading">
-                  {state.narrative.endingId === 'ending-garden'
-                    ? faUi.gardenerEnding
-                    : faUi.lanternEnding}
+                  {endingId === 'ending-garden' ? faUi.gardenerEnding : faUi.lanternEnding}
                 </h2>
                 <p>{questObjective}</p>
                 <button
@@ -443,7 +461,7 @@ export function App() {
                   data-testid="ending-close"
                   type="button"
                   autoFocus
-                  onClick={() => setRecapOpen(false)}
+                  onClick={closeRecap}
                 >
                   {faUi.closeRecap}
                 </button>

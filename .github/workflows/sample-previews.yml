@@ -1,4 +1,4 @@
-name: Reference game screenshots
+name: Sample game screenshots
 
 on:
   push:
@@ -9,7 +9,11 @@ on:
       - e2e/sample-previews.preview.ts
       - playwright.previews.config.ts
       - scripts/sync-sample-gallery.mjs
+      - examples/garden-adventure/**
+      - examples/scene-demo/**
       - docs/MAHALLE-LIBRARY-ADOPTION.md
+      - docs/FRAMEWORK-ROADMAP.md
+      - docs/CREATING-A-SAMPLE-GAME.md
       - package.json
       - tsconfig.node.json
   workflow_dispatch:
@@ -18,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: reference-sample-previews
+  group: sample-game-previews
   cancel-in-progress: true
 
 jobs:
@@ -46,18 +50,25 @@ jobs:
         run: npm run build
       - name: Capture real rendered scenes using Playwright
         run: npm run sample:previews
+      - name: Build and capture the independent Blood Leaf demonstration
+        run: npm run sample:scene:previews
+      - name: Build and capture both Garden story outcomes
+        run: npm run sample:garden:previews
       - name: Update README with the captured gallery
         run: npm run sample:gallery
       - name: Format and verify the generated README
         run: |
           npx prettier --write README.md
           npm run roadmap:check
-      - name: Upload source-rendered PNGs for every merge
+      - name: Upload source-rendered PNGs and provenance for every merge
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mahalle-ye-mehrabani-source-previews
-          path: docs/previews/legacy-sample/*.png
+          name: waypoint-rpg-sample-games-source-previews
+          path: |
+            docs/previews/legacy-sample/*.png
+            docs/previews/blood-leaf/**/*
+            docs/previews/garden-adventure/**/*
           if-no-files-found: warn
           retention-days: 14
       - name: Propose updated visual documentation for review
@@ -69,15 +80,18 @@ jobs:
           add-paths: |
             README.md
             docs/previews/legacy-sample
-          commit-message: 'docs: refresh real Kids RPG Playwright previews'
-          title: 'docs: refresh reference game screenshots'
+            docs/previews/blood-leaf
+            docs/previews/garden-adventure
+          commit-message: 'docs: refresh real sample game previews'
+          title: 'docs: refresh playable sample screenshots'
           body: |
-            These screenshots were captured by Playwright from the production-built
-            Kids RPG following a push/merge to main. They are not AI-generated
-            concepts or exact-pixel regression baselines.
+            These screenshots were captured by Chromium from the production-built
+            Kids RPG, Blood Leaf scene demo, and Garden of Stories following a
+            push/merge to main. The game previews are real rendered states, not
+            AI-generated concepts or exact-pixel regression baselines.
 
-            Review visual differences, Persian RTL, interaction screens, and
-            draft-content policy before merging this documentation PR.
+            Review visual differences, Persian RTL, both Garden outcomes, and
+            the Kids RPG draft-content policy before merging this documentation PR.
 
             Source: the workflow run linked under this pull request's checks.
           delete-branch: true

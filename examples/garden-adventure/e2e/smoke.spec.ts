@@ -12,7 +12,13 @@ test('production build opens the title and initializes the village canvas', asyn
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId('active-map')).toHaveText('روستای آرام');
   await expect
-    .poll(() => canvas.evaluate((element) => element.getContext('webgl2') !== null))
+    .poll(() =>
+      canvas.evaluate((element) => {
+        const renderedCanvas =
+          element instanceof HTMLCanvasElement ? element : element.querySelector('canvas');
+        return (renderedCanvas?.getContext('webgl2') ?? null) !== null;
+      }),
+    )
     .toBe(true);
   expect(pageErrors).toEqual([]);
 });

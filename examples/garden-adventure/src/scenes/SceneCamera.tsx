@@ -10,7 +10,7 @@ interface SceneCameraProps {
 }
 
 export function SceneCamera({ mapId, anchorId }: SceneCameraProps) {
-  const { set, invalidate, gl, size } = useThree();
+  const { set, invalidate, size } = useThree();
   const anchor = getAnchor(gardenGraphs[mapId], anchorId as never);
 
   useEffect(() => {
@@ -29,9 +29,8 @@ export function SceneCamera({ mapId, anchorId }: SceneCameraProps) {
     camera.lookAt(anchor.x, 0, anchor.z);
     camera.updateProjectionMatrix();
     set({ camera });
-    gl.domElement.dataset.cameraKind = 'orthographic';
     invalidate();
-  }, [anchor.x, anchor.z, gl, invalidate, mapId, set, size.height, size.width]);
+  }, [anchor.x, anchor.z, invalidate, mapId, set, size.height, size.width]);
 
   return null;
 }

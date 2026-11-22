@@ -32,7 +32,7 @@ function progressedNarrative(): NarrativeState {
   const runtime = createGardenRuntime({ createPlaythroughId: () => 'saved-garden' });
   runtime.dispatch({ type: 'NEW_GAME' });
   let state = runtime.getState().narrative;
-  const apply = (intent: Omit<NarrativeCommand, 'playthroughId' | 'expectedRevision'>) => {
+  const apply = (intent: NarrativeIntent<NarrativeCommand>) => {
     const result = transitionNarrative(runtime.compiledNarrative, state, {
       ...intent,
       playthroughId: state.playthroughId,
@@ -49,6 +49,10 @@ function progressedNarrative(): NarrativeState {
   runtime.dispose();
   return state;
 }
+
+type NarrativeIntent<T> = T extends NarrativeCommand
+  ? Omit<T, 'playthroughId' | 'expectedRevision'>
+  : never;
 
 function snapshot(narrative = progressedNarrative()): GardenSaveSnapshot {
   return {

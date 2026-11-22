@@ -153,9 +153,9 @@ if (args.some((arg) => arg !== '--check')) {
 }
 const phases = extractPhases(readFileSync(roadmapPath, 'utf8'));
 const existing = readFileSync(readmePath, 'utf8');
-const lineEnding = existing.includes('\r\n') ? '\r\n' : '\n';
-const generated = renderRoadmap(phases).replace(/\n/g, lineEnding);
-const updated = updateReadme(existing, generated);
+const newline = existing.includes('\r\n') ? '\r\n' : '\n';
+const normalized = existing.replace(/\r\n/g, '\n');
+const updated = updateReadme(normalized, renderRoadmap(phases)).replace(/\n/g, newline);
 if (updated !== existing) {
   if (args.includes('--check')) {
     console.error('README roadmap is stale. Run npm run roadmap:sync.');

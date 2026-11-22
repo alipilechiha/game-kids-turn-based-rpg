@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findPath } from 'waypoint-rpg-core';
+import { findPath, type AnchorId } from 'waypoint-rpg-core';
 import { createGardenRuntime } from '../src/game/runtime.js';
 import { gardenGraphs, gardenMaps, gardenTargets, mapTransitions } from '../src/world/world.js';
 
@@ -40,14 +40,14 @@ describe('Garden world navigation', () => {
     const staleArrival = runtime.dispatch({
       type: 'ARRIVE',
       routeId: 'old-route',
-      anchorId: 'village-traveler',
+      anchorId: 'village-traveler' as AnchorId,
     });
     expect(staleArrival).toBe(route);
 
     const wrongWaypoint = runtime.dispatch({
       type: 'ARRIVE',
       routeId: route.walk!.routeId,
-      anchorId: 'village-traveler',
+      anchorId: 'village-traveler' as AnchorId,
     });
     expect(wrongWaypoint).toBe(route);
 
@@ -63,9 +63,9 @@ describe('Garden world navigation', () => {
     runtime.dispatch({ type: 'NEW_GAME' });
     const village = runtime.getState();
 
-    expect(runtime.dispatch({ type: 'INTERACT', targetId: 'garden-lantern' })).toBe(village);
+    expect(runtime.dispatch({ type: 'INTERACT', targetId: 'ancient-lantern' })).toBe(village);
 
-    const requested = runtime.dispatch({ type: 'MOVE_TO', targetId: 'garden-lantern' });
+    const requested = runtime.dispatch({ type: 'MOVE_TO', targetId: 'ancient-lantern' });
     expect(requested).toBe(village);
     expect(runtime.getState().mapId).toBe('village');
     runtime.dispose();

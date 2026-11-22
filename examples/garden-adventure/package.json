@@ -13,7 +13,8 @@
     "test": "vitest run",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4180",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "previews": "playwright test --config=playwright.previews.config.ts"
   },
   "dependencies": {
     "@react-three/fiber": "9.7.0",

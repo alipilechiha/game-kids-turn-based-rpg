@@ -8,7 +8,11 @@ self.addEventListener('install', (event) => {
       const scope = new URL(self.registration.scope);
       const indexUrl = new URL('./index.html', scope);
       const manifestUrl = new URL('./manifest.webmanifest', scope);
-      await cache.addAll([indexUrl.href, manifestUrl.href, new URL('./icons/garden.svg', scope).href]);
+      await cache.addAll([
+        indexUrl.href,
+        manifestUrl.href,
+        new URL('./icons/garden.svg', scope).href,
+      ]);
 
       const page = await cache.match(indexUrl.href);
       const html = await page.text();
@@ -48,11 +52,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const scope = new URL(self.registration.scope);
   const url = new URL(request.url);
-  if (
-    request.method !== 'GET' ||
-    url.origin !== scope.origin ||
-    !url.href.startsWith(scope.href)
-  ) {
+  if (request.method !== 'GET' || url.origin !== scope.origin || !url.href.startsWith(scope.href)) {
     return;
   }
 
