@@ -2,6 +2,7 @@ import { createGameRuntime, findPath, type AnchorId, type GameRuntime } from 'wa
 import {
   compileNarrative,
   createNarrativeState,
+  decodeNarrativeState,
   transitionNarrative,
   type NarrativeDefinition,
   type NarrativeCommand,
@@ -37,6 +38,12 @@ export interface GardenState {
 
 export type GardenCommand =
   | { readonly type: 'NEW_GAME' }
+  | {
+      readonly type: 'RESTORE_GAME';
+      readonly mapId: GardenMapId;
+      readonly anchorId: AnchorId;
+      readonly narrative: unknown;
+    }
   | { readonly type: 'MOVE_TO'; readonly targetId: GardenTargetId }
   | { readonly type: 'ARRIVE'; readonly routeId: string; readonly anchorId: AnchorId }
   | { readonly type: 'INTERACT'; readonly targetId: GardenTargetId }
@@ -143,6 +150,22 @@ export function createGardenRuntime(options: GardenRuntimeOptions = {}): GardenR
     createInitialState: () => ({ ...createNewGame(), phase: 'title' }),
     reducer(state, command) {
       if (command.type === 'NEW_GAME') return createNewGame();
+      if (command.type === 'RESTORE_GAME') {
+        if (!gardenGraphs[command.mapId]?.anchors.some((anchor) => anchor.id === command.anchorId))
+          return state;
+        const decoded = decodeNarrativeState(compiledNarrative, command.narrative);
+        if (!decoded.ok) return state;
+        return {
+          ...state,
+          phase: 'playing',
+          mapId: command.mapId,
+          anchorId: command.anchorId,
+          lastAnchorId: null,
+          walk: null,
+          lastInteractionTarget: null,
+          narrative: decoded.state,
+        };
+      }
       if (state.phase !== 'playing') return state;
 
       if (command.type === 'DIALOGUE_EXIT') {

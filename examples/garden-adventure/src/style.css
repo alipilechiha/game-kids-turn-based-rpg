@@ -38,6 +38,7 @@ button:focus-visible {
 
 .garden-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   max-width: 760px;
@@ -124,6 +125,19 @@ h1 {
   background: #fffaf0;
   color: #455b49;
   cursor: pointer;
+}
+
+.quiet-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.offline-status,
+.save-status {
+  margin: 4px 0 0;
+  color: #627362;
+  font-size: 0.82rem;
+  line-height: 1.6;
 }
 
 .scene-frame {
