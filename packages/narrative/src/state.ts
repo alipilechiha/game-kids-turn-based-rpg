@@ -163,6 +163,7 @@ export function getDialogueView(
     speakerId: node.speakerId,
     text: localized(node.text, locale, compiled.definition.defaultLocale),
     terminal: node.terminal === true,
+    closeAllowed: node.closesDialogue === true,
     exitAllowed: dialogue.exitPolicy === 'allowed',
     choices: Object.freeze(choices.map((choice) => Object.freeze(choice))),
   });

@@ -137,6 +137,20 @@ export function transitionNarrative(
       draft.activeDialogue = null;
       return finish('dialogue');
     }
+    case 'close-dialogue': {
+      const current = activeNode(compiled, state);
+      if (!current)
+        return reject(state, 'no-active-dialogue', 'There is no active dialogue to close.');
+      if (current.node.closesDialogue !== true)
+        return reject(
+          state,
+          'dialogue-not-closeable',
+          'This dialogue node is not an authored conversation endpoint.',
+        );
+      draft.activeDialogue = null;
+      draft.suspendedDialogue = null;
+      return finish('dialogue');
+    }
     case 'finish': {
       const current = activeNode(compiled, state);
       if (!current)

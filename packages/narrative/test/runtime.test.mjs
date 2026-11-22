@@ -191,6 +191,23 @@ function typedStory() {
   };
 }
 
+function closeableStory() {
+  const value = story();
+  value.dialogues[0].nodes[0].choices.push({
+    id: 'close-with-effect',
+    label: { fa: 'بستن گفت‌وگو', en: 'Close the conversation' },
+    targetNodeId: 'conversation-closed',
+    effects: [{ op: 'set-flag', key: 'closed-effect', value: true }],
+  });
+  value.dialogues[0].nodes.push({
+    id: 'conversation-closed',
+    speakerId: 'guardian',
+    text: { fa: 'گفت‌وگو به پایان رسید.', en: 'The conversation is complete.' },
+    closesDialogue: true,
+  });
+  return value;
+}
+
 function setup() {
   const compiled = compileNarrative(story());
   const state = createNarrativeState(compiled, 'playthrough-one');
@@ -276,6 +293,50 @@ test('clear-flag writes false while clear-fact restores the declared default', (
   assert.equal(getFact(state, 'trust'), 9);
   apply('reset-trust');
   assert.equal(getFact(state, 'trust'), 2);
+});
+
+test('close-dialogue clears only the conversation cursor and cannot replay its effects', () => {
+  const compiled = compileNarrative(closeableStory());
+  let state = createNarrativeState(compiled, 'close-playthrough');
+  const apply = (type, extra = {}) => {
+    const result = transitionNarrative(compiled, state, {
+      ...command(state, type),
+      ...extra,
+    });
+    assert.equal(result.accepted, true);
+    if (result.accepted) state = result.state;
+    return result;
+  };
+
+  apply('open-dialogue', { dialogueId: 'guardian-dialogue' });
+  apply('choose', { choiceId: 'close-with-effect' });
+  assert.equal(getDialogueView(compiled, state, 'fa')?.closeAllowed, true);
+  const revisionBeforeClose = state.revision;
+  const closed = apply('close-dialogue');
+  assert.equal(state.activeDialogue, null);
+  assert.equal(state.suspendedDialogue, null);
+  assert.equal(state.endingId, null);
+  assert.equal(getFact(state, 'closed-effect'), true);
+  assert.equal(state.revision, revisionBeforeClose + 1);
+
+  const repeated = transitionNarrative(compiled, state, command(state, 'close-dialogue'));
+  assert.equal(repeated.accepted, false);
+  if (!repeated.accepted) assert.equal(repeated.state, state);
+  assert.equal(closed.accepted, true);
+  const reopened = transitionNarrative(
+    compiled,
+    state,
+    command(state, 'open-dialogue', { dialogueId: 'guardian-dialogue' }),
+  );
+  assert.equal(reopened.accepted, true);
+  if (reopened.accepted) {
+    assert.equal(
+      getDialogueView(compiled, reopened.state, 'fa')?.choices.find(
+        (choice) => choice.id === 'close-with-effect',
+      )?.available,
+      false,
+    );
+  }
 });
 
 test('derived quest availability is queryable but persisted state predicates stay explicit', () => {

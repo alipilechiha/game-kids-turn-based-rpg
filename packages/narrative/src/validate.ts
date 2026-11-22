@@ -487,15 +487,24 @@ export function validateNarrative(input: unknown): NarrativeValidationReport {
       const hasNext = typeof node.nextNodeId === 'string';
       const hasChoices = node.choices !== undefined;
       const terminal = node.terminal === true;
-      if (Number(hasNext) + Number(hasChoices) + Number(terminal) !== 1)
+      const closesDialogue = node.closesDialogue === true;
+      if (Number(hasNext) + Number(hasChoices) + Number(terminal) + Number(closesDialogue) !== 1)
         add(
           'node-kind',
           nodePath,
-          'A node must be exactly one of linear, choice-only, or terminal.',
+          'A node must be exactly one of linear, choice-only, story-terminal, or dialogue-closing.',
         );
       if (hasNext) idField(node.nextNodeId, `${nodePath}.nextNodeId`);
       if (node.terminal !== undefined && typeof node.terminal !== 'boolean')
         add('node-terminal', `${nodePath}.terminal`, 'terminal must be boolean.');
+      if (node.closesDialogue !== undefined && typeof node.closesDialogue !== 'boolean')
+        add('node-close-dialogue', `${nodePath}.closesDialogue`, 'closesDialogue must be boolean.');
+      if (closesDialogue && node.endingId !== undefined)
+        add(
+          'node-close-dialogue',
+          `${nodePath}.endingId`,
+          'A dialogue-closing node cannot assign a story ending.',
+        );
       if (terminal) idField(node.endingId, `${nodePath}.endingId`);
       else if (node.endingId !== undefined)
         add('node-ending', `${nodePath}.endingId`, 'Only terminal nodes may have endingId.');

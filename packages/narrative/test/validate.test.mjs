@@ -210,6 +210,24 @@ test('validates optional fact declarations, defaults, and default locale', () =>
   assert.equal(hasCode(validateNarrative(invalidLocale), 'default-locale'), true);
 });
 
+test('dialogue-closing nodes are distinct from story endings and cannot continue', () => {
+  const valid = definition();
+  valid.dialogues[0].nodes[0].choices[0].targetNodeId = 'close';
+  valid.dialogues[0].nodes.push({
+    id: 'close',
+    speakerId: 'guardian',
+    text: { fa: 'گفت‌وگو تمام شد.' },
+    closesDialogue: true,
+  });
+  assert.equal(validateNarrative(valid).ok, true);
+
+  const invalid = structuredClone(valid);
+  invalid.dialogues[0].nodes.find((node) => node.id === 'close').endingId = 'ending-truth';
+  const report = validateNarrative(invalid);
+  assert.equal(hasCode(report, 'node-close-dialogue'), true);
+  assert.equal(hasCode(report, 'node-ending'), true);
+});
+
 test('declared fact conditions and effects must use matching types and known keys', () => {
   const value = definition();
   value.facts = [{ key: 'trust', type: 'integer', default: 0 }];

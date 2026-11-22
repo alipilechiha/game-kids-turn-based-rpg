@@ -62,6 +62,8 @@ export interface DialogueNodeDefinition {
   readonly nextNodeId?: string;
   readonly choices?: readonly DialogueChoiceDefinition[];
   readonly terminal?: boolean;
+  /** A conversation-only endpoint; closing it clears its cursor without ending the playthrough. */
+  readonly closesDialogue?: boolean;
   /** Required for a terminal node; immutable within its playthrough. */
   readonly endingId?: string;
   readonly cue?: string;
@@ -162,6 +164,7 @@ export type NarrativeCommand = NarrativeCommandBase &
     | { readonly type: 'advance' }
     | { readonly type: 'choose'; readonly choiceId: string }
     | { readonly type: 'exit-dialogue' }
+    | { readonly type: 'close-dialogue' }
     | { readonly type: 'finish' }
     | { readonly type: 'trigger'; readonly triggerId: string }
   );
@@ -182,6 +185,7 @@ export type NarrativeRejectionCode =
   | 'choice-unavailable'
   | 'choice-already-applied'
   | 'exit-forbidden'
+  | 'dialogue-not-closeable'
   | 'not-terminal'
   | 'trigger-unavailable'
   | 'quest-transition'
@@ -216,6 +220,7 @@ export interface DialogueView {
   readonly speakerId: string;
   readonly text: string;
   readonly terminal: boolean;
+  readonly closeAllowed: boolean;
   readonly exitAllowed: boolean;
   readonly choices: readonly DialogueChoiceView[];
 }

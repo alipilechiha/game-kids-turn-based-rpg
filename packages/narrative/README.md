@@ -153,7 +153,10 @@ and semantically invalid commands keep the same state identity and revision.
 Choice/trigger deduplication and terminal-ending immutability are scoped to
 that playthrough. Explicitly repeatable choices and triggers may run again at
 a later accepted revision. `exit-dialogue` suspends the committed cursor so
-the same conversation can resume without reapplying a choice.
+the same conversation can resume without reapplying a choice. An authored
+`closesDialogue` node exposes `close-dialogue`: it clears active and suspended
+cursors without assigning a story ending or reapplying effects. Only that
+explicit endpoint can close this way; ordinary exit continues to suspend.
 
 ## Persistence and external events
 
