@@ -9,6 +9,7 @@ interface DialogueDialogProps {
   readonly choicesLabel: string;
   readonly continueLabel: string;
   readonly finishLabel: string;
+  readonly closeLabel: string;
   readonly leaveLabel: string;
   readonly onCommand: (action: DemoNarrativeAction) => void;
   readonly openerRef: RefObject<HTMLButtonElement | null>;
@@ -21,6 +22,7 @@ export function DialogueDialog({
   choicesLabel,
   continueLabel,
   finishLabel,
+  closeLabel,
   leaveLabel,
   onCommand,
   openerRef,
@@ -94,6 +96,15 @@ export function DialogueDialog({
                 </button>
               ))}
             </div>
+          ) : view.closeAllowed ? (
+            <button
+              type="button"
+              data-testid="dialogue-close"
+              data-dialogue-primary=""
+              onClick={() => onCommand({ type: 'CLOSE_DIALOGUE' })}
+            >
+              {closeLabel}
+            </button>
           ) : view.terminal ? (
             <button
               type="button"

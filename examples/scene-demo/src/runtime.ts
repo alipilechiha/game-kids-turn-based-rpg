@@ -24,6 +24,7 @@ export type DemoNarrativeAction =
   | { readonly type: 'CHOOSE'; readonly choiceId: string }
   | { readonly type: 'ADVANCE' }
   | { readonly type: 'EXIT_DIALOGUE' }
+  | { readonly type: 'CLOSE_DIALOGUE' }
   | { readonly type: 'FINISH' }
   | { readonly type: 'TRIGGER'; readonly triggerId: string };
 
@@ -150,11 +151,20 @@ function narrativeCommand(state: NarrativeState, action: DemoNarrativeAction): N
       return { ...base, type: 'advance' };
     case 'EXIT_DIALOGUE':
       return { ...base, type: 'exit-dialogue' };
+    case 'CLOSE_DIALOGUE':
+      return { ...base, type: 'close-dialogue' };
     case 'FINISH':
       return { ...base, type: 'finish' };
     case 'TRIGGER':
       return { ...base, type: 'trigger', triggerId: action.triggerId };
   }
+}
+
+export function getDialogueOwnerMap(dialogueId: string): MapId | null {
+  if (dialogueId === 'guardian-dialogue' || dialogueId === 'truth-resolution-dialogue')
+    return 'map-courtyard';
+  if (dialogueId === 'workshop-clue-dialogue') return 'map-workshop';
+  return null;
 }
 
 function actionName(action: DemoNarrativeAction): string {
@@ -189,25 +199,44 @@ function eligibilityReason(
     return 'scene-pending';
 
   if (durable.narrative.activeDialogue) {
-    if (durable.mapId !== 'map-courtyard') return 'scene-ineligible';
+    if (getDialogueOwnerMap(durable.narrative.activeDialogue.dialogueId) !== durable.mapId)
+      return 'scene-ineligible';
     if (
       action.type === 'ADVANCE' ||
       action.type === 'CHOOSE' ||
       action.type === 'EXIT_DIALOGUE' ||
+      action.type === 'CLOSE_DIALOGUE' ||
       action.type === 'FINISH'
     )
       return null;
     return 'dialogue-active';
   }
 
-  if (action.type === 'OPEN_DIALOGUE')
-    return durable.mapId === 'map-courtyard' && action.dialogueId === 'guardian-dialogue'
-      ? null
-      : 'scene-ineligible';
-  if (action.type === 'TRIGGER')
-    return durable.mapId === 'map-workshop' && action.triggerId === 'light-workshop-lantern'
-      ? null
-      : 'scene-ineligible';
+  if (action.type === 'OPEN_DIALOGUE') {
+    const owner = getDialogueOwnerMap(action.dialogueId);
+    if (!owner || owner !== durable.mapId) return 'scene-ineligible';
+    if (
+      durable.narrative.suspendedDialogue &&
+      durable.narrative.suspendedDialogue.dialogueId !== action.dialogueId
+    )
+      return 'dialogue-suspended';
+    const facts = durable.narrative.facts;
+    if (action.dialogueId === 'guardian-dialogue')
+      return facts['seeking-truth'] === true || facts['seeking-vengeance'] === true
+        ? durable.narrative.suspendedDialogue?.dialogueId === action.dialogueId
+          ? null
+          : 'scene-ineligible'
+        : null;
+    if (action.dialogueId === 'workshop-clue-dialogue')
+      return facts['seeking-truth'] === true && facts['clue-resolved'] !== true
+        ? null
+        : 'scene-ineligible';
+    if (action.dialogueId === 'truth-resolution-dialogue')
+      return facts['seeking-truth'] === true && facts['clue-resolved'] === true
+        ? null
+        : 'scene-ineligible';
+  }
+  if (action.type === 'TRIGGER') return 'external-trigger-disabled';
   return 'no-active-dialogue';
 }
 

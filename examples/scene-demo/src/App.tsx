@@ -7,7 +7,7 @@ import { bloodLeafCopy, bloodLeafNarrative } from './content/blood-leaf.js';
 import { SceneCamera } from './SceneCamera.js';
 import { SceneFrameProbe } from './SceneFrameProbe.js';
 import { browserDemoStorage } from './persistence.js';
-import { createDemoRuntime } from './runtime.js';
+import { createDemoRuntime, getDialogueOwnerMap } from './runtime.js';
 import { SceneHost } from './scene-host.js';
 import { sceneRegistry } from './scenes/registry.js';
 import { subscribeDemoRuntime } from './scenes/scene-runtime.js';
@@ -73,7 +73,34 @@ export function App() {
   const factTruth = getFact(narrative, 'seeking-truth') === true;
   const factVengeance = getFact(narrative, 'seeking-vengeance') === true;
   const lanternLit = getFact(narrative, 'lantern-lit') === true;
+  const clueResolved = getFact(narrative, 'clue-resolved') === true;
   const routeUnlocked = factTruth || factVengeance;
+  const currentMapId = active?.definition.map.id ?? null;
+  const suspendedDialogueId = narrative.suspendedDialogue?.dialogueId ?? null;
+  const suspendedOwnerMap = suspendedDialogueId ? getDialogueOwnerMap(suspendedDialogueId) : null;
+  const dialogueToOpen = narrative.activeDialogue
+    ? null
+    : suspendedDialogueId
+      ? suspendedOwnerMap === currentMapId
+        ? suspendedDialogueId
+        : null
+      : currentMapId === 'map-courtyard'
+        ? factTruth
+          ? clueResolved
+            ? 'truth-resolution-dialogue'
+            : null
+          : factVengeance
+            ? null
+            : 'guardian-dialogue'
+        : currentMapId === 'map-workshop' && factTruth && !clueResolved
+          ? 'workshop-clue-dialogue'
+          : null;
+  const suspendedGuidance =
+    suspendedOwnerMap !== null && suspendedOwnerMap !== currentMapId
+      ? suspendedOwnerMap === 'map-courtyard'
+        ? bloodLeafCopy.suspendedGuidance.courtyard
+        : bloodLeafCopy.suspendedGuidance.workshop
+      : null;
   const ending = narrative.endingId
     ? bloodLeafCopy.endings[narrative.endingId as keyof typeof bloodLeafCopy.endings]
     : '';
@@ -110,7 +137,7 @@ export function App() {
         </header>
 
         <section className="controls" aria-label="Demo controls">
-          {active?.definition.map.id === 'map-courtyard' && (
+          {dialogueToOpen && currentMapId === 'map-courtyard' && (
             <button
               ref={dialogueOpenerRef}
               data-testid="dialogue-open"
@@ -118,12 +145,31 @@ export function App() {
               disabled={!durable.ready || Boolean(dialogue) || narrative.endingId !== null}
               onClick={() => {
                 dialogueOpenerRef.current = document.activeElement as HTMLButtonElement;
-                runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' });
+                runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: dialogueToOpen });
               }}
             >
-              {narrative.suspendedDialogue
+              {suspendedDialogueId
                 ? bloodLeafCopy.resumeDialogue
-                : bloodLeafCopy.startDialogue}
+                : dialogueToOpen === 'truth-resolution-dialogue'
+                  ? bloodLeafCopy.truthResolution
+                  : bloodLeafCopy.startDialogue}
+            </button>
+          )}
+          {dialogueToOpen === 'workshop-clue-dialogue' && (
+            <button
+              ref={dialogueOpenerRef}
+              data-testid="clue-interaction"
+              type="button"
+              disabled={!durable.ready || Boolean(dialogue) || narrative.endingId !== null}
+              onClick={() => {
+                dialogueOpenerRef.current = document.activeElement as HTMLButtonElement;
+                runtime.dispatch({
+                  type: 'OPEN_DIALOGUE',
+                  dialogueId: 'workshop-clue-dialogue',
+                });
+              }}
+            >
+              {suspendedDialogueId ? bloodLeafCopy.resumeDialogue : bloodLeafCopy.clueDialogue}
             </button>
           )}
           <button
@@ -139,17 +185,11 @@ export function App() {
           >
             {snapshot.pendingMapId ? `Loading ${snapshot.pendingMapId}…` : transitionLabel}
           </button>
-          {active?.definition.map.id === 'map-workshop' && (
-            <button
-              data-testid="lantern-interaction"
-              type="button"
-              disabled={!durable.ready || !factTruth || lanternLit || Boolean(dialogue)}
-              onClick={() =>
-                runtime.dispatch({ type: 'TRIGGER', triggerId: 'light-workshop-lantern' })
-              }
-            >
-              {lanternLit ? 'Lantern: lit' : 'Lantern: dark'}
-            </button>
+          {active?.definition.map.id === 'map-workshop' && factTruth && (
+            <output data-testid="clue-status" data-resolved={String(clueResolved)}>
+              {clueResolved ? bloodLeafCopy.clueResolved : bloodLeafCopy.clueWaiting}
+              {lanternLit ? ` · ${bloodLeafCopy.lanternLit}` : ''}
+            </output>
           )}
           <button
             data-testid="story-reset"
@@ -175,6 +215,16 @@ export function App() {
             {snapshot.error ?? ''}
           </output>
         </section>
+
+        {suspendedGuidance && (
+          <p
+            className="suspended-dialogue-guidance"
+            data-testid="suspended-dialogue-guidance"
+            role="status"
+          >
+            {suspendedGuidance}
+          </p>
+        )}
 
         {bootstrap.status === 'recovery-required' && (
           <section className="save-recovery" role="alert" data-testid="save-recovery">
@@ -238,6 +288,7 @@ export function App() {
         choicesLabel={bloodLeafCopy.choicesLabel}
         continueLabel={bloodLeafCopy.continue}
         finishLabel={bloodLeafCopy.finish}
+        closeLabel={bloodLeafCopy.close}
         leaveLabel={bloodLeafCopy.leave}
         onCommand={onNarrativeCommand}
         openerRef={dialogueOpenerRef}
