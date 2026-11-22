@@ -3,7 +3,7 @@ import { log } from 'node:console';
 import { chromium } from '@playwright/test';
 import { preview } from 'vite';
 
-/* global document, getComputedStyle, localStorage, window */
+/* global Storage, document, getComputedStyle, localStorage, window */
 
 const server = await preview({
   preview: { host: '127.0.0.1', port: 0, strictPort: false },
@@ -341,6 +341,27 @@ try {
       document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
       document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard' &&
       document.querySelector('[data-testid="save-mode"]')?.textContent === 'session-only',
+  );
+  await page.getByTestId('save-warning').waitFor({ state: 'visible' });
+  await page.evaluate(() => {
+    const originalRemove = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function (key) {
+      if (key === 'waypoint-rpg-scene-demo:save') return;
+      originalRemove.call(this, key);
+    };
+  });
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByTestId('story-reset').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
+      document.querySelector('[data-testid="save-mode"]')?.textContent === 'session-only',
+  );
+  await page.getByTestId('save-warning').waitFor({ state: 'visible' });
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem('waypoint-rpg-scene-demo:save')),
+    corruptSave,
+    'a reset that cannot clear storage must preserve the old bytes',
   );
   await page.getByTestId('dialogue-open').click();
   await page.getByTestId('narrative-dialog').waitFor({ state: 'visible' });

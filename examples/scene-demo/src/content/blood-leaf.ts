@@ -237,6 +237,7 @@ export const bloodLeafCopy = {
   resetStory: 'آغاز داستان تازه',
   confirmReset: 'از آغاز داستان تازه مطمئنی؟ ذخیرهٔ قبلی پاک خواهد شد.',
   recoverStory: 'ادامه در نشست موقت',
+  retrySavedScene: 'تلاش دوباره برای بازکردن جای ذخیره‌شده',
   recoveryExplanation: 'ذخیرهٔ قبلی دست‌نخورده می‌ماند و داستان تازه موقت خواهد بود.',
   sessionOnly: 'این نشست ذخیره نمی‌شود',
   inquiryQuest: 'پرس‌وجوی برگ',

@@ -230,6 +230,15 @@ export function App() {
           <section className="save-recovery" role="alert" data-testid="save-recovery">
             <p>{bootstrap.reason}</p>
             <p>{bloodLeafCopy.recoveryExplanation}</p>
+            {bootstrap.reason?.startsWith('restore-scene-') && (
+              <button
+                data-testid="retry-saved-scene"
+                type="button"
+                onClick={() => void runtime.retrySavedScene()}
+              >
+                {bloodLeafCopy.retrySavedScene}
+              </button>
+            )}
             <button
               data-testid="recover-session"
               type="button"
@@ -239,7 +248,7 @@ export function App() {
             </button>
           </section>
         )}
-        {bootstrap.reason === 'save-write-failed' && (
+        {bootstrap.storageMode === 'session-only' && bootstrap.status === 'ready' && (
           <p className="save-warning" role="status" data-testid="save-warning">
             {bloodLeafCopy.sessionOnly}
           </p>

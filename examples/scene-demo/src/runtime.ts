@@ -15,6 +15,7 @@ import {
   DEMO_SAVE_KEY,
   encodeDemoSave,
   type DemoStorage,
+  type DemoSaveValue,
 } from './persistence.js';
 
 export type DemoSceneHost = Pick<SceneHost, 'getSnapshot' | 'start' | 'transition'>;
@@ -74,6 +75,7 @@ export interface DemoRuntime {
   /** Application command boundary; there is intentionally no raw store dispatch. */
   dispatch(action: DemoNarrativeAction): DemoFeedback;
   start(): Promise<DemoFeedback>;
+  retrySavedScene(): Promise<DemoFeedback>;
   recoverFreshSession(): Promise<DemoFeedback>;
   resetPlaythrough(confirmed: boolean): Promise<DemoFeedback>;
   transitionTo(transitionId: (typeof sceneTransitions)[number]['id']): Promise<DemoFeedback>;
@@ -446,6 +448,7 @@ export function createDemoRuntime(
   let commandSequence = 0;
   let bootstrapTask: Promise<DemoFeedback> | null = null;
   let resetTask: Promise<DemoFeedback> | null = null;
+  let pendingSavedRestore: DemoSaveValue | null = null;
   let storageMode: Exclude<DemoStorageMode, 'unknown'> = 'persistent';
   let persistenceArmed = false;
   const storage = options.storage ?? browserDemoStorage;
@@ -601,12 +604,14 @@ export function createDemoRuntime(
       }
 
       if (raw === null) {
+        pendingSavedRestore = null;
         storageMode = 'persistent';
         return loadFreshSession('start', storageMode, expectedEpoch, token);
       }
 
       const decoded = decodeDemoSave(raw);
       if (!decoded.ok) {
+        pendingSavedRestore = null;
         storageMode = 'persistent';
         setBootstrap({
           status: 'recovery-required',
@@ -616,6 +621,7 @@ export function createDemoRuntime(
         return reject('start', `save-${decoded.kind}`, token);
       }
 
+      pendingSavedRestore = decoded.value;
       const loaded = await host.start(decoded.value.mapId, decoded.value.entryAnchorId);
       if (loaded.status !== 'committed') {
         storageMode = 'persistent';
@@ -626,13 +632,63 @@ export function createDemoRuntime(
         });
         return reject('restore', `scene-${loaded.status}`, token);
       }
-      return commitLoadedSession(
+      const result = commitLoadedSession(
         'start',
         decoded.value.narrative,
         expectedEpoch,
         'persistent',
         token,
       );
+      if (result.accepted) pendingSavedRestore = null;
+      return result;
+    })().finally(() => {
+      if (bootstrapTask === task) bootstrapTask = null;
+    });
+    bootstrapTask = task;
+    return task;
+  };
+
+  const retrySavedScene: DemoRuntime['retrySavedScene'] = () => {
+    if (bootstrapTask) return bootstrapTask;
+    if (disposed) return Promise.resolve(reject('retry-saved-scene', 'runtime-disposed'));
+    const state = store.getState();
+    const pending = pendingSavedRestore;
+    if (
+      state.bootstrap.status !== 'recovery-required' ||
+      state.durable.ready ||
+      pending === null ||
+      !state.bootstrap.reason?.startsWith('restore-scene-')
+    )
+      return Promise.resolve(reject('retry-saved-scene', 'saved-scene-retry-unavailable'));
+
+    const token = createToken();
+    const expectedEpoch = state.durable.sessionEpoch;
+    setBootstrap({ status: 'starting', storageMode: 'persistent', reason: null });
+    const task = (async () => {
+      const loaded = await host.start(pending.mapId, pending.entryAnchorId);
+      if (loaded.status !== 'committed') {
+        setBootstrap({
+          status: 'recovery-required',
+          storageMode: 'persistent',
+          reason: `restore-scene-${loaded.status}`,
+        });
+        return reject('retry-saved-scene', `scene-${loaded.status}`, token);
+      }
+      const result = commitLoadedSession(
+        'start',
+        pending.narrative,
+        expectedEpoch,
+        'persistent',
+        token,
+      );
+      if (result.accepted) pendingSavedRestore = null;
+      else
+        setBootstrap({
+          status: 'recovery-required',
+          storageMode: 'persistent',
+          reason: 'restore-scene-commit-failed',
+        });
+      return result;
     })().finally(() => {
       if (bootstrapTask === task) bootstrapTask = null;
     });
@@ -648,6 +704,7 @@ export function createDemoRuntime(
       return Promise.resolve(reject('recover', 'recovery-not-required'));
     const token = createToken();
     const expectedEpoch = state.durable.sessionEpoch;
+    pendingSavedRestore = null;
     storageMode = 'session-only';
     persistenceArmed = false;
     setBootstrap({ status: 'starting', storageMode, reason: null });
@@ -691,6 +748,7 @@ export function createDemoRuntime(
       let nextMode: Exclude<DemoStorageMode, 'unknown'> = 'persistent';
       try {
         storage.removeItem(DEMO_SAVE_KEY);
+        if (storage.getItem(DEMO_SAVE_KEY) !== null) nextMode = 'session-only';
       } catch {
         nextMode = 'session-only';
       }
@@ -702,7 +760,11 @@ export function createDemoRuntime(
         token,
       );
       if (result.accepted) {
-        setBootstrap({ status: 'ready', storageMode: nextMode, reason: null });
+        setBootstrap({
+          status: 'ready',
+          storageMode: nextMode,
+          reason: nextMode === 'session-only' ? 'save-reset-clear-failed' : null,
+        });
         persistenceArmed = nextMode === 'persistent';
       }
       return result;
@@ -753,6 +815,7 @@ export function createDemoRuntime(
     },
     subscribe,
     start,
+    retrySavedScene,
     recoverFreshSession,
     resetPlaythrough,
     transitionTo,

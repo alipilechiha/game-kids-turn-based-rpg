@@ -21,6 +21,7 @@ function fakeHost() {
     failRead: false,
     failWrite: false,
     failRemove: false,
+    failRemoveSilently: false,
   };
   const storage: DemoStorage = {
     getItem: vi.fn(() => {
@@ -33,6 +34,7 @@ function fakeHost() {
     }),
     removeItem: vi.fn(() => {
       if (saved.failRemove) throw new Error('storage remove unavailable');
+      if (saved.failRemoveSilently) return;
       saved.value = null;
     }),
   };
@@ -102,7 +104,7 @@ function makeTruthBranch(): NarrativeState {
     expectedRevision: state.revision,
   });
   apply({
-    type: 'exit-dialogue',
+    type: 'close-dialogue',
     playthroughId: state.playthroughId,
     expectedRevision: state.revision,
   });
@@ -371,6 +373,68 @@ describe('demo application command boundary', () => {
     runtime.dispose();
   });
 
+  it('retries the original validated map and anchor without replacing or rewriting the playthrough', async () => {
+    const { host, storage, saved } = fakeHost();
+    const narrative = makeTruthBranch();
+    const originalBytes = encodeDemoSave({
+      contentVersion: 'saved-copy',
+      mapId: 'map-workshop',
+      entryAnchorId: 'anchor-workshop-lamp',
+      narrative,
+    });
+    saved.value = originalBytes;
+    vi.mocked(host.start).mockResolvedValueOnce({ status: 'failed', error: 'asset load failed' });
+    const runtime = createDemoRuntime(host, { storage });
+
+    const failed = await runtime.start();
+    expect(failed.accepted).toBe(false);
+    expect(runtime.getState().bootstrap.reason).toBe('restore-scene-failed');
+    expect(saved.value).toBe(originalBytes);
+    expect(storage.setItem).not.toHaveBeenCalled();
+
+    const retried = await runtime.retrySavedScene();
+
+    expect(retried.accepted).toBe(true);
+    expect(host.start).toHaveBeenNthCalledWith(1, 'map-workshop', 'anchor-workshop-lamp');
+    expect(host.start).toHaveBeenNthCalledWith(2, 'map-workshop', 'anchor-workshop-lamp');
+    expect(runtime.getDurableState()).toMatchObject({
+      ready: true,
+      sessionValid: true,
+      mapId: 'map-workshop',
+      anchorId: 'anchor-workshop-lamp',
+      narrative: { playthroughId: narrative.playthroughId, revision: narrative.revision },
+    });
+    expect(saved.value).toBe(originalBytes);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('shows session-only mode and preserves old bytes after a save write fails', async () => {
+    const { host, storage, saved } = fakeHost();
+    const oldBytes = encodeDemoSave({
+      contentVersion: 'saved-copy',
+      mapId: 'map-courtyard',
+      entryAnchorId: 'anchor-courtyard-start',
+      narrative: makeTruthBranch(),
+    });
+    saved.value = oldBytes;
+    const runtime = createDemoRuntime(host, { storage });
+    expect((await runtime.start()).accepted).toBe(true);
+    saved.failWrite = true;
+
+    expect((await runtime.transitionTo('transition-to-workshop')).accepted).toBe(true);
+    expect(runtime.getState().bootstrap.storageMode).toBe('session-only');
+    expect(saved.value).toBe(oldBytes);
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'workshop-clue-dialogue' }).accepted,
+    ).toBe(true);
+    expect(runtime.dispatch({ type: 'ADVANCE' }).accepted).toBe(true);
+    expect(runtime.dispatch({ type: 'CHOOSE', choiceId: 'investigate-clue' }).accepted).toBe(true);
+    expect(saved.value).toBe(oldBytes);
+    expect(storage.setItem).toHaveBeenCalledOnce();
+    runtime.dispose();
+  });
+
   it('does not autosave fresh initial state and saves only after an accepted durable command', async () => {
     const { host, storage } = fakeHost();
     const runtime = createDemoRuntime(host, { storage });
@@ -462,6 +526,28 @@ describe('demo application command boundary', () => {
       runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' }).accepted,
     ).toBe(true);
     expect(saved.value).toBe(originalBytes);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('detects a storage remove that silently leaves the old save in place', async () => {
+    const { host, storage, saved } = fakeHost();
+    const oldBytes = '{unsupported-but-preserved';
+    saved.value = oldBytes;
+    const runtime = createDemoRuntime(host, { storage });
+    await runtime.start();
+    await runtime.recoverFreshSession();
+    saved.failRemoveSilently = true;
+
+    const reset = await runtime.resetPlaythrough(true);
+
+    expect(reset.accepted).toBe(true);
+    expect(runtime.getState().bootstrap.storageMode).toBe('session-only');
+    expect(saved.value).toBe(oldBytes);
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' }).accepted,
+    ).toBe(true);
+    expect(saved.value).toBe(oldBytes);
     expect(storage.setItem).not.toHaveBeenCalled();
     runtime.dispose();
   });

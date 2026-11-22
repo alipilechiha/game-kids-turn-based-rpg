@@ -192,3 +192,13 @@ No general renderer/physics package, cinematics, arbitrary event bus/scripts, AI
 ## Execution record
 
 Append each locally committed sub-milestone SHA with exact tests and result after its gate passes. Do not mark a gate complete before observing it. No remote push/PR/merge is authorized.
+
+### Completed locally
+
+- **P4.0a** — `9027579` (`fix: make roadmap sync line-ending safe`). `npm run verify` passed, including canonical roadmap regeneration/check; no application contract changes.
+- **P4.0b** — `ad55b51` (`fix(narrative): detect terminal quest prerequisite cycles`). Narrative suite passed 27/27 with direct self, completed/failed/cancelled mixed cycles, viable alternatives, negation and conditional-warning coverage.
+- **P4.0c** — `20e6f27` (`feat(narrative): declare typed facts and locale defaults`). Narrative suite passed 32/32; narrative package build and independent tarball consumer passed.
+- **P4.0c verification follow-up** — `4731425` (`test(narrative): use portable fixture cloning`). Required after full lint found `structuredClone` missing from lint globals; the portable JSON fixture clone restored a green lint gate.
+- **P4.0d close semantics** — `0e58121` (`feat(narrative): support non-ending dialogue closure`). Narrative suite passed 34/34; close clears only the cursor, preserves story/quest state and cannot replay effects.
+- **P4.0d story and migration** — `ebfed68` (`fix(scene-demo): migrate Phase 3 story progress safely`). Actual Phase 3 encoder fixtures cover 26 reachable cursor/state classes; scene-demo tests passed 35/35 at commit, Chromium narrative/accessibility/lifecycle smoke passed, and full `npm run verify` passed (499 application tests). The truth clue is required before fresh truth resolution; legacy already-applied ending cursors finish directly; both suspended-dialogue directions survive reload.
+- **P4.0e verification** — implementation is ready for its local commit after these gates: scene-demo typecheck passed; scene-demo unit suite passed 37/37; Chromium smoke passed with visible session-only recovery and silent reset-clear failure preservation; full `npm run verify` passed (502 application tests, package gates, production and example builds). The commit SHA will be recorded in the next milestone entry.
