@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'packages/*/dist',
       '.release-compat',
       'coverage',
       'playwright-report',
@@ -126,6 +127,10 @@ export default tseslint.config(
   },
   {
     files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: ['packages/*/scripts/**/*.mjs'],
     languageOptions: { globals: globals.node },
   },
 );

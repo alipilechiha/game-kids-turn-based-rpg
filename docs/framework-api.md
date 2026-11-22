@@ -4,21 +4,35 @@
 identifiers, world DTOs, graph/pathfinding, the injected runtime, and generic
 persistence contracts. Its only public entry is the `waypoint-rpg-core`
 package root; package-side checks reject external dependencies and deep
-imports. The Kids RPG composes that API with game-owned capabilities, quality
+imports. `packages/narrative/` is a separate optional, renderer-independent
+package for validated narrative definitions and deterministic story
+transitions. It does not depend on the core, React, Three.js, DOM, or storage;
+future consumers can use the core without installing narrative.
+
+The Kids RPG composes the core API with game-owned capabilities, quality
 policy, camera math, and battle modules through `src/framework/index.ts`.
-Application imports use this facade; `examples/hello-world` and independent
-consumers import the package root directly.
+Application imports use this facade; `examples/hello-world` imports the core
+root, while `examples/scene-demo` independently installs and consumes the core
+and narrative roots.
 
 > Phase 1 delivers a reusable core library, not a complete Three.js RPG
 > engine. `examples/hello-world` verifies the workspace consumer path; the
-> separately installed tarball fixture verifies package isolation, exports,
-> declarations, runtime behavior, and browser bundling. Registry publication
-> is deferred.
+> separately installed tarball fixtures verify package isolation, exports,
+> declarations, runtime behavior, and browser bundling. Phase 3's
+> `examples/scene-demo` is a narrative validation consumer, not a renderer
+> package or complete general-purpose Three.js RPG engine. Registry
+> publication is deferred.
 
 ## Compatibility boundaries
 
 - **Core runtime:** Node.js `>=22.0.0`; CI executes the packed package on
   Node.js 22.0.0 with no browser globals.
+- **Narrative runtime:** the package manifest declares Node.js `>=22.0.0`;
+  its pure evaluator uses no Node-specific or browser APIs. Phase 3 package
+  checks ran on Node.js 22.23.5. The declared 22.0.0 narrative minimum was not
+  separately exercised; the existing minimum-version CI job covers core only.
+  The locked compiler/build tools use the root project's newer Node.js and npm
+  requirements below.
 - **Root build and development tools:** Node.js `>=22.22.2 <23` and npm
   `>=10 <11`; application CI pins Node.js 22.22.2. The locked Vite,
   TypeScript, tests, and package scripts are exercised on this toolchain.
@@ -37,15 +51,16 @@ consumers import the package root directly.
 | Export group                                                                                                                           | Kids RPG app              | hello-world | Independent tarball consumer                                               |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ----------- | -------------------------------------------------------------------------- |
 | Core identifiers, world DTOs, graph/pathfinding, runtime and persistence contracts                                                     | ✓ via app facade          | ✓           | ✓ Node runtime, NodeNext/Bundler types, Vite bundle and Chromium execution |
+| Optional narrative definitions, conditions, effects, dialogue, quests, and state transitions                                           | —                         | —           | ✓ narrative tarball plus the combined 3D consumer                          |
 | Quality/capabilities                                                                                                                   | ✓ (app-owned facade)      | —           | Not in the core package                                                    |
 | Camera math (`three/`)                                                                                                                 | ✓ (app-owned facade)      | —           | Not in the core package; validate with a 3D consumer in Phase 2            |
 | Battle module (`createBattle`/`chooseBattleAction`/`advanceBattlePhase`/`enemyIntentFor`, `battleReducer`, `validateBattleDefinition`) | ✓ (app-owned)             | —           | Optional game module, not in the core package                              |
 | `perfProbe`                                                                                                                            | loaded via dynamic import | —           | Deliberately not re-exported — lazy chunk, precache-excluded               |
 
-The package root exports only the approved generic core API. The app facade
-also exports game-owned optional surfaces; these do not become core-package
-dependencies. A separate 3D game consumer begins in the renderer and narrative
-roadmap phases.
+Each package root exports only its own generic API. The app facade also exports
+game-owned optional surfaces; these do not become core-package dependencies.
+The independent 3D consumer now validates the optional narrative package, but
+its renderer and scene host remain example-owned.
 
 ## Ownership model
 
@@ -110,6 +125,79 @@ The runtime does **not** consume this — the application's coordinators do
 (`ProfileCoordinator`/`SaveCoordinator` in `src/app/`). Scoped slots mirror
 per-profile save keys; the `corrupt` branch carries no data by design.
 
+## Optional package: `waypoint-rpg-narrative`
+
+`packages/narrative/` is an optional zero-runtime-dependency TypeScript ESM
+library. It has one public root and can be used without `waypoint-rpg-core`.
+It has no React, Three.js, DOM, storage, application, or authored-game imports.
+Its pure APIs are testable in Node or a browser environment.
+
+The root exports these values:
+
+| API                                                                 | Purpose                                                                                                          |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `validateNarrative`, `compileNarrative`, `NarrativeDefinitionError` | Validate IDs, references, versions, conditions, effects, quest dependencies, and immutable compiled definitions. |
+| `evaluateCondition`                                                 | Evaluate typed JSON condition expressions deterministically.                                                     |
+| `createNarrativeState`, `decodeNarrativeState`                      | Create one playthrough or validate a persisted state payload.                                                    |
+| `transitionNarrative`                                               | Apply a revision-checked dialogue, choice, finish, exit, or declared trigger command atomically.                 |
+| `getDialogueView`, `getQuestStatus`, `getFact`                      | Read-only selectors for presentation and game-owned adapters.                                                    |
+
+Definition and state types, commands, results, diagnostics, JSON values,
+localized text, quest statuses, conditions, and effects are exported from the
+same root. `packages/narrative/README.md` contains a typed example and complete
+condition/effect semantics.
+
+Definitions distinguish three versions: `schemaVersion` selects the authored
+data schema, `contentVersion` records copy/presentation edits, and
+`compatibilityVersion` changes when story structure can no longer safely
+interpret existing progress. Copy-only changes do not reject saved state. A
+consumer owns its separate save-envelope version and must preserve bytes it
+cannot decode; this package provides no browser storage or general migration
+framework.
+
+`NarrativeState` is durable data for one `playthroughId`. Commands carry that
+ID and `expectedRevision`. Accepted commands advance the revision once;
+rejected, stale, and semantically inapplicable commands preserve the state and
+revision. Choice/trigger deduplication and final-ending immutability are scoped
+to that playthrough. Dialogue exit suspends the current cursor and reopening
+the same dialogue resumes it without replaying effects. The accepted effect
+vocabulary is typed and closed; complete ordered effect lists run against a
+private draft and reject atomically on failure. No content can execute
+JavaScript.
+
+Conditions include flags, primitive equality/inequality, safe-integer ordering,
+persisted quest statuses, `all`, `any`, and `not`. Missing facts make flag and
+equality checks false; `neq` is true only for an existing unequal fact, so it
+does not equal `not(eq)`. Quest predicates cannot recurse through derived
+`locked`/`available` statuses, though `getQuestStatus` exposes those queries.
+Dialogue loops are valid; missing references remain validation errors.
+
+Movement, arrival, combat, and spatial interactions remain application-owned.
+A game may map a validated event to a known trigger ID and call
+`transitionNarrative`; the definition supplies its condition and typed effects.
+There is no event bus or arbitrary effect-dispatch API. The scene-demo uses
+this boundary for its truth-conditioned workshop lantern.
+
+```ts
+const opened = transitionNarrative(compiled, state, {
+  type: 'open-dialogue',
+  dialogueId: 'guardian-dialogue',
+  playthroughId: state.playthroughId,
+  expectedRevision: state.revision,
+});
+if (opened.accepted) {
+  state = opened.state;
+} else {
+  // Keep the prior durable state and report the typed rejection reason.
+  console.warn(opened.reason.code);
+}
+```
+
+The package tarball gate is `npm run framework:narrative-consumer`; it checks
+an independent offline installation, native Node ESM, NodeNext/Bundler
+declarations, public exports, and rejected deep imports. The combined 3D
+consumer is `npm run framework:scene-consumer`.
+
 ## World primitives
 
 `Anchor`, `Edge`, `Bounds`, `WorldArea`, `WorldMap`, `MapTransition`,
@@ -160,11 +248,16 @@ content**. `hello-world.test.ts` is the consumer-side contract suite; the
 app-side split lives in `src/app/runtimeCoordinator.test.ts` (runtime
 contract vs coordinator behavior).
 
-For package source edits while developing the game, use `npm run dev:linked`.
-It starts one package TypeScript watch process, waits for the first successful
-emit, then starts Vite. Vite's standard linked-package resolution is used; no
-`optimizeDeps.exclude`, `preserveSymlinks`, or custom resolver override is
-configured. `npm run verify` builds the package once before its prepared app
+For library edits while developing the Kids RPG, use `npm run dev:linked`. It
+starts TypeScript watch processes for both packages, waits for successful first
+builds, then starts root Vite. For the independent scene-demo, use
+`npm run framework:watch`; it uses the same package watchers and starts Vite
+with `examples/scene-demo/vite.config.ts`. Both use Vite's default
+linked-package resolution; no `optimizeDeps.exclude`, `preserveSymlinks`, or
+custom resolver override is configured. `npm run framework:watch:check` proves
+that edits to either package reach the consuming app under default resolution
+and that a package compile error preserves its last good output until recovery.
+`npm run verify` builds both packages once before the prepared application
 stages.
 
 ## Lifecycle probes (dev/`__WORLD_PROBE` only)

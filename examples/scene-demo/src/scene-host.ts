@@ -147,7 +147,7 @@ export class SceneHost {
     return () => this.listeners.delete(listener);
   };
 
-  async start(mapId: MapId): Promise<SceneTransitionResult> {
+  async start(mapId: MapId, entryAnchorId?: AnchorId): Promise<SceneTransitionResult> {
     if (this.disposed) return { status: 'cancelled' };
     let definition: SceneDefinition;
     try {
@@ -155,7 +155,17 @@ export class SceneHost {
     } catch (error) {
       return this.invalid(error);
     }
-    return this.load(definition, definition.map.spawnAnchorId);
+    const selectedAnchorId = entryAnchorId ?? definition.map.spawnAnchorId;
+    const selectedAnchor = anchorsById(definition).get(selectedAnchorId);
+    if (!selectedAnchor || selectedAnchor.mapId !== definition.map.id) {
+      return this.invalid(
+        new Error(`Unknown or wrong-map start anchor ${selectedAnchorId} for ${mapId}.`),
+      );
+    }
+    if (!selectedAnchor.walkable) {
+      return this.invalid(new Error(`Start anchor ${selectedAnchorId} is not walkable.`));
+    }
+    return this.load(definition, selectedAnchorId);
   }
 
   async transition(transitionId: MapTransition['id']): Promise<SceneTransitionResult> {

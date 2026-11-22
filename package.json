@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "packages/core"
+    "packages/core",
+    "packages/narrative"
   ],
   "type": "module",
   "license": "MIT",
@@ -42,13 +43,17 @@
     "check:budgets": "node --experimental-strip-types scripts/check-budgets.ts",
     "check:deploy": "node --experimental-strip-types scripts/check-deploy.ts",
     "release:rollback:prepare": "node scripts/prepare-release-rollback.mjs",
-    "framework:check": "node packages/core/scripts/check-boundary.mjs",
-    "framework:build": "npm run build --workspace=packages/core",
-    "framework:watch": "tsc --project packages/core/tsconfig.build.json --watch --pretty false",
+    "framework:core:check": "node packages/core/scripts/check-boundary.mjs",
+    "framework:narrative:check": "node packages/narrative/scripts/check-boundary.mjs",
+    "framework:check": "npm run framework:core:check && npm run framework:narrative:check",
+    "framework:build": "npm run build --workspace=packages/core && npm run build --workspace=packages/narrative",
+    "framework:watch": "node scripts/dev-linked.mjs --config examples/scene-demo/vite.config.ts",
     "framework:watch:check": "node scripts/check-framework-linked-dev.mjs",
     "framework:build:isolated": "node packages/core/scripts/check-isolated-build.mjs",
-    "framework:test:prepared": "npm --ignore-scripts --workspace=packages/core run test",
+    "framework:test:prepared": "npm --ignore-scripts --workspace=packages/core run test && npm --ignore-scripts --workspace=packages/narrative run test",
     "framework:test": "npm run framework:check && npm run framework:build && npm run framework:test:prepared",
+    "framework:narrative-consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-narrative-consumer.mjs",
+    "framework:narrative-consumer:prepared": "node scripts/check-framework-narrative-consumer.mjs",
     "framework:pack": "npm run framework:check && npm run framework:build && npm pack --ignore-scripts --workspace=packages/core",
     "framework:consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-consumer.mjs",
     "framework:scene-consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-scene-consumer.mjs",
@@ -60,7 +65,7 @@
     "example:scene-build": "vite build --config examples/scene-demo/vite.config.ts",
     "preexample:dev": "npm run framework:build",
     "example:dev": "vite --config examples/hello-world/vite.config.ts",
-    "verify": "npm run format:check && npm run lint && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
+    "verify": "npm run format:check && npm run lint && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run framework:narrative-consumer:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
@@ -69,6 +74,7 @@
     "react-dom": "19.2.8",
     "three": "0.186.0",
     "waypoint-rpg-core": "file:packages/core",
+    "waypoint-rpg-narrative": "file:packages/narrative",
     "workbox-window": "7.4.1"
   },
   "devDependencies": {

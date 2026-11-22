@@ -5,6 +5,7 @@ export interface SceneProbe {
   cameraKind: 'perspective' | 'orthographic' | 'unknown';
   cameraIsOrthographic: boolean;
   lampLit: boolean;
+  narrativeRevision: number;
 }
 
 declare global {
@@ -22,5 +23,6 @@ export function sceneProbe(): SceneProbe | null {
     cameraKind: 'unknown',
     cameraIsOrthographic: false,
     lampLit: false,
+    narrativeRevision: 0,
   });
 }
