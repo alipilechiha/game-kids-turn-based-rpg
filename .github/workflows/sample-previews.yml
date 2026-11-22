@@ -3,6 +3,15 @@ name: Reference game screenshots
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - .github/workflows/sample-previews.yml
+      - e2e/sample-previews.preview.ts
+      - playwright.previews.config.ts
+      - scripts/sync-sample-gallery.mjs
+      - docs/MAHALLE-LIBRARY-ADOPTION.md
+      - package.json
+      - tsconfig.node.json
   workflow_dispatch:
 
 permissions:
@@ -46,6 +55,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Propose updated visual documentation for review
+        if: github.event_name != 'pull_request'
         uses: peter-evans/create-pull-request@v7
         with:
           branch: automation/legacy-sample-previews
