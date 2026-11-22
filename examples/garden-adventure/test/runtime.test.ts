@@ -18,7 +18,7 @@ describe('Garden game runtime', () => {
 
     expect(runtime.getState().phase).toBe('playing');
     expect(runtime.getState().mapId).toBe('village');
-    expect(runtime.getState().anchorId).toBe('village-gate');
+    expect(runtime.getState().anchorId).toBe('village-square');
 
     runtime.dispose();
   });
