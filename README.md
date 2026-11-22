@@ -44,6 +44,24 @@ _Generated from the canonical roadmap. Update status and evidence in [docs/FRAME
 <!-- prettier-ignore-end -->
 <!-- framework-roadmap:end -->
 
+
+## Library-backed reference game
+
+This repository's root app, **محله مهربانی**, is a real first-party
+`waypoint-rpg-core` consumer for its runtime and navigation, not a separate
+mock scene. Its child-specific dialogue, replayable quests, battle rules,
+renderer, IndexedDB profile saves, and content policy remain game-owned until
+tested equivalent library APIs are adopted.
+
+See the [library adoption matrix](docs/MAHALLE-LIBRARY-ADOPTION.md) for what is
+already integrated and what remains to migrate. Real source-rendered screenshots
+are captured with Playwright on merges to `main`, published as Actions artifacts,
+and proposed for the README gallery through a reviewable documentation PR.
+
+To capture them locally after installing Chromium, run
+`npm run build && npm run sample:previews`. This capture suite is separate
+from the regular E2E regression shards.
+
 ## Requirements
 
 - Node.js 22.22.2 or newer in the Node 22 line, with npm 10.x (the repo is developed on Node 22.23.5 and npm 10.9.9)
