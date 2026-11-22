@@ -54,6 +54,7 @@ export const EXPECTED_EXPORTS = [
   'applyGameplayGrant',
   'createGameplayState',
   'getCharacterAttributes',
+  'getEffectiveCharacterAttributes',
   'getCharacterLevel',
   'getInventorySlotCount',
   'getUnlockedAbilityIds',

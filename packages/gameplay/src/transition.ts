@@ -13,6 +13,7 @@ import {
   type GameplayDraft,
 } from './internal.js';
 import { getCharacterAttributes, getInventorySlotCount } from './state.js';
+import { transitionCombat } from './combat.js';
 
 const SAFE_ID = /^[A-Za-z][A-Za-z0-9._:-]{0,127}$/;
 
@@ -27,7 +28,7 @@ export function applyGameplayGrant(
   if (envelopeFailure) return envelopeFailure;
   if (!isSafeId(grant.rewardId))
     return rejectGameplay(state, 'invalid-command', 'Reward ID must be a stable identifier.');
-  if (state.encounter !== null)
+  if (state.encounter?.outcome === null)
     return rejectGameplay(
       state,
       'encounter-active',
@@ -204,7 +205,9 @@ export function transitionGameplay(
   assertCompiledGameplay(compiled);
   const envelopeFailure = validateEnvelope(compiled, state, command);
   if (envelopeFailure) return envelopeFailure;
-  if (state.encounter !== null)
+  const combatResult = transitionCombat(compiled, state, command);
+  if (combatResult) return combatResult;
+  if (state.encounter?.outcome === null)
     return rejectGameplay(
       state,
       'encounter-active',

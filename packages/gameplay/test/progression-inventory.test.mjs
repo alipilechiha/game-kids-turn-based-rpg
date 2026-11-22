@@ -16,6 +16,8 @@ function content(inventoryCapacity = 2) {
     id: 'demo',
     contentVersion: 'copy-1',
     compatibilityVersion: 'shape-1',
+    movementAttributeId: 'movement',
+    healthResourceId: 'health',
     inventoryCapacity,
     attributes: [
       { id: 'strength', minimum: 0, maximum: 10, defaultValue: 1 },

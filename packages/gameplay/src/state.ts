@@ -1,4 +1,9 @@
-import type { CompiledGameplay, GameplayAttributeDefinition, GameplayState } from './definition.js';
+import type {
+  CompiledGameplay,
+  GameplayAttributeDefinition,
+  GameplayState,
+  GameplayStatusInstance,
+} from './definition.js';
 import { assertCompiledGameplay } from './compile.js';
 import { snapshotGameplayState } from './internal.js';
 
@@ -73,6 +78,30 @@ export function getCharacterAttributes(
   excludingSlotId?: string,
 ): Readonly<Record<string, number>> {
   assertCompiledGameplay(compiled);
+  return computeAttributes(compiled, state, characterId, excludingSlotId);
+}
+
+/** Recompute attributes for one combatant, including its active status effects. */
+export function getEffectiveCharacterAttributes(
+  compiled: CompiledGameplay,
+  state: GameplayState,
+  characterId: string,
+  participantId: string,
+): Readonly<Record<string, number>> {
+  assertCompiledGameplay(compiled);
+  const combatant = state.encounter?.combatants.find((item) => item.id === participantId);
+  if (!combatant || combatant.characterId !== characterId)
+    throw new RangeError(`Unknown combatant ${participantId} for character ${characterId}.`);
+  return computeAttributes(compiled, state, characterId, undefined, combatant.statuses);
+}
+
+function computeAttributes(
+  compiled: CompiledGameplay,
+  state: GameplayState,
+  characterId: string,
+  excludingSlotId?: string,
+  activeStatuses?: readonly GameplayStatusInstance[],
+): Readonly<Record<string, number>> {
   const character = compiled.definition.characters.find((item) => item.id === characterId);
   if (!character) throw new RangeError(`Unknown character id: ${characterId}.`);
   const totals: Record<string, number> = { ...character.baseAttributes };
@@ -81,6 +110,17 @@ export function getCharacterAttributes(
     if (slotId === excludingSlotId) continue;
     const item = compiled.definition.items.find((candidate) => candidate.id === itemId);
     for (const modifier of item?.equipment?.modifiers ?? []) {
+      const sum = totals[modifier.attributeId]! + modifier.amount;
+      if (!Number.isSafeInteger(sum))
+        throw new RangeError('Derived attribute exceeds safe integer bounds.');
+      totals[modifier.attributeId] = sum;
+    }
+  }
+  for (const status of activeStatuses ?? []) {
+    const definition = compiled.definition.statusEffects.find(
+      (item) => item.id === status.statusEffectId,
+    );
+    for (const modifier of definition?.modifiers ?? []) {
       const sum = totals[modifier.attributeId]! + modifier.amount;
       if (!Number.isSafeInteger(sum))
         throw new RangeError('Derived attribute exceeds safe integer bounds.');

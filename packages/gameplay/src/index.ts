@@ -48,6 +48,7 @@ export { validateGameplay } from './validate.js';
 export {
   createGameplayState,
   getCharacterAttributes,
+  getEffectiveCharacterAttributes,
   getCharacterLevel,
   getInventorySlotCount,
   getUnlockedAbilityIds,

@@ -510,6 +510,23 @@ export function validateGameplay(input: unknown): GameplayValidationReport {
   const boards = recordsById(input.boards, '$.boards', diagnostics);
   const encounters = recordsById(input.encounters, '$.encounters', diagnostics);
 
+  checkReference(input.movementAttributeId, attributes, '$.movementAttributeId', diagnostics);
+  const movementAttribute =
+    typeof input.movementAttributeId === 'string'
+      ? attributes.get(input.movementAttributeId)
+      : undefined;
+  if (
+    movementAttribute &&
+    (typeof movementAttribute.minimum !== 'number' || movementAttribute.minimum < 1)
+  )
+    addError(
+      diagnostics,
+      'movement-attribute',
+      '$.movementAttributeId',
+      'Movement must use an attribute whose minimum is at least one step.',
+    );
+  checkReference(input.healthResourceId, resources, '$.healthResourceId', diagnostics);
+
   for (const [id, attribute] of attributes) {
     const minimum = attribute.minimum;
     const maximum = attribute.maximum;
@@ -969,8 +986,8 @@ export function validateGameplay(input: unknown): GameplayValidationReport {
 
   const boardCells = new Map<string, ReadonlySet<string>>();
   for (const [id, board] of boards) {
-    const widthOk = requireInteger(board.width, `$.boards.${id}.width`, diagnostics, 1, 64);
-    const heightOk = requireInteger(board.height, `$.boards.${id}.height`, diagnostics, 1, 64);
+    const widthOk = requireInteger(board.width, `$.boards.${id}.width`, diagnostics, 1, 8);
+    const heightOk = requireInteger(board.height, `$.boards.${id}.height`, diagnostics, 1, 8);
     const occupied = new Set<string>();
     if (!Array.isArray(board.blockedCells))
       addError(
@@ -1013,12 +1030,12 @@ export function validateGameplay(input: unknown): GameplayValidationReport {
     const participantIds = new Set<string>();
     const playerCharacterIds = new Set<string>();
     const startCells = new Set<string>();
-    if (!Array.isArray(participants) || participants.length < 2)
+    if (!Array.isArray(participants) || participants.length < 2 || participants.length > 8)
       addError(
         diagnostics,
         'participant-count',
         `$.encounters.${id}.participants`,
-        'An encounter requires at least two participants.',
+        'An encounter requires two through eight participants.',
       );
     else
       participants.forEach((entry, index) => {

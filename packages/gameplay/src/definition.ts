@@ -161,6 +161,10 @@ export interface GameplayDefinition {
   readonly contentVersion: string;
   /** Explicit structural compatibility key for saved gameplay state. */
   readonly compatibilityVersion: string;
+  /** Authored attribute used as the four-direction movement budget. */
+  readonly movementAttributeId: string;
+  /** Resource reduced by damage and restored by healing. */
+  readonly healthResourceId: string;
   /** Optional capacity measured in occupied item stacks, not individual items. */
   readonly inventoryCapacity?: number;
   readonly attributes: readonly GameplayAttributeDefinition[];
@@ -204,6 +208,8 @@ export interface GameplayCharacterProgressState {
 export interface GameplayStatusInstance {
   readonly statusEffectId: string;
   readonly remainingHolderTurns: number;
+  /** Candidate command revision that created or refreshed this status. */
+  readonly appliedAtRevision: number;
 }
 
 export interface GameplayCombatantState {
@@ -214,6 +220,7 @@ export interface GameplayCombatantState {
   readonly resources: Readonly<Record<string, number>>;
   readonly statuses: readonly GameplayStatusInstance[];
   readonly cooldowns: Readonly<Record<string, number>>;
+  readonly completedTurns: number;
 }
 
 export interface GameplayOutcomeMarker {

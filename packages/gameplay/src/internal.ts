@@ -4,19 +4,13 @@ import type {
   GameplayTransitionResult,
 } from './definition.js';
 
-export type GameplayDraft = {
-  schemaVersion: 1;
-  definitionId: string;
-  compatibilityVersion: string;
-  playthroughId: string;
-  revision: number;
-  characterProgress: Record<string, { experience: number }>;
-  inventory: Record<string, number>;
-  equipment: Record<string, Record<string, string>>;
-  encounter: GameplayState['encounter'];
-  appliedRewardIds: string[];
-  outcomeMarkers: GameplayState['outcomeMarkers'];
-};
+type MutableDeep<T> = T extends readonly (infer Item)[]
+  ? MutableDeep<Item>[]
+  : T extends object
+    ? { -readonly [Key in keyof T]: MutableDeep<T[Key]> }
+    : T;
+
+export type GameplayDraft = MutableDeep<GameplayState>;
 
 export function cloneGameplayValue<T>(value: T): T {
   if (Array.isArray(value)) return value.map((child) => cloneGameplayValue(child)) as T;
@@ -37,7 +31,7 @@ export function freezeGameplayValue<T>(value: T): T {
 }
 
 export function snapshotGameplayState(draft: GameplayDraft): GameplayState {
-  return freezeGameplayValue(cloneGameplayValue(draft));
+  return freezeGameplayValue(cloneGameplayValue(draft)) as GameplayState;
 }
 
 export function rejectGameplay(
@@ -53,14 +47,14 @@ export function finishGameplay(
   draft: GameplayDraft,
   change: string,
 ): GameplayTransitionResult {
-  if (!Number.isSafeInteger(original.revision) || original.revision < 0)
+  if (!Number.isSafeInteger(draft.revision) || draft.revision < 0)
     return rejectGameplay(original, 'invalid-transition', 'State revision is invalid.');
-  if (original.revision >= Number.MAX_SAFE_INTEGER)
+  if (draft.revision >= Number.MAX_SAFE_INTEGER)
     return rejectGameplay(
       original,
       'revision-overflow',
       'Gameplay revision cannot advance safely.',
     );
-  draft.revision = original.revision + 1;
+  draft.revision += 1;
   return { accepted: true, state: snapshotGameplayState(draft), change };
 }

@@ -8,6 +8,8 @@ function definition() {
     id: 'demo',
     contentVersion: 'copy-1',
     compatibilityVersion: 'shape-1',
+    movementAttributeId: 'movement',
+    healthResourceId: 'health',
     inventoryCapacity: 8,
     attributes: [
       { id: 'strength', minimum: 0, maximum: 20, defaultValue: 2 },
