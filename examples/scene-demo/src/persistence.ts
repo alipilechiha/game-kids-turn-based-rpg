@@ -1,9 +1,11 @@
 import type { AnchorId, MapId } from 'waypoint-rpg-core';
 import { decodeNarrativeState, type NarrativeState } from 'waypoint-rpg-narrative';
 import { bloodLeafNarrative } from './content/blood-leaf.js';
+import { phase3BloodLeafNarrative } from './content/phase3-legacy.js';
 
 export const DEMO_SAVE_KEY = 'waypoint-rpg-scene-demo:save';
-const SAVE_SCHEMA_VERSION = 1;
+const PHASE3_SAVE_SCHEMA_VERSION = 1;
+const SAVE_SCHEMA_VERSION = 2;
 const SAFE_ID = /^[A-Za-z][A-Za-z0-9._:-]{0,127}$/;
 
 export interface DemoStorage {
@@ -72,7 +74,10 @@ export function decodeDemoSave(raw: string): DemoSaveDecodeResult {
   if (!Number.isSafeInteger(parsed.schemaVersion)) {
     return decodeFailure('corrupt', 'The save envelope has no valid schema version.');
   }
-  if (parsed.schemaVersion !== SAVE_SCHEMA_VERSION) {
+  if (
+    parsed.schemaVersion !== SAVE_SCHEMA_VERSION &&
+    parsed.schemaVersion !== PHASE3_SAVE_SCHEMA_VERSION
+  ) {
     return decodeFailure('unsupported', `Unsupported save schema ${parsed.schemaVersion}.`);
   }
 
@@ -92,12 +97,46 @@ export function decodeDemoSave(raw: string): DemoSaveDecodeResult {
     return decodeFailure('corrupt', 'The save envelope contains invalid metadata.');
   }
 
-  if (
-    parsed.storyId !== bloodLeafNarrative.id ||
-    parsed.compatibilityVersion !== bloodLeafNarrative.compatibilityVersion
-  ) {
+  if (parsed.storyId !== bloodLeafNarrative.id) {
     return decodeFailure('incompatible', 'The save belongs to an incompatible story structure.');
   }
+
+  if (parsed.schemaVersion === PHASE3_SAVE_SCHEMA_VERSION) {
+    if (parsed.compatibilityVersion !== phase3BloodLeafNarrative.compatibilityVersion)
+      return decodeFailure(
+        'incompatible',
+        'The Phase 3 save belongs to an incompatible story structure; its bytes were preserved.',
+      );
+    const legacy = decodeNarrativeState(phase3BloodLeafNarrative, parsed.narrative);
+    if (!legacy.ok)
+      return decodeFailure(
+        legacy.reason === 'incompatible-definition' || legacy.reason === 'story-mismatch'
+          ? 'incompatible'
+          : 'corrupt',
+        legacy.message,
+      );
+    const migrated = migratePhase3Narrative(legacy.state);
+    const narrative = decodeNarrativeState(bloodLeafNarrative, migrated);
+    if (!narrative.ok)
+      return decodeFailure(
+        narrative.reason === 'incompatible-definition' || narrative.reason === 'story-mismatch'
+          ? 'incompatible'
+          : 'corrupt',
+        narrative.message,
+      );
+    return {
+      ok: true,
+      value: {
+        contentVersion: parsed.contentVersion as string,
+        mapId: parsed.mapId as MapId,
+        entryAnchorId: parsed.entryAnchorId as AnchorId,
+        narrative: narrative.state,
+      },
+    };
+  }
+
+  if (parsed.compatibilityVersion !== bloodLeafNarrative.compatibilityVersion)
+    return decodeFailure('incompatible', 'The save belongs to an incompatible story structure.');
 
   const narrative = decodeNarrativeState(bloodLeafNarrative, parsed.narrative);
   if (!narrative.ok) {
@@ -117,6 +156,38 @@ export function decodeDemoSave(raw: string): DemoSaveDecodeResult {
       entryAnchorId: parsed.entryAnchorId as AnchorId,
       narrative: narrative.state,
     },
+  };
+}
+
+function migratePhase3Narrative(legacy: NarrativeState): NarrativeState {
+  const seekingTruth = legacy.facts['seeking-truth'] === true;
+  const legacyTruthEnding =
+    seekingTruth &&
+    (legacy.endingId === 'ending-truth' ||
+      legacy.activeDialogue?.nodeId === 'truth-ending' ||
+      legacy.suspendedDialogue?.nodeId === 'truth-ending');
+  const migratePointer = (pointer: NarrativeState['activeDialogue']) => {
+    if (
+      seekingTruth &&
+      pointer?.dialogueId === 'guardian-dialogue' &&
+      ['truth-response', 'closing-question'].includes(pointer.nodeId)
+    )
+      return { dialogueId: pointer.dialogueId, nodeId: 'truth-awaiting-clue' };
+    return pointer;
+  };
+
+  return {
+    ...legacy,
+    compatibilityVersion: bloodLeafNarrative.compatibilityVersion,
+    facts: {
+      ...legacy.facts,
+      'seeking-truth': seekingTruth,
+      'seeking-vengeance': legacy.facts['seeking-vengeance'] === true,
+      'lantern-lit': legacy.facts['lantern-lit'] === true,
+      'clue-resolved': legacy.facts['clue-resolved'] === true || legacyTruthEnding,
+    },
+    activeDialogue: migratePointer(legacy.activeDialogue),
+    suspendedDialogue: migratePointer(legacy.suspendedDialogue),
   };
 }
 

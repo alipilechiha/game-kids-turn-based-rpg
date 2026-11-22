@@ -3,7 +3,7 @@ import { log } from 'node:console';
 import { chromium } from '@playwright/test';
 import { preview } from 'vite';
 
-/* global document, getComputedStyle, localStorage, window */
+/* global Storage, document, getComputedStyle, localStorage, window */
 
 const server = await preview({
   preview: { host: '127.0.0.1', port: 0, strictPort: false },
@@ -120,11 +120,9 @@ try {
   assert.equal(await page.getByTestId('scene-transition').isDisabled(), true);
 
   await openDialogue.click();
-  await page.keyboard.press('Enter');
-  await page.getByTestId('dialogue-advance').waitFor({ state: 'visible' });
-  assert.match(await page.locator('#narrative-text').textContent(), /ردّ برگ/);
-  assert.equal(await hasFocus(page.getByTestId('dialogue-advance')), true);
-
+  await page.getByTestId('dialogue-choice-seek-truth').click();
+  await page.getByTestId('dialogue-close').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#narrative-text').textContent(), /کارگاه/);
   await page.getByTestId('dialogue-leave').click();
   await page.waitForFunction(
     () => !document.querySelector('[data-testid="narrative-dialog"]')?.open,
@@ -137,7 +135,6 @@ try {
       window.__sceneProbe?.cameraIsOrthographic === true &&
       window.__sceneProbe?.lampLit === false,
   );
-  assert.equal(await camera.textContent(), 'orthographic');
   assert.equal(
     await canvas.evaluate(
       (element) => element.isConnected && element === window.__originalSceneCanvas,
@@ -149,35 +146,70 @@ try {
     await page.evaluate(() => window.__sceneProbe?.disposedScenes),
     'the departed scene resource must be disposed',
   );
-
-  const triggerFeedbackToken = await page
-    .getByTestId('command-feedback')
-    .getAttribute('data-command-token');
-  await page.getByTestId('lantern-interaction').click();
+  assert.match(
+    await page.getByTestId('suspended-dialogue-guidance').textContent(),
+    /حیاط/,
+    'a suspended courtyard conversation names its owning scene',
+  );
+  await page.reload({ waitUntil: 'networkidle' });
   await page.waitForFunction(
-    (previousToken) =>
+    () =>
+      document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-workshop' &&
       document
-        .querySelector('[data-testid="command-feedback"]')
-        ?.getAttribute('data-command-token') !== previousToken,
-    triggerFeedbackToken,
+        .querySelector('[data-testid="suspended-dialogue-guidance"]')
+        ?.textContent.includes('حیاط'),
   );
-  const triggerResult = await page.evaluate(() => ({
-    accepted: document
-      .querySelector('[data-testid="command-feedback"]')
-      ?.getAttribute('data-command-accepted'),
-    reason: document.querySelector('[data-testid="command-feedback"]')?.textContent,
-    probe: window.__sceneProbe,
-  }));
-  assert.equal(
-    triggerResult.accepted,
-    'true',
-    `Lantern trigger was rejected: ${JSON.stringify(triggerResult)}`,
+  assert.equal(await camera.textContent(), 'orthographic');
+  assert.equal(await page.getByTestId('clue-interaction').count(), 0);
+  await page.getByTestId('scene-transition').click();
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard',
   );
-  assert.equal(
-    triggerResult.probe?.lampLit,
-    true,
-    `Lantern projection did not update: ${JSON.stringify(triggerResult)}`,
+  await openDialogue.click();
+  await page.getByTestId('dialogue-close').waitFor({ state: 'visible' });
+  await page.getByTestId('dialogue-close').click();
+  await page.getByTestId('scene-transition').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-workshop' &&
+      document.querySelector('[data-testid="clue-interaction"]') !== null,
   );
+  await page.getByTestId('clue-interaction').click();
+  await page.getByTestId('dialogue-advance').click();
+  await page.getByTestId('dialogue-leave').click();
+  await page.waitForFunction(
+    () => !document.querySelector('[data-testid="narrative-dialog"]')?.open,
+  );
+  await page.getByTestId('scene-transition').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard' &&
+      document
+        .querySelector('[data-testid="suspended-dialogue-guidance"]')
+        ?.textContent.includes('کارگاه'),
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard' &&
+      document
+        .querySelector('[data-testid="suspended-dialogue-guidance"]')
+        ?.textContent.includes('کارگاه'),
+  );
+  await page.getByTestId('scene-transition').click();
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="active-map"]')?.textContent === 'map-workshop',
+  );
+  await page.getByTestId('clue-interaction').click();
+  await page.getByTestId('dialogue-choice-investigate-clue').waitFor({ state: 'visible' });
+  assert.equal(await hasFocus(page.getByTestId('dialogue-choice-investigate-clue')), true);
+  await page.getByTestId('dialogue-choice-investigate-clue').click();
+  await page.getByTestId('dialogue-close').click();
+  assert.equal(await page.getByTestId('quest-status').getAttribute('data-status'), 'completed');
+  assert.equal(await page.getByTestId('clue-status').getAttribute('data-resolved'), 'true');
+  await page.waitForFunction(() => window.__sceneProbe?.lampLit === true);
   const workshopSubscriptions = await page.evaluate(
     () => window.__sceneProbe?.runtimeSubscriptions,
   );
@@ -190,15 +222,13 @@ try {
   );
 
   await openDialogue.click();
-  assert.match(await page.locator('#narrative-text').textContent(), /ردّ برگ/);
-  await page.keyboard.press('Enter');
+  assert.match(await page.locator('#narrative-text').textContent(), /سرنخ/);
   await page.getByTestId('dialogue-choice-end-with-truth').waitFor({ state: 'visible' });
   assert.equal(await page.getByTestId('dialogue-choice-end-with-truth').isEnabled(), true);
-  assert.equal(await page.getByTestId('dialogue-choice-end-with-anger').isDisabled(), true);
-  await page.keyboard.press('Enter');
+  await page.getByTestId('dialogue-choice-end-with-truth').click();
   await page.getByTestId('dialogue-finish').waitFor({ state: 'visible' });
   assert.match(await page.locator('#narrative-text').textContent(), /چراغ روشن/);
-  await page.keyboard.press('Enter');
+  await page.getByTestId('dialogue-finish').click();
   await page.waitForFunction(
     () => !document.querySelector('[data-testid="narrative-dialog"]')?.open,
   );
@@ -289,7 +319,7 @@ try {
   await page.waitForFunction(
     () => document.querySelector('[data-testid="active-map"]')?.textContent === 'map-workshop',
   );
-  assert.equal(await page.getByTestId('lantern-interaction').isDisabled(), true);
+  assert.equal(await page.getByTestId('clue-interaction').count(), 0);
   assert.equal(await page.evaluate(() => window.__sceneProbe?.lampLit), false);
   assert.deepEqual(pageErrors, []);
 
@@ -311,6 +341,27 @@ try {
       document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
       document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard' &&
       document.querySelector('[data-testid="save-mode"]')?.textContent === 'session-only',
+  );
+  await page.getByTestId('save-warning').waitFor({ state: 'visible' });
+  await page.evaluate(() => {
+    const originalRemove = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function (key) {
+      if (key === 'waypoint-rpg-scene-demo:save') return;
+      originalRemove.call(this, key);
+    };
+  });
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByTestId('story-reset').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="session-readiness"]')?.textContent === 'ready' &&
+      document.querySelector('[data-testid="save-mode"]')?.textContent === 'session-only',
+  );
+  await page.getByTestId('save-warning').waitFor({ state: 'visible' });
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem('waypoint-rpg-scene-demo:save')),
+    corruptSave,
+    'a reset that cannot clear storage must preserve the old bytes',
   );
   await page.getByTestId('dialogue-open').click();
   await page.getByTestId('narrative-dialog').waitFor({ state: 'visible' });

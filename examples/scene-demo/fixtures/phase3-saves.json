@@ -1,0 +1,585 @@
+{
+  "generatedFrom": "91a4544a16f9e3d5e44a461ad069a30dff6162d2: encodeDemoSave schemaVersion 1",
+  "fixtures": [
+    {
+      "id": "fresh-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":0,\"facts\":{},\"quests\":{},\"appliedChoiceIds\":[],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": null,
+        "facts": {},
+        "quests": {},
+        "appliedChoiceIds": [],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "question-active-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":1,\"facts\":{},\"quests\":{},\"appliedChoiceIds\":[],\"appliedTriggerIds\":[],\"activeDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"guardian-question\"},\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "guardian-question"
+        },
+        "suspendedDialogue": null,
+        "facts": {},
+        "quests": {},
+        "appliedChoiceIds": [],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["CHOOSE seek-truth", "CHOOSE seek-vengeance"]
+      }
+    },
+    {
+      "id": "question-suspended-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":2,\"facts\":{},\"quests\":{},\"appliedChoiceIds\":[],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"guardian-question\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "guardian-question"
+        },
+        "facts": {},
+        "quests": {},
+        "appliedChoiceIds": [],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "truth-response-active-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":2,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-response\"},\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-response"
+        },
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["ADVANCE"]
+      }
+    },
+    {
+      "id": "truth-response-suspended-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":3,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-response\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-response"
+        },
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "truth-response-suspended-workshop",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":3,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-response\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-response"
+        },
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "truth-response-suspended-workshop-lit",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":4,\"facts\":{\"seeking-truth\":true,\"lantern-lit\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[\"light-workshop-lantern\"],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-response\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-response"
+        },
+        "facts": {
+          "seeking-truth": true,
+          "lantern-lit": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": ["light-workshop-lantern"],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "truth-closing-active-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":3,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"closing-question\"},\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "closing-question"
+        },
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["CHOOSE end-with-truth"]
+      }
+    },
+    {
+      "id": "truth-closing-suspended-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":4,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"closing-question\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "closing-question"
+        },
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "truth-closing-suspended-workshop",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":4,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"closing-question\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "closing-question"
+        },
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "truth-closing-suspended-workshop-lit",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":5,\"facts\":{\"seeking-truth\":true,\"lantern-lit\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\"],\"appliedTriggerIds\":[\"light-workshop-lantern\"],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"closing-question\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "closing-question"
+        },
+        "facts": {
+          "seeking-truth": true,
+          "lantern-lit": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth"],
+        "appliedTriggerIds": ["light-workshop-lantern"],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "truth-ending-active-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":4,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\",\"end-with-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-ending\"},\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-ending"
+        },
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth", "end-with-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["FINISH"]
+      }
+    },
+    {
+      "id": "truth-ending-suspended-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":5,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\",\"end-with-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-ending\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-ending"
+        },
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth", "end-with-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue; FINISH"]
+      }
+    },
+    {
+      "id": "truth-ending-suspended-workshop",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":5,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\",\"end-with-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-ending\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-ending"
+        },
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth", "end-with-truth"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue; FINISH"]
+      }
+    },
+    {
+      "id": "truth-ending-suspended-workshop-lit",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":6,\"facts\":{\"seeking-truth\":true,\"lantern-lit\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\",\"end-with-truth\"],\"appliedTriggerIds\":[\"light-workshop-lantern\"],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"truth-ending\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "truth-ending"
+        },
+        "facts": {
+          "seeking-truth": true,
+          "lantern-lit": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth", "end-with-truth"],
+        "appliedTriggerIds": ["light-workshop-lantern"],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue; FINISH"]
+      }
+    },
+    {
+      "id": "truth-ending-finished-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":5,\"facts\":{\"seeking-truth\":true},\"quests\":{\"leaf-inquiry\":\"completed\"},\"appliedChoiceIds\":[\"seek-truth\",\"end-with-truth\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":null,\"endingId\":\"ending-truth\"}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-truth": true
+        },
+        "quests": {
+          "leaf-inquiry": "completed"
+        },
+        "appliedChoiceIds": ["seek-truth", "end-with-truth"],
+        "appliedTriggerIds": [],
+        "endingId": "ending-truth",
+        "permittedNext": []
+      }
+    },
+    {
+      "id": "vengeance-response-active-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":2,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\"],\"appliedTriggerIds\":[],\"activeDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"vengeance-response\"},\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "vengeance-response"
+        },
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["ADVANCE"]
+      }
+    },
+    {
+      "id": "vengeance-response-suspended-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":3,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"vengeance-response\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "vengeance-response"
+        },
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "vengeance-response-suspended-workshop",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":3,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"vengeance-response\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "vengeance-response"
+        },
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "vengeance-closing-active-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":3,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\"],\"appliedTriggerIds\":[],\"activeDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"closing-question\"},\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "closing-question"
+        },
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["CHOOSE end-with-anger"]
+      }
+    },
+    {
+      "id": "vengeance-closing-suspended-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":4,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"closing-question\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "closing-question"
+        },
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "vengeance-closing-suspended-workshop",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":4,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"closing-question\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "closing-question"
+        },
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue"]
+      }
+    },
+    {
+      "id": "vengeance-ending-active-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":4,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\",\"end-with-anger\"],\"appliedTriggerIds\":[],\"activeDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"vengeance-ending\"},\"suspendedDialogue\":null,\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "vengeance-ending"
+        },
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance", "end-with-anger"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["FINISH"]
+      }
+    },
+    {
+      "id": "vengeance-ending-suspended-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":5,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\",\"end-with-anger\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"vengeance-ending\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "vengeance-ending"
+        },
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance", "end-with-anger"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue; FINISH"]
+      }
+    },
+    {
+      "id": "vengeance-ending-suspended-workshop",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-workshop\",\"entryAnchorId\":\"anchor-workshop-door\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":5,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\",\"end-with-anger\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":{\"dialogueId\":\"guardian-dialogue\",\"nodeId\":\"vengeance-ending\"},\"endingId\":null}}",
+      "legacy": {
+        "mapId": "map-workshop",
+        "entryAnchorId": "anchor-workshop-door",
+        "activeDialogue": null,
+        "suspendedDialogue": {
+          "dialogueId": "guardian-dialogue",
+          "nodeId": "vengeance-ending"
+        },
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance", "end-with-anger"],
+        "appliedTriggerIds": [],
+        "endingId": null,
+        "permittedNext": ["RETURN map-courtyard; OPEN_DIALOGUE guardian-dialogue; FINISH"]
+      }
+    },
+    {
+      "id": "vengeance-ending-finished-courtyard",
+      "raw": "{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"contentVersion\":\"fa-copy-1\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"mapId\":\"map-courtyard\",\"entryAnchorId\":\"anchor-courtyard-start\",\"narrative\":{\"schemaVersion\":1,\"storyId\":\"blood-leaf-demo\",\"compatibilityVersion\":\"blood-leaf-shape-1\",\"playthroughId\":\"phase3-fresh\",\"revision\":5,\"facts\":{\"seeking-vengeance\":true},\"quests\":{\"leaf-inquiry\":\"failed\"},\"appliedChoiceIds\":[\"seek-vengeance\",\"end-with-anger\"],\"appliedTriggerIds\":[],\"activeDialogue\":null,\"suspendedDialogue\":null,\"endingId\":\"ending-anger\"}}",
+      "legacy": {
+        "mapId": "map-courtyard",
+        "entryAnchorId": "anchor-courtyard-start",
+        "activeDialogue": null,
+        "suspendedDialogue": null,
+        "facts": {
+          "seeking-vengeance": true
+        },
+        "quests": {
+          "leaf-inquiry": "failed"
+        },
+        "appliedChoiceIds": ["seek-vengeance", "end-with-anger"],
+        "appliedTriggerIds": [],
+        "endingId": "ending-anger",
+        "permittedNext": []
+      }
+    }
+  ]
+}

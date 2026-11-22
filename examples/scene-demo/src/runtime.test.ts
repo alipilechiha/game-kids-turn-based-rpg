@@ -6,9 +6,14 @@ import {
 } from 'waypoint-rpg-narrative';
 import { describe, expect, it, vi } from 'vitest';
 import { bloodLeafNarrative } from './content/blood-leaf.js';
-import { DEMO_SAVE_KEY, encodeDemoSave, type DemoStorage } from './persistence.js';
+import { DEMO_SAVE_KEY, decodeDemoSave, encodeDemoSave, type DemoStorage } from './persistence.js';
 import { createDemoRuntime, type DemoSceneHost } from './runtime.js';
 import type { RegisteredScene, SceneHostSnapshot } from './scene-host.js';
+import phase3FixtureJson from '../fixtures/phase3-saves.json?raw';
+
+const phase3Fixtures = JSON.parse(phase3FixtureJson) as {
+  readonly fixtures: readonly { readonly id: string; readonly raw: string }[];
+};
 
 function fakeHost() {
   const saved = {
@@ -16,6 +21,7 @@ function fakeHost() {
     failRead: false,
     failWrite: false,
     failRemove: false,
+    failRemoveSilently: false,
   };
   const storage: DemoStorage = {
     getItem: vi.fn(() => {
@@ -28,6 +34,7 @@ function fakeHost() {
     }),
     removeItem: vi.fn(() => {
       if (saved.failRemove) throw new Error('storage remove unavailable');
+      if (saved.failRemoveSilently) return;
       saved.value = null;
     }),
   };
@@ -97,7 +104,7 @@ function makeTruthBranch(): NarrativeState {
     expectedRevision: state.revision,
   });
   apply({
-    type: 'exit-dialogue',
+    type: 'close-dialogue',
     playthroughId: state.playthroughId,
     expectedRevision: state.revision,
   });
@@ -150,7 +157,7 @@ describe('demo application command boundary', () => {
     expect(host.transition).not.toHaveBeenCalled();
 
     expect(runtime.dispatch({ type: 'CHOOSE', choiceId: 'seek-truth' }).accepted).toBe(true);
-    expect(runtime.dispatch({ type: 'EXIT_DIALOGUE' }).accepted).toBe(true);
+    expect(runtime.dispatch({ type: 'CLOSE_DIALOGUE' }).accepted).toBe(true);
     const moved = await runtime.transitionTo('transition-to-workshop');
     expect(moved.accepted).toBe(true);
     expect(runtime.getDurableState().mapId).toBe('map-workshop');
@@ -161,31 +168,42 @@ describe('demo application command boundary', () => {
     expect(wrongMapDialogue.accepted).toBe(false);
     expect(wrongMapDialogue.reason).toBe('scene-ineligible');
     expect(
-      runtime.dispatch({ type: 'TRIGGER', triggerId: 'light-workshop-lantern' }).accepted,
+      runtime.dispatch({ type: 'TRIGGER', triggerId: 'light-workshop-lantern' }),
+    ).toMatchObject({ accepted: false, reason: 'external-trigger-disabled' });
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'workshop-clue-dialogue' }).accepted,
     ).toBe(true);
+    expect(runtime.dispatch({ type: 'ADVANCE' }).accepted).toBe(true);
+    expect(runtime.dispatch({ type: 'CHOOSE', choiceId: 'investigate-clue' }).accepted).toBe(true);
+    expect(runtime.getDurableState().narrative.quests['leaf-inquiry']).toBe('completed');
+    expect(runtime.getDurableState().narrative.facts['clue-resolved']).toBe(true);
     expect(runtime.getDurableState().narrative.facts['lantern-lit']).toBe(true);
+    expect(runtime.dispatch({ type: 'CLOSE_DIALOGUE' }).accepted).toBe(true);
+    expect(runtime.getDurableState().narrative.endingId).toBe(null);
 
     await runtime.transitionTo('transition-to-courtyard');
-    const resumed = runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' });
-    expect(resumed.accepted).toBe(true);
-    expect(runtime.getDurableState().narrative.activeDialogue?.nodeId).toBe('truth-response');
+    const bypass = runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' });
+    expect(bypass).toMatchObject({ accepted: false, reason: 'scene-ineligible' });
+    const resolution = runtime.dispatch({
+      type: 'OPEN_DIALOGUE',
+      dialogueId: 'truth-resolution-dialogue',
+    });
+    expect(resolution.accepted).toBe(true);
+    expect(runtime.dispatch({ type: 'CHOOSE', choiceId: 'end-with-truth' }).accepted).toBe(true);
+    expect(runtime.dispatch({ type: 'FINISH' }).accepted).toBe(true);
+    expect(runtime.getDurableState().narrative.endingId).toBe('ending-truth');
     runtime.dispose();
   });
 
-  it('checks authored trigger conditions even when the caller bypasses the disabled control', async () => {
+  it('does not expose the retained legacy lantern trigger as a public UI command', async () => {
     const { host, storage } = fakeHost();
     const runtime = createDemoRuntime(host, { storage });
     await runtime.start();
-    runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' });
-    runtime.dispatch({ type: 'CHOOSE', choiceId: 'seek-vengeance' });
-    runtime.dispatch({ type: 'EXIT_DIALOGUE' });
-    await runtime.transitionTo('transition-to-workshop');
     const durable = runtime.getDurableState();
 
     const result = runtime.dispatch({ type: 'TRIGGER', triggerId: 'light-workshop-lantern' });
 
-    expect(result.accepted).toBe(false);
-    expect(result.reason).toBe('trigger-unavailable');
+    expect(result).toMatchObject({ accepted: false, reason: 'external-trigger-disabled' });
     expect(runtime.getDurableState()).toBe(durable);
     expect(runtime.getDurableState().narrative.revision).toBe(durable.narrative.revision);
     runtime.dispose();
@@ -235,6 +253,104 @@ describe('demo application command boundary', () => {
     runtime.dispose();
   });
 
+  it('resumes a migrated workshop save through its courtyard owner and resolves the old truth clue once', async () => {
+    const fixture = phase3Fixtures.fixtures.find(
+      (item) => item.id === 'truth-response-suspended-workshop',
+    );
+    expect(fixture).toBeDefined();
+    if (!fixture) return;
+    const legacy = decodeDemoSave(fixture.raw);
+    expect(legacy.ok).toBe(true);
+    if (!legacy.ok) return;
+
+    const { host, storage, saved } = fakeHost();
+    saved.value = fixture.raw;
+    const runtime = createDemoRuntime(host, { storage });
+    expect((await runtime.start()).accepted).toBe(true);
+    expect(runtime.getDurableState()).toMatchObject({
+      mapId: 'map-workshop',
+      narrative: {
+        playthroughId: legacy.value.narrative.playthroughId,
+        revision: legacy.value.narrative.revision,
+        suspendedDialogue: { dialogueId: 'guardian-dialogue', nodeId: 'truth-awaiting-clue' },
+        quests: { 'leaf-inquiry': 'completed' },
+        facts: { 'lantern-lit': false, 'clue-resolved': false },
+      },
+    });
+    expect(saved.value).toBe(fixture.raw);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'workshop-clue-dialogue' }),
+    ).toMatchObject({ accepted: false, reason: 'dialogue-suspended' });
+
+    expect((await runtime.transitionTo('transition-to-courtyard')).accepted).toBe(true);
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' }).accepted,
+    ).toBe(true);
+    expect(runtime.getDurableState().narrative.activeDialogue?.nodeId).toBe('truth-awaiting-clue');
+    expect(runtime.dispatch({ type: 'CLOSE_DIALOGUE' }).accepted).toBe(true);
+    expect((await runtime.transitionTo('transition-to-workshop')).accepted).toBe(true);
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'workshop-clue-dialogue' }).accepted,
+    ).toBe(true);
+    expect(runtime.dispatch({ type: 'ADVANCE' }).accepted).toBe(true);
+    expect(runtime.dispatch({ type: 'CHOOSE', choiceId: 'investigate-legacy-clue' }).accepted).toBe(
+      true,
+    );
+    expect(runtime.getDurableState().narrative.quests['leaf-inquiry']).toBe('completed');
+    expect(runtime.getDurableState().narrative.facts['clue-resolved']).toBe(true);
+    expect(runtime.getDurableState().narrative.facts['lantern-lit']).toBe(true);
+    expect(runtime.dispatch({ type: 'CLOSE_DIALOGUE' }).accepted).toBe(true);
+    expect(runtime.getDurableState().narrative.endingId).toBe(null);
+    runtime.dispose();
+  });
+
+  it('returns a workshop-owned suspended clue across a courtyard save reload', async () => {
+    const { host, storage } = fakeHost();
+    const firstRuntime = createDemoRuntime(host, { storage });
+    await firstRuntime.start();
+    firstRuntime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' });
+    firstRuntime.dispatch({ type: 'CHOOSE', choiceId: 'seek-truth' });
+    firstRuntime.dispatch({ type: 'CLOSE_DIALOGUE' });
+    await firstRuntime.transitionTo('transition-to-workshop');
+    firstRuntime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'workshop-clue-dialogue' });
+    firstRuntime.dispatch({ type: 'ADVANCE' });
+    firstRuntime.dispatch({ type: 'EXIT_DIALOGUE' });
+    expect(firstRuntime.getDurableState().narrative.suspendedDialogue).toEqual({
+      dialogueId: 'workshop-clue-dialogue',
+      nodeId: 'clue-question',
+    });
+    await firstRuntime.transitionTo('transition-to-courtyard');
+    expect(firstRuntime.getDurableState().mapId).toBe('map-courtyard');
+    firstRuntime.dispose();
+
+    const restoredRuntime = createDemoRuntime(host, { storage });
+    expect((await restoredRuntime.start()).accepted).toBe(true);
+    expect(restoredRuntime.getDurableState()).toMatchObject({
+      mapId: 'map-courtyard',
+      narrative: {
+        suspendedDialogue: { dialogueId: 'workshop-clue-dialogue', nodeId: 'clue-question' },
+      },
+    });
+    expect(
+      restoredRuntime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'truth-resolution-dialogue' }),
+    ).toMatchObject({ accepted: false, reason: 'dialogue-suspended' });
+    expect((await restoredRuntime.transitionTo('transition-to-workshop')).accepted).toBe(true);
+    expect(
+      restoredRuntime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'workshop-clue-dialogue' })
+        .accepted,
+    ).toBe(true);
+    expect(restoredRuntime.getDurableState().narrative.activeDialogue?.nodeId).toBe(
+      'clue-question',
+    );
+    expect(
+      restoredRuntime.dispatch({ type: 'CHOOSE', choiceId: 'investigate-clue' }).accepted,
+    ).toBe(true);
+    expect(restoredRuntime.getDurableState().narrative.quests['leaf-inquiry']).toBe('completed');
+    expect(restoredRuntime.dispatch({ type: 'CLOSE_DIALOGUE' }).accepted).toBe(true);
+    restoredRuntime.dispose();
+  });
+
   it('preserves the original save when scene restoration fails', async () => {
     const { host, storage, saved } = fakeHost();
     const originalBytes = encodeDemoSave({
@@ -254,6 +370,68 @@ describe('demo application command boundary', () => {
     expect(runtime.getState().bootstrap.status).toBe('recovery-required');
     expect(saved.value).toBe(originalBytes);
     expect(storage.setItem).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('retries the original validated map and anchor without replacing or rewriting the playthrough', async () => {
+    const { host, storage, saved } = fakeHost();
+    const narrative = makeTruthBranch();
+    const originalBytes = encodeDemoSave({
+      contentVersion: 'saved-copy',
+      mapId: 'map-workshop',
+      entryAnchorId: 'anchor-workshop-lamp',
+      narrative,
+    });
+    saved.value = originalBytes;
+    vi.mocked(host.start).mockResolvedValueOnce({ status: 'failed', error: 'asset load failed' });
+    const runtime = createDemoRuntime(host, { storage });
+
+    const failed = await runtime.start();
+    expect(failed.accepted).toBe(false);
+    expect(runtime.getState().bootstrap.reason).toBe('restore-scene-failed');
+    expect(saved.value).toBe(originalBytes);
+    expect(storage.setItem).not.toHaveBeenCalled();
+
+    const retried = await runtime.retrySavedScene();
+
+    expect(retried.accepted).toBe(true);
+    expect(host.start).toHaveBeenNthCalledWith(1, 'map-workshop', 'anchor-workshop-lamp');
+    expect(host.start).toHaveBeenNthCalledWith(2, 'map-workshop', 'anchor-workshop-lamp');
+    expect(runtime.getDurableState()).toMatchObject({
+      ready: true,
+      sessionValid: true,
+      mapId: 'map-workshop',
+      anchorId: 'anchor-workshop-lamp',
+      narrative: { playthroughId: narrative.playthroughId, revision: narrative.revision },
+    });
+    expect(saved.value).toBe(originalBytes);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('shows session-only mode and preserves old bytes after a save write fails', async () => {
+    const { host, storage, saved } = fakeHost();
+    const oldBytes = encodeDemoSave({
+      contentVersion: 'saved-copy',
+      mapId: 'map-courtyard',
+      entryAnchorId: 'anchor-courtyard-start',
+      narrative: makeTruthBranch(),
+    });
+    saved.value = oldBytes;
+    const runtime = createDemoRuntime(host, { storage });
+    expect((await runtime.start()).accepted).toBe(true);
+    saved.failWrite = true;
+
+    expect((await runtime.transitionTo('transition-to-workshop')).accepted).toBe(true);
+    expect(runtime.getState().bootstrap.storageMode).toBe('session-only');
+    expect(saved.value).toBe(oldBytes);
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'workshop-clue-dialogue' }).accepted,
+    ).toBe(true);
+    expect(runtime.dispatch({ type: 'ADVANCE' }).accepted).toBe(true);
+    expect(runtime.dispatch({ type: 'CHOOSE', choiceId: 'investigate-clue' }).accepted).toBe(true);
+    expect(saved.value).toBe(oldBytes);
+    expect(storage.setItem).toHaveBeenCalledOnce();
     runtime.dispose();
   });
 
@@ -348,6 +526,28 @@ describe('demo application command boundary', () => {
       runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' }).accepted,
     ).toBe(true);
     expect(saved.value).toBe(originalBytes);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('detects a storage remove that silently leaves the old save in place', async () => {
+    const { host, storage, saved } = fakeHost();
+    const oldBytes = '{unsupported-but-preserved';
+    saved.value = oldBytes;
+    const runtime = createDemoRuntime(host, { storage });
+    await runtime.start();
+    await runtime.recoverFreshSession();
+    saved.failRemoveSilently = true;
+
+    const reset = await runtime.resetPlaythrough(true);
+
+    expect(reset.accepted).toBe(true);
+    expect(runtime.getState().bootstrap.storageMode).toBe('session-only');
+    expect(saved.value).toBe(oldBytes);
+    expect(
+      runtime.dispatch({ type: 'OPEN_DIALOGUE', dialogueId: 'guardian-dialogue' }).accepted,
+    ).toBe(true);
+    expect(saved.value).toBe(oldBytes);
     expect(storage.setItem).not.toHaveBeenCalled();
     runtime.dispose();
   });

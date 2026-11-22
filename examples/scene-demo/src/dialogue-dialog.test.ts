@@ -44,6 +44,7 @@ const forbiddenView: DialogueView = {
   speakerId: 'guardian',
   text: 'آیا آماده‌ای؟',
   terminal: false,
+  closeAllowed: false,
   exitAllowed: false,
   choices: [{ id: 'yes', label: 'بله', available: true }],
 };
@@ -68,6 +69,7 @@ describe('narrative modal lifecycle', () => {
       choicesLabel: 'پاسخ‌ها',
       continueLabel: 'ادامه',
       finishLabel: 'پایان',
+      closeLabel: 'بستن گفت‌وگو',
       leaveLabel: 'فعلاً می‌روم',
       onCommand,
       openerRef,
@@ -97,6 +99,37 @@ describe('narrative modal lifecycle', () => {
     expect(afterUnmount.defaultPrevented).toBe(false);
     expect(onCommand).not.toHaveBeenCalled();
     expect(methods.close).toHaveBeenCalledTimes(1);
+    container.remove();
+  });
+
+  it('offers a non-ending close action at an authored conversation endpoint', async () => {
+    const methods = installDialogMethods();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const onCommand = vi.fn<(action: DemoNarrativeAction) => void>();
+    const props = {
+      view: { ...forbiddenView, closeAllowed: true, choices: [] },
+      speakerName: 'نگهبان',
+      choicesLabel: 'پاسخ‌ها',
+      continueLabel: 'ادامه',
+      finishLabel: 'پایان',
+      closeLabel: 'بستن گفت‌وگو',
+      leaveLabel: 'فعلاً می‌روم',
+      onCommand,
+      openerRef: createRef<HTMLButtonElement>(),
+      fallbackFocusRef: createRef<HTMLElement>(),
+    };
+
+    await act(async () => root.render(createElement(DialogueDialog, props)));
+    const close = container.querySelector<HTMLButtonElement>('[data-testid="dialogue-close"]');
+    expect(close?.textContent).toBe('بستن گفت‌وگو');
+    close?.click();
+    expect(onCommand).toHaveBeenCalledWith({ type: 'CLOSE_DIALOGUE' });
+    expect(container.querySelector('[data-testid="dialogue-finish"]')).toBeNull();
+    expect(methods.showModal).toHaveBeenCalledTimes(1);
+
+    await act(async () => root.unmount());
     container.remove();
   });
 });

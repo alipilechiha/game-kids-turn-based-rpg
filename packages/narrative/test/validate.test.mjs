@@ -97,6 +97,154 @@ test('rejects direct and indirect unconditional active-prerequisite cycles', () 
   assert.equal(hasCode(validateNarrative(indirect), 'quest-prerequisite-cycle'), true);
 });
 
+test('rejects cycles through completed, failed, and cancelled quest statuses', () => {
+  const selfCompleted = definition();
+  selfCompleted.quests = [
+    {
+      id: 'self',
+      prerequisites: { op: 'quest-status', questId: 'self', status: 'completed' },
+    },
+  ];
+  assert.equal(hasCode(validateNarrative(selfCompleted), 'quest-prerequisite-cycle'), true);
+
+  const completedCycle = definition();
+  completedCycle.quests = [
+    {
+      id: 'first',
+      prerequisites: { op: 'quest-status', questId: 'second', status: 'completed' },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'completed' },
+    },
+  ];
+  assert.equal(hasCode(validateNarrative(completedCycle), 'quest-prerequisite-cycle'), true);
+
+  const mixedCycle = definition();
+  mixedCycle.quests = [
+    {
+      id: 'first',
+      prerequisites: { op: 'quest-status', questId: 'second', status: 'active' },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'third', status: 'failed' },
+    },
+    {
+      id: 'third',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'cancelled' },
+    },
+  ];
+  assert.equal(hasCode(validateNarrative(mixedCycle), 'quest-prerequisite-cycle'), true);
+});
+
+test('keeps a viable any alternative non-fatal and dependencies under not non-positive', () => {
+  const alternative = definition();
+  alternative.quests = [
+    { id: 'clue-quest' },
+    { id: 'independent-root' },
+    {
+      id: 'first',
+      prerequisites: {
+        op: 'any',
+        conditions: [
+          { op: 'quest-status', questId: 'second', status: 'completed' },
+          { op: 'quest-status', questId: 'independent-root', status: 'active' },
+        ],
+      },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'failed' },
+    },
+  ];
+  const alternativeReport = validateNarrative(alternative);
+  assert.equal(alternativeReport.ok, true, JSON.stringify(alternativeReport.diagnostics));
+  assert.equal(hasCode(alternativeReport, 'quest-prerequisite-cycle'), false);
+  assert.equal(hasCode(alternativeReport, 'conditional-quest-cycle'), true);
+
+  const negated = definition();
+  negated.quests = [
+    { id: 'clue-quest' },
+    {
+      id: 'first',
+      prerequisites: {
+        op: 'not',
+        condition: { op: 'quest-status', questId: 'second', status: 'completed' },
+      },
+    },
+    {
+      id: 'second',
+      prerequisites: { op: 'quest-status', questId: 'first', status: 'cancelled' },
+    },
+  ];
+  const negatedReport = validateNarrative(negated);
+  assert.equal(negatedReport.ok, true, JSON.stringify(negatedReport.diagnostics));
+  assert.equal(hasCode(negatedReport, 'quest-prerequisite-cycle'), false);
+  assert.equal(hasCode(negatedReport, 'conditional-quest-cycle'), false);
+});
+
+test('validates optional fact declarations, defaults, and default locale', () => {
+  const valid = definition();
+  valid.defaultLocale = 'fa';
+  valid.facts = [
+    { key: 'clue-found', type: 'boolean', default: false },
+    { key: 'trust', type: 'integer', default: 2 },
+    { key: 'approach', type: 'string', default: 'patient' },
+  ];
+  assert.equal(validateNarrative(valid).ok, true);
+
+  const duplicate = definition();
+  duplicate.facts = [
+    { key: 'trust', type: 'integer' },
+    { key: 'trust', type: 'integer' },
+  ];
+  assert.equal(hasCode(validateNarrative(duplicate), 'duplicate-fact-key'), true);
+
+  const invalidDefault = definition();
+  invalidDefault.facts = [{ key: 'trust', type: 'integer', default: 1.5 }];
+  assert.equal(hasCode(validateNarrative(invalidDefault), 'fact-default'), true);
+
+  const invalidLocale = definition();
+  invalidLocale.defaultLocale = 'not a locale';
+  assert.equal(hasCode(validateNarrative(invalidLocale), 'default-locale'), true);
+});
+
+test('dialogue-closing nodes are distinct from story endings and cannot continue', () => {
+  const valid = definition();
+  valid.dialogues[0].nodes[0].choices[0].targetNodeId = 'close';
+  valid.dialogues[0].nodes.push({
+    id: 'close',
+    speakerId: 'guardian',
+    text: { fa: 'گفت‌وگو تمام شد.' },
+    closesDialogue: true,
+  });
+  assert.equal(validateNarrative(valid).ok, true);
+
+  const invalid = JSON.parse(JSON.stringify(valid));
+  invalid.dialogues[0].nodes.find((node) => node.id === 'close').endingId = 'ending-truth';
+  const report = validateNarrative(invalid);
+  assert.equal(hasCode(report, 'node-close-dialogue'), true);
+  assert.equal(hasCode(report, 'node-ending'), true);
+});
+
+test('declared fact conditions and effects must use matching types and known keys', () => {
+  const value = definition();
+  value.facts = [{ key: 'trust', type: 'integer', default: 0 }];
+  value.dialogues[0].nodes[0].choices[0].when = {
+    op: 'flag',
+    key: 'trust',
+    equals: true,
+  };
+  value.dialogues[0].nodes[0].choices[0].effects.push(
+    { op: 'set-fact', key: 'trust', value: 'high' },
+    { op: 'increment-fact', key: 'missing', amount: 1 },
+  );
+  const report = validateNarrative(value);
+  assert.equal(hasCode(report, 'fact-type'), true);
+  assert.equal(hasCode(report, 'unknown-fact-reference'), true);
+});
+
 test('warns when a prerequisite cycle depends on a condition that cannot be solved statically', () => {
   const value = definition();
   value.quests = [

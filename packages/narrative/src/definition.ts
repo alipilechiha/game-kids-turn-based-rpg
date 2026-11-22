@@ -5,6 +5,14 @@ export type JsonValue =
 
 export type PersistedQuestStatus = 'active' | 'completed' | 'failed' | 'cancelled';
 export type QuestStatus = 'locked' | 'available' | PersistedQuestStatus;
+export type NarrativeFactType = 'boolean' | 'integer' | 'string';
+export type NarrativeFactValue = boolean | number | string;
+
+export interface NarrativeFactDefinition {
+  readonly key: string;
+  readonly type: NarrativeFactType;
+  readonly default?: NarrativeFactValue;
+}
 
 export type NarrativeCondition =
   | { readonly op: 'flag'; readonly key: string; readonly equals: boolean }
@@ -26,6 +34,7 @@ export type NarrativeCondition =
 export type NarrativeEffect =
   | { readonly op: 'set-flag'; readonly key: string; readonly value: boolean }
   | { readonly op: 'clear-flag'; readonly key: string }
+  | { readonly op: 'clear-fact'; readonly key: string }
   | { readonly op: 'set-fact'; readonly key: string; readonly value: JsonValue }
   | { readonly op: 'increment-fact'; readonly key: string; readonly amount: number }
   | { readonly op: 'start-quest'; readonly questId: string }
@@ -53,6 +62,8 @@ export interface DialogueNodeDefinition {
   readonly nextNodeId?: string;
   readonly choices?: readonly DialogueChoiceDefinition[];
   readonly terminal?: boolean;
+  /** A conversation-only endpoint; closing it clears its cursor without ending the playthrough. */
+  readonly closesDialogue?: boolean;
   /** Required for a terminal node; immutable within its playthrough. */
   readonly endingId?: string;
   readonly cue?: string;
@@ -88,6 +99,10 @@ export interface NarrativeDefinition {
   readonly contentVersion: string;
   /** Explicit compatibility key for structural state/content changes. */
   readonly compatibilityVersion: string;
+  /** Fallback locale after exact and base-language matches; omitted keeps legacy fallback. */
+  readonly defaultLocale?: string;
+  /** Omit to keep legacy untyped JSON fact behavior. */
+  readonly facts?: readonly NarrativeFactDefinition[];
   readonly entryDialogueId: string;
   readonly dialogues: readonly DialogueDefinition[];
   readonly quests: readonly QuestDefinition[];
@@ -149,6 +164,7 @@ export type NarrativeCommand = NarrativeCommandBase &
     | { readonly type: 'advance' }
     | { readonly type: 'choose'; readonly choiceId: string }
     | { readonly type: 'exit-dialogue' }
+    | { readonly type: 'close-dialogue' }
     | { readonly type: 'finish' }
     | { readonly type: 'trigger'; readonly triggerId: string }
   );
@@ -169,6 +185,7 @@ export type NarrativeRejectionCode =
   | 'choice-unavailable'
   | 'choice-already-applied'
   | 'exit-forbidden'
+  | 'dialogue-not-closeable'
   | 'not-terminal'
   | 'trigger-unavailable'
   | 'quest-transition'
@@ -203,6 +220,7 @@ export interface DialogueView {
   readonly speakerId: string;
   readonly text: string;
   readonly terminal: boolean;
+  readonly closeAllowed: boolean;
   readonly exitAllowed: boolean;
   readonly choices: readonly DialogueChoiceView[];
 }
