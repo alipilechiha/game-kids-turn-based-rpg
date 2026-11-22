@@ -49,6 +49,7 @@ test('capture genuine library-backed Kids RPG preview states', async ({ page }) 
   await page.getByTestId('headwear-next').click();
   await expect(page.getByTestId('hud')).toBeVisible();
   await expect(page.getByTestId('world-canvas')).toBeVisible();
+  await expect(page.getByTestId('world-canvas').locator('canvas')).toBeVisible();
 
   // Choose a deterministic visible quality tier through the real parent UI.
   await setTier(page, 'normal');

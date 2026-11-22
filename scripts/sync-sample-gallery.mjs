@@ -20,9 +20,13 @@ const images = [
 
 for (const file of images) {
   const size = statSync(folder + '/' + file).size;
-  if (size <= 5_000) throw new Error('Missing or empty real screenshot: ' + file);
+  if (size <= 5_000) {
+    throw new Error('Missing or empty real screenshot: ' + file);
+  }
 }
 
+// Keep the authored Markdown gallery stable between captures.
+// prettier-ignore
 const section = [
   start,
   '',
@@ -61,14 +65,18 @@ const before = original.indexOf(start);
 const after = original.indexOf(end);
 let updated;
 if (before >= 0 || after >= 0) {
-  if (before < 0 || after < before) throw new Error('Invalid sample gallery markers');
-  updated = original.slice(0, before) + section + original.slice(after + end.length);
+  if (before < 0 || after < before) {
+    throw new Error('Invalid sample gallery markers');
+  }
+  updated =
+    original.slice(0, before) + section + original.slice(after + end.length);
 } else {
   const anchor = '<!-- framework-roadmap:end -->';
   const offset = original.indexOf(anchor);
   if (offset < 0) throw new Error('Missing framework roadmap insertion point');
   const position = offset + anchor.length;
-  updated = original.slice(0, position) + '\n\n' + section + original.slice(position);
+  updated =
+    original.slice(0, position) + '\n\n' + section + original.slice(position);
 }
 if (updated !== original) {
   writeFileSync(readmePath, updated, 'utf8');

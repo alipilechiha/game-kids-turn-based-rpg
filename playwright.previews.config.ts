@@ -18,6 +18,14 @@ export default defineConfig({
         viewport: { width: 880, height: 420 },
         locale: 'fa-IR',
         colorScheme: 'light',
+        launchOptions: {
+          args: [
+            '--enable-webgl',
+            '--use-gl=angle',
+            '--use-angle=swiftshader',
+            '--ignore-gpu-blocklist',
+          ],
+        },
       },
     },
   ],

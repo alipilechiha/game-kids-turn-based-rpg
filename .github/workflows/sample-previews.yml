@@ -48,6 +48,10 @@ jobs:
         run: npm run sample:previews
       - name: Update README with the captured gallery
         run: npm run sample:gallery
+      - name: Format and verify the generated README
+        run: |
+          npx prettier --write README.md
+          npm run roadmap:check
       - name: Upload source-rendered PNGs for every merge
         uses: actions/upload-artifact@v4
         if: always()

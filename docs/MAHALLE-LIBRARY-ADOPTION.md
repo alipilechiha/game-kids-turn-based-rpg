@@ -14,6 +14,7 @@ prototype. Its game-specific product policies still belong to the game.
 
 ## Audited integration status
 
+<!-- prettier-ignore -->
 | Capability | Current owner and evidence | Adoption status |
 | --- | --- | --- |
 | Runtime | `src/app/gameRuntime.ts` delegates to `createGameRuntime` through `src/framework/index.ts`, which re-exports `waypoint-rpg-core`. | **Adopted** |
