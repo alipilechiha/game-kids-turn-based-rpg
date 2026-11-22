@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "workspaces": [
     "packages/core",
-    "packages/narrative"
+    "packages/narrative",
+    "packages/gameplay"
   ],
   "type": "module",
   "license": "MIT",
@@ -47,12 +48,15 @@
     "release:rollback:prepare": "node scripts/prepare-release-rollback.mjs",
     "framework:core:check": "node packages/core/scripts/check-boundary.mjs",
     "framework:narrative:check": "node packages/narrative/scripts/check-boundary.mjs",
-    "framework:check": "npm run framework:core:check && npm run framework:narrative:check",
-    "framework:build": "npm run build --workspace=packages/core && npm run build --workspace=packages/narrative",
+    "framework:gameplay:check": "node packages/gameplay/scripts/check-boundary.mjs",
+    "framework:gameplay:build": "npm run build --workspace=packages/gameplay",
+    "framework:gameplay:test:prepared": "npm --ignore-scripts --workspace=packages/gameplay run test",
+    "framework:check": "npm run framework:core:check && npm run framework:narrative:check && npm run framework:gameplay:check",
+    "framework:build": "npm run build --workspace=packages/core && npm run build --workspace=packages/narrative && npm run framework:gameplay:build",
     "framework:watch": "node scripts/dev-linked.mjs --config examples/scene-demo/vite.config.ts",
     "framework:watch:check": "node scripts/check-framework-linked-dev.mjs",
     "framework:build:isolated": "node packages/core/scripts/check-isolated-build.mjs",
-    "framework:test:prepared": "npm --ignore-scripts --workspace=packages/core run test && npm --ignore-scripts --workspace=packages/narrative run test",
+    "framework:test:prepared": "npm --ignore-scripts --workspace=packages/core run test && npm --ignore-scripts --workspace=packages/narrative run test && npm run framework:gameplay:test:prepared",
     "framework:test": "npm run framework:check && npm run framework:build && npm run framework:test:prepared",
     "framework:narrative-consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-narrative-consumer.mjs",
     "framework:narrative-consumer:prepared": "node scripts/check-framework-narrative-consumer.mjs",
