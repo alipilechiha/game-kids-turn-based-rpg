@@ -43,7 +43,9 @@ export type {
   GameplayTransitionResult,
   GameplayValidationReport,
 } from './definition.js';
+export type { GameplayStateDecodeFailureCode, GameplayStateDecodeResult } from './codec.js';
 export { compileGameplay, GameplayDefinitionError } from './compile.js';
+export { decodeGameplayState, encodeGameplayState, GameplayStateCodecError } from './codec.js';
 export { validateGameplay } from './validate.js';
 export {
   createGameplayState,
