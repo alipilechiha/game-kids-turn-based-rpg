@@ -16,4 +16,5 @@ dev-dist/
 downloaded-models/
 downloaded-musics/
 test-results-*
+/verify-main.log
 .release-compat/
