@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { getQuestCopy } from '../content/fa/quests.ts';
@@ -48,7 +48,11 @@ async function pickChoice(user: ReturnType<typeof userEvent.setup>, index: numbe
           index - 1
         ] as HTMLButtonElement);
   await user.click(target);
-  await new Promise((r) => setTimeout(r, 250));
+  // Flush the press-pulse commit + any GameProvider async (audio/save) so
+  // React does not warn about updates outside act() during dwell timers.
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 250));
+  });
 }
 
 /** Plays one quest picking the correct (first) icon at each step. Passive

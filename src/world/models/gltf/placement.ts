@@ -87,11 +87,23 @@ export const FOUNTAIN_BOUNDS: GlbBounds = {
   backZ: -0.509,
 };
 
-export const HOME_GATE_FIT: LandmarkFit = fitLandmark(HOME_GATE_BOUNDS, 1.4, {
+/**
+ * World scale (figures crown ≈ 1.33): houses must read clearly taller than
+ * people — roughly 1.8× a child — without swallowing the orthographic hub.
+ * Uniform fit grows the footprint with height; keep clearance via frontZ.
+ */
+export const HOME_GATE_HEIGHT = 2.4;
+export const SHOP_HEIGHT = 2.2;
+/** Centered well: height capped so frontZ·scale stays ≤ LANDMARK_MAX_DETAIL_Z. */
+export const FOUNTAIN_HEIGHT = 1.05;
+
+export const HOME_GATE_FIT: LandmarkFit = fitLandmark(HOME_GATE_BOUNDS, HOME_GATE_HEIGHT, {
   rotationY: Math.PI,
 });
-export const SHOP_FIT: LandmarkFit = fitLandmark(SHOP_BOUNDS, 1.25);
-export const FOUNTAIN_FIT: LandmarkFit = fitLandmark(FOUNTAIN_BOUNDS, 1.0, { center: true });
+export const SHOP_FIT: LandmarkFit = fitLandmark(SHOP_BOUNDS, SHOP_HEIGHT);
+export const FOUNTAIN_FIT: LandmarkFit = fitLandmark(FOUNTAIN_BOUNDS, FOUNTAIN_HEIGHT, {
+  center: true,
+});
 
 /**
  * Prop/critter placement — no clearance plane, just: fit `size` to the

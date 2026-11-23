@@ -174,6 +174,22 @@ describe('AudioService', () => {
     expect(service.unlocked).toBe(false);
   });
 
+  it('resume that leaves the context suspended does not mark unlocked', async () => {
+    vi.stubGlobal('AudioContext', function () {
+      const ctx = new FakeAudioContext();
+      ctx.state = 'suspended';
+      ctx.resume = async () => {
+        /* Chrome can resolve without flipping to running when blocked */
+      };
+      lastContext = ctx;
+      return ctx;
+    });
+    const service = new AudioService();
+    await service.unlock();
+    expect(service.unlocked).toBe(false);
+    expect(lastContext?.closed).toBe(true);
+  });
+
   it('setSuspended suspends and resumes the live context only', async () => {
     const service = new AudioService();
     await service.setSuspended(true); // no context — no-op

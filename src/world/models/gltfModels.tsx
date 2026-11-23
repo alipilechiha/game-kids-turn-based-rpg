@@ -1,4 +1,5 @@
 import { Component, Suspense, useEffect, type ReactNode } from 'react';
+import { useGLTF } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import type { QualityTier } from '../../domain/game/types.ts';
 import {
@@ -9,6 +10,7 @@ import {
   CubicProp,
   CubicScenery,
   GaitedAnimal,
+  LANDMARK_MAX_DETAIL_Z,
 } from './cubic.tsx';
 import { CUBIC_MODELS } from './cubicModels.ts';
 import { DoorDetail, type Xyz } from './details.tsx';
@@ -53,7 +55,9 @@ import {
   FARM_BOUNDS,
   FENCE_BOUNDS,
   FOUNTAIN_FIT,
+  HOME_GATE_BOUNDS,
   HOME_GATE_FIT,
+  HOME_GATE_HEIGHT,
   KOI_BOUNDS,
   ROCK_BOUNDS,
   ROCKS_BOUNDS,
@@ -142,10 +146,14 @@ function Gltf({
  * the tap surface (`reactive-door-home-gate`) and the door-swing flourish.
  * Positioned where the model's actual door lands after the fit: the doorway
  * sits at local (x≈+0.44, z≈-0.6 wall) on the pre-rotation mesh, so after
- * `rotationY: π` and scale ≈1.538 it is landmark-local (-0.68, 0, 0.41);
- * +0.03 keeps the slab proud of the wall face.
+ * `rotationY: π` and scale s = HOME_GATE_HEIGHT / spanY it is landmark-local
+ * (-0.44·s, 0, LANDMARK_MAX_DETAIL_Z − 0.21·s); +0.03 keeps the slab proud.
  */
-const HOME_GATE_DOOR: Xyz = [-0.68, 0, 0.44];
+const HOME_GATE_DOOR: Xyz = (() => {
+  const s = HOME_GATE_HEIGHT / (HOME_GATE_BOUNDS.maxY - HOME_GATE_BOUNDS.minY);
+  // Door inset 0.21 model-units behind the façade (frontZ 0.81 → door z 0.60).
+  return [-0.44 * s, 0, LANDMARK_MAX_DETAIL_Z - 0.21 * s + 0.03];
+})();
 
 function GltfLandmark(props: LandmarkProps) {
   const { position, variant } = props;
@@ -215,12 +223,12 @@ function GltfProp(props: PropProps) {
  * wraps the model so the whole body moves like the cubic species' steps —
  * `waddle` rocks ground walkers, `swish` sways the swimmer (the cubic fish
  * uses the same joint for its tail).
- * Sized to read next to the cubic cat (~0.85 tall): duck 0.55, dog 0.7,
- * fish ~0.9 long (the cubic fish is ~0.8).
+ * Sized against a ~1.33 figure: cat/dog/duck stay below knee-to-waist,
+ * fish ~0.7 long, elephant a park-scale ~2.2 (not life-size African).
  * Variants without a GLB — or below their `minDetail` gate — stay cubic.
  */
 const KOI_FIT: GlbFit = (() => {
-  const fit = fitToSize(KOI_BOUNDS, 0.9, { rotationY: Math.PI / 2 });
+  const fit = fitToSize(KOI_BOUNDS, 0.7, { rotationY: Math.PI / 2 });
   // Fish origin = the waterline, not the ground: recenter vertically so the
   // koi rides half-submerged like the cubic fish.
   const midY = (KOI_BOUNDS.min[1] + KOI_BOUNDS.max[1]) / 2;
@@ -249,20 +257,19 @@ const ANIMAL_GLBS: Partial<
     }
   >
 > = {
-  duck: { fit: fitToSize(DUCK_BOUNDS, 0.55), Model: Duck, gait: 'gait-waddle' },
-  dog: { fit: fitToSize(DOG_BOUNDS, 0.7), Model: Dog, gait: 'gait-waddle' },
-  cat: { fit: fitToSize(CAT_BOUNDS, 0.85), Model: Cat, gait: 'gait-waddle', minDetail: 6 },
+  duck: { fit: fitToSize(DUCK_BOUNDS, 0.4), Model: Duck, gait: 'gait-waddle' },
+  dog: { fit: fitToSize(DOG_BOUNDS, 0.55), Model: Dog, gait: 'gait-waddle' },
+  cat: { fit: fitToSize(CAT_BOUNDS, 0.5), Model: Cat, gait: 'gait-waddle', minDetail: 6 },
   butterfly: {
-    fit: fitToSize(BUTTERFLY_BOUNDS, 0.9),
+    fit: fitToSize(BUTTERFLY_BOUNDS, 0.45),
     Model: Butterfly,
     gait: 'gait-swish',
     minDetail: 6,
   },
   fish: { fit: KOI_FIT, Model: Koi, gait: 'gait-swish', minDetail: 6 },
   // 1,199 tris + a double-sided material — very-high only, like the koi.
-  // The biggest critter: 1.6 trunk-to-tail ≈ 0.95 tall at the shoulder.
   elephant: {
-    fit: fitToSize(ELEPHANT_BOUNDS, 1.6, { rotationY: -Math.PI / 2 }),
+    fit: fitToSize(ELEPHANT_BOUNDS, 2.2, { rotationY: -Math.PI / 2 }),
     Model: Elephant,
     gait: 'gait-waddle',
     minDetail: 6,
@@ -360,4 +367,83 @@ export const GLTF_MODELS: ModelSet = {
  */
 export function modelsForTier(tier: QualityTier): ModelSet {
   return tier === 'high' || tier === 'very-high' ? GLTF_MODELS : CUBIC_MODELS;
+}
+
+/**
+ * Hub landmarks + town scenery + ambient critters. Prefetched into the
+ * suspend-react cache so Suspense never swaps cubic→GLB mid-walk.
+ */
+const HUB_GLB_PRELOAD: readonly string[] = [
+  'fountain',
+  'shop',
+  'home-gate',
+  'tree-a',
+  'tree-b',
+  'tree-c',
+  'bush',
+  'rock',
+  'rocks',
+  'bench',
+  'streetlight',
+  'crate',
+  'ball',
+  'fence',
+  'farm-plot',
+  'duck',
+  'dog',
+  'cat',
+];
+
+/** very-high-only critters — same gate as ANIMAL_GLBS minDetail. */
+const HUB_GLB_PRELOAD_VERY_HIGH: readonly string[] = ['butterfly', 'koi', 'elephant'];
+
+const PRELOAD_TIMEOUT_MS = 45_000;
+
+let hubGltfPreloadPromise: Promise<void> | null = null;
+let hubGltfPreloadTier: QualityTier | null = null;
+
+function hubGltfUrls(tier: QualityTier): readonly string[] {
+  const base = import.meta.env.BASE_URL;
+  const names =
+    tier === 'very-high' ? [...HUB_GLB_PRELOAD, ...HUB_GLB_PRELOAD_VERY_HIGH] : HUB_GLB_PRELOAD;
+  return names.map((name) => `${base}models/${name}.glb`);
+}
+
+/**
+ * Warm the GLTF cache for town fixtures and resolve only when every URL is in
+ * the suspend-react cache (or the timeout fires — fail-open so a missing file
+ * never traps the child on the loading screen).
+ */
+export function preloadHubGltfModels(tier: QualityTier): Promise<void> {
+  if (tier !== 'high' && tier !== 'very-high') return Promise.resolve();
+  if (hubGltfPreloadPromise && hubGltfPreloadTier === tier) return hubGltfPreloadPromise;
+
+  hubGltfPreloadTier = tier;
+  const urls = hubGltfUrls(tier);
+  for (const url of urls) {
+    useGLTF.preload(url);
+  }
+
+  hubGltfPreloadPromise = (async () => {
+    const [{ peek }, { GLTFLoader }] = await Promise.all([
+      import('suspend-react'),
+      import('three-stdlib'),
+    ]);
+    const deadline = Date.now() + PRELOAD_TIMEOUT_MS;
+    await Promise.all(
+      urls.map(async (url) => {
+        while (peek([GLTFLoader, url]) === undefined) {
+          if (Date.now() > deadline) return;
+          await new Promise((r) => setTimeout(r, 32));
+        }
+      }),
+    );
+  })();
+
+  return hubGltfPreloadPromise;
+}
+
+/** True when this tier ships GLBs that must finish before the hub Canvas mounts. */
+export function hubNeedsGltfWarmup(tier: QualityTier): boolean {
+  return tier === 'high' || tier === 'very-high';
 }

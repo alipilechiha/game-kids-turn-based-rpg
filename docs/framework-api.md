@@ -125,6 +125,21 @@ The runtime does **not** consume this — the application's coordinators do
 (`ProfileCoordinator`/`SaveCoordinator` in `src/app/`). Scoped slots mirror
 per-profile save keys; the `corrupt` branch carries no data by design.
 
+## Optional package: `waypoint-rpg-gameplay`
+
+`packages/gameplay/` is an optional zero-runtime-dependency TypeScript ESM
+library for progression, inventory/equipment, abilities/status effects, and
+deterministic tactical combat. It has one public root and does not depend on
+core, narrative, React, Three.js, or browser APIs. Deep imports are rejected.
+
+Root values include `validateGameplay`, `compileGameplay`, `createGameplayState`,
+`encodeGameplayState` / `decodeGameplayState`, `transitionGameplay`, and
+`applyGameplayGrant`. Enemy turns and victory reward application run inside
+`transitionGameplay`; applications map terminal `consequenceId` values to their
+own narrative or world effects. The Kids RPG does not consume this package;
+`examples/scene-demo/` proves it with an app-owned transactional adapter.
+Verify with `npm run framework:gameplay-consumer`.
+
 ## Optional package: `waypoint-rpg-narrative`
 
 `packages/narrative/` is an optional zero-runtime-dependency TypeScript ESM

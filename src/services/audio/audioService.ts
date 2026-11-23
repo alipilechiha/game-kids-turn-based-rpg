@@ -46,14 +46,26 @@ export class AudioService {
       const sfxGain = context.createGain();
       musicGain.connect(context.destination);
       sfxGain.connect(context.destination);
+      // Mute/volume before the first audible frame.
+      musicGain.gain.value = this.#settings.musicMuted ? 0 : this.#settings.musicVolume;
+      sfxGain.gain.value = this.#settings.sfxMuted ? 0 : this.#settings.sfxVolume;
+      if (context.state === 'suspended') await context.resume();
+      // Autoplay policy: resume may resolve while staying suspended. Only mark
+      // unlocked when the browser actually allowed the context to run — otherwise
+      // later play()/resume() spam Chrome's "not allowed to start" warning.
+      if (context.state !== 'running') {
+        await context.close().catch(() => undefined);
+        return;
+      }
       this.#context = context;
       this.#musicGain = musicGain;
       this.#sfxGain = sfxGain;
       this.#unlocked = true;
-      this.applySettings(this.#settings);
-      if (context.state === 'suspended') await context.resume();
     } catch {
       this.#unlocked = false;
+      this.#context = null;
+      this.#musicGain = null;
+      this.#sfxGain = null;
     }
   }
 
@@ -91,9 +103,11 @@ export class AudioService {
 
   async setSuspended(suspended: boolean): Promise<void> {
     const context = this.#context;
-    if (!context) return;
+    if (!context || !this.#unlocked) return;
     try {
       if (suspended && context.state === 'running') await context.suspend();
+      // Visibility resume is allowed for a context that previously ran; skip if
+      // somehow still locked so we never call resume() without a prior unlock.
       if (!suspended && context.state === 'suspended') await context.resume();
     } catch {
       /* transient state change; audio stays optional */

@@ -1,6 +1,15 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test';
 
 const PORT = 4173;
+
+/** Prefer installed Google Chrome when Playwright's Chromium CDN is unreachable. */
+const useSystemChrome =
+  process.env['PLAYWRIGHT_USE_SYSTEM_CHROME'] === '1' ||
+  process.env['PLAYWRIGHT_USE_SYSTEM_CHROME'] === 'true';
+
+const browserUse: NonNullable<PlaywrightTestConfig['use']> = useSystemChrome
+  ? { channel: 'chrome' }
+  : {};
 
 export default defineConfig({
   testDir: './e2e',
@@ -14,6 +23,7 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',
     locale: 'fa-IR',
+    ...browserUse,
   },
   projects: [
     {
@@ -23,6 +33,7 @@ export default defineConfig({
         viewport: { width: 880, height: 420 },
         isMobile: true,
         hasTouch: true,
+        ...browserUse,
       },
     },
     {
@@ -32,6 +43,7 @@ export default defineConfig({
         viewport: { width: 360, height: 800 },
         isMobile: true,
         hasTouch: true,
+        ...browserUse,
       },
     },
   ],

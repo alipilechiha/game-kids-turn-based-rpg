@@ -61,9 +61,10 @@ are the shipped artifact.
   music/sfx `GainNode` buses, buffer cache, `dispose()` is non-terminal (a
   later `unlock()` builds a fresh context).
 - **Gesture unlock:** `unlock()` only succeeds inside a real user gesture
-  (browser autoplay policy). The first menu tap routes through
-  `playSfx`/`playMusic` (`unlock().then(play)`); an effect alone can never
-  start audio, so the menu theme simply isn't audible before the first tap.
+  (browser autoplay policy). Mode→track routing in `GameProvider` calls
+  `play()` only — never `unlock()` — so Chrome does not warn on boot. The
+  first menu tap routes through `playSfx`/`playMusic`
+  (`unlock().then(play + routed bed)`); until that tap, music stays silent.
 - **Routing:** `src/app/musicRouting.ts` — pure `musicForState(mode,
 battleActive)`. Battle is a state overlay (not a mode) and wins when live.
   The celebration cue is event-driven in `App.tsx` and resumes the routed

@@ -1,5 +1,11 @@
 import type { AnchorId, MapId } from 'waypoint-rpg-core';
+import {
+  decodeGameplayState,
+  encodeGameplayState,
+  type GameplayState,
+} from 'waypoint-rpg-gameplay';
 import { decodeNarrativeState, type NarrativeState } from 'waypoint-rpg-narrative';
+import { bloodLeafGameplay } from './content/blood-leaf-gameplay.js';
 import { bloodLeafNarrative } from './content/blood-leaf.js';
 import { phase3BloodLeafNarrative } from './content/phase3-legacy.js';
 
@@ -19,6 +25,7 @@ export interface DemoSaveValue {
   readonly mapId: MapId;
   readonly entryAnchorId: AnchorId;
   readonly narrative: NarrativeState;
+  readonly gameplay?: GameplayState;
 }
 
 export type DemoSaveDecodeResult =
@@ -37,6 +44,7 @@ interface DemoSaveEnvelope {
   readonly mapId: string;
   readonly entryAnchorId: string;
   readonly narrative: unknown;
+  readonly gameplay?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -59,6 +67,9 @@ export function encodeDemoSave(value: DemoSaveValue): string {
     mapId: value.mapId,
     entryAnchorId: value.entryAnchorId,
     narrative: value.narrative,
+    ...(value.gameplay
+      ? { gameplay: JSON.parse(encodeGameplayState(bloodLeafGameplay, value.gameplay)) }
+      : {}),
   };
   return JSON.stringify(envelope);
 }
@@ -148,6 +159,24 @@ export function decodeDemoSave(raw: string): DemoSaveDecodeResult {
     );
   }
 
+  let gameplay: GameplayState | undefined;
+  if (Object.hasOwn(parsed, 'gameplay')) {
+    if (parsed.gameplay === undefined || parsed.gameplay === null) {
+      return decodeFailure('corrupt', 'The save envelope contains an invalid gameplay payload.');
+    }
+    const decodedGameplay = decodeGameplayState(bloodLeafGameplay, parsed.gameplay);
+    if (!decodedGameplay.ok) {
+      return decodeFailure(
+        decodedGameplay.reason.code === 'incompatible-definition' ? 'incompatible' : 'corrupt',
+        decodedGameplay.reason.message,
+      );
+    }
+    if (decodedGameplay.state.playthroughId !== narrative.state.playthroughId) {
+      return decodeFailure('corrupt', 'Gameplay and narrative playthrough identifiers disagree.');
+    }
+    gameplay = decodedGameplay.state;
+  }
+
   return {
     ok: true,
     value: {
@@ -155,6 +184,7 @@ export function decodeDemoSave(raw: string): DemoSaveDecodeResult {
       mapId: parsed.mapId as MapId,
       entryAnchorId: parsed.entryAnchorId as AnchorId,
       narrative: narrative.state,
+      ...(gameplay ? { gameplay } : {}),
     },
   };
 }

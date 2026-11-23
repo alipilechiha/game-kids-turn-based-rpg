@@ -96,17 +96,16 @@ export function GameProvider({
     audioService.applySettings(state.audio);
   }, [state.audio]);
 
-  // Music routing is pure state → track (menus get their own theme, battle
-  // overlays the world bed). Autoplay policy still applies: an effect is not
-  // a gesture, so the first audible note waits for the first real tap —
-  // playSfx/playMusic run that single unlock() path. Once unlocked, the
-  // #musicId guard inside play() makes same-track replays a no-op.
+  // Music routing is pure state → track. Never unlock() from an effect —
+  // Chrome autoplay policy rejects AudioContext.resume outside a gesture and
+  // logs "The AudioContext was not allowed to start". play() no-ops until a
+  // real tap has unlocked; playSfx/playMusic then kick the routed bed.
   useEffect(() => {
     const id = musicForState(state.mode, state.battle !== null);
     if (id === null) {
       audioService.stopMusic();
     } else {
-      void audioService.unlock().then(() => audioService.play(id));
+      void audioService.play(id);
     }
   }, [state.mode, state.battle]);
 
@@ -153,13 +152,31 @@ export function GameProvider({
     [coordinators, state.mode],
   );
 
-  const playSfx = useCallback((id: string) => {
-    void audioService.unlock().then(() => audioService.play(id));
-  }, []);
+  const playRoutedMusic = useCallback(() => {
+    const snapshot = runtime.getState();
+    const id = musicForState(snapshot.mode, snapshot.battle !== null);
+    if (id === null) audioService.stopMusic();
+    else void audioService.play(id);
+  }, [runtime]);
+
+  const playSfx = useCallback(
+    (id: string) => {
+      void audioService.unlock().then(() => {
+        if (!audioService.unlocked) return;
+        void audioService.play(id);
+        // First gesture also starts the mode's music bed (effect cannot unlock).
+        playRoutedMusic();
+      });
+    },
+    [playRoutedMusic],
+  );
 
   // Same gesture-unlock path as playSfx — bus routing lives inside play().
   const playMusic = useCallback((id: string) => {
-    void audioService.unlock().then(() => audioService.play(id));
+    void audioService.unlock().then(() => {
+      if (!audioService.unlocked) return;
+      void audioService.play(id);
+    });
   }, []);
 
   const shell = useMemo<GameShell>(

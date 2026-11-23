@@ -13,6 +13,51 @@
 /** Isometric offset direction: camera position = target + ISO_OFFSET. */
 export const ISO_OFFSET = { x: 10, y: 10, z: 10 } as const;
 
+/** Distance of the default isometric offset — orbit keeps this radius. */
+export const CAMERA_RADIUS = Math.hypot(ISO_OFFSET.x, ISO_OFFSET.y, ISO_OFFSET.z);
+
+/** Default yaw (around Y) matching `ISO_OFFSET` (x=z). */
+export const DEFAULT_CAMERA_YAW = Math.atan2(ISO_OFFSET.z, ISO_OFFSET.x);
+
+/** Default pitch matching `ISO_OFFSET.y / CAMERA_RADIUS`. */
+export const DEFAULT_CAMERA_PITCH = Math.asin(ISO_OFFSET.y / CAMERA_RADIUS);
+
+/** Child-safe orbit band around the default isometric yaw (~±51°). */
+export const CAMERA_YAW_MIN = DEFAULT_CAMERA_YAW - Math.PI / 3.5;
+export const CAMERA_YAW_MAX = DEFAULT_CAMERA_YAW + Math.PI / 3.5;
+
+/** Child-safe pitch band — slight tilt only; never flips under the ground. */
+export const CAMERA_PITCH_MIN = DEFAULT_CAMERA_PITCH - 0.22;
+export const CAMERA_PITCH_MAX = Math.min(Math.PI / 2 - 0.12, DEFAULT_CAMERA_PITCH + 0.18);
+
+export const clampCameraYaw = (yaw: number): number =>
+  Math.min(CAMERA_YAW_MAX, Math.max(CAMERA_YAW_MIN, yaw));
+
+export const clampCameraPitch = (pitch: number): number =>
+  Math.min(CAMERA_PITCH_MAX, Math.max(CAMERA_PITCH_MIN, pitch));
+
+/**
+ * Spherical camera offset from yaw (around Y) and pitch (from XZ plane).
+ * At the default yaw/pitch this equals `ISO_OFFSET` within float error.
+ */
+export function cameraOffsetFromAngles(
+  yaw: number,
+  pitch: number,
+  radius: number = CAMERA_RADIUS,
+): { readonly x: number; readonly y: number; readonly z: number } {
+  const safeYaw = clampCameraYaw(yaw);
+  const safePitch = clampCameraPitch(pitch);
+  const cosPitch = Math.cos(safePitch);
+  return {
+    x: radius * cosPitch * Math.cos(safeYaw),
+    y: radius * Math.sin(safePitch),
+    z: radius * cosPitch * Math.sin(safeYaw),
+  };
+}
+
+/** Radians of yaw/pitch per pixel of orbit drag (mouse or two-finger twist). */
+export const CAMERA_ORBIT_SENSITIVITY = 0.005;
+
 /** Gameplay zoom bounds (ortho zoom = px per world unit, both axes). */
 export const MIN_ZOOM = 20;
 export const MAX_ZOOM = 96;

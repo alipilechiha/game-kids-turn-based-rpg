@@ -7,10 +7,21 @@ import { CAMERA_PADDING, clampZoom, DEFAULT_ZOOM } from '../framework/index.ts';
 // overrides) moved to `framework/three/camera.ts`; re-exported via the public
 // index so existing `world/camera.ts` imports keep working.
 export {
+  CAMERA_ORBIT_SENSITIVITY,
   CAMERA_PADDING,
+  CAMERA_PITCH_MAX,
+  CAMERA_PITCH_MIN,
+  CAMERA_RADIUS,
+  CAMERA_YAW_MAX,
+  CAMERA_YAW_MIN,
+  cameraOffsetFromAngles,
+  clampCameraPitch,
   clampCameraTarget,
+  clampCameraYaw,
   clampUserZoom,
   clampZoom,
+  DEFAULT_CAMERA_PITCH,
+  DEFAULT_CAMERA_YAW,
   DEFAULT_ZOOM,
   ISO_OFFSET,
   MAX_ZOOM,

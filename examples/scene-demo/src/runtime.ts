@@ -1,12 +1,20 @@
 import { createGameRuntime, type AnchorId, type MapId } from 'waypoint-rpg-core';
 import {
+  createGameplayState,
+  transitionGameplay,
+  type GameplayPlayerIntent,
+  type GameplayState,
+} from 'waypoint-rpg-gameplay';
+import {
   createNarrativeState,
   getFact,
   transitionNarrative,
   type NarrativeCommand,
   type NarrativeState,
 } from 'waypoint-rpg-narrative';
+import { bloodLeafGameplay, GUARDIAN_TRIAL_ENCOUNTER_ID } from './content/blood-leaf-gameplay.js';
 import { bloodLeafDefinition, bloodLeafNarrative } from './content/blood-leaf.js';
+import { executeCombatTransaction } from './gameplay-transaction.js';
 import { sceneTransitions } from './scene-data.js';
 import type { SceneHost } from './scene-host.js';
 import {
@@ -29,6 +37,12 @@ export type DemoNarrativeAction =
   | { readonly type: 'FINISH' }
   | { readonly type: 'TRIGGER'; readonly triggerId: string };
 
+export type DemoGameplayAction =
+  | { readonly type: 'START_ENCOUNTER' }
+  | { readonly type: 'COMBAT_INTENT'; readonly intent: GameplayPlayerIntent };
+
+export type DemoAction = DemoNarrativeAction | DemoGameplayAction;
+
 export type DemoStorageMode = 'unknown' | 'persistent' | 'session-only';
 
 export interface DemoBootstrapState {
@@ -44,6 +58,7 @@ export interface DemoDurableState {
   readonly mapId: MapId | null;
   readonly anchorId: AnchorId | null;
   readonly narrative: NarrativeState;
+  readonly gameplay: GameplayState;
 }
 
 export interface DemoFeedback {
@@ -73,7 +88,7 @@ export interface DemoRuntime {
   getDurableState(): DemoDurableState;
   subscribe(listener: () => void): () => void;
   /** Application command boundary; there is intentionally no raw store dispatch. */
-  dispatch(action: DemoNarrativeAction): DemoFeedback;
+  dispatch(action: DemoAction): DemoFeedback;
   start(): Promise<DemoFeedback>;
   retrySavedScene(): Promise<DemoFeedback>;
   recoverFreshSession(): Promise<DemoFeedback>;
@@ -92,6 +107,11 @@ type StoreCommand =
       readonly token: string;
     }
   | {
+      readonly type: 'GAMEPLAY_ACTION';
+      readonly action: DemoGameplayAction;
+      readonly token: string;
+    }
+  | {
       readonly type: 'SCENE_COMMITTED';
       readonly token: string;
       readonly action: string;
@@ -106,6 +126,7 @@ type StoreCommand =
       readonly mapId: MapId;
       readonly anchorId: AnchorId;
       readonly narrative: NarrativeState;
+      readonly gameplay: GameplayState;
       readonly expectedEpoch: number;
       readonly storageMode: Exclude<DemoStorageMode, 'unknown'>;
     }
@@ -123,6 +144,20 @@ type StoreCommand =
     };
 
 let playthroughSequence = 0;
+let encounterInstanceSequence = 0;
+
+function isEncounterActive(gameplay: GameplayState): boolean {
+  const encounter = gameplay.encounter;
+  return encounter !== null && encounter.outcome === null;
+}
+
+function createEncounterInstanceId(): string {
+  const nonce =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID().replaceAll('-', '')
+      : `${Date.now().toString(36)}-${++encounterInstanceSequence}`;
+  return `guardian-trial-${nonce}`;
+}
 
 function createPlaythroughId(): string {
   const nonce =
@@ -169,7 +204,18 @@ export function getDialogueOwnerMap(dialogueId: string): MapId | null {
   return null;
 }
 
-function actionName(action: DemoNarrativeAction): string {
+function actionName(action: DemoAction): string {
+  if (action.type === 'START_ENCOUNTER') return 'start-encounter';
+  if (action.type === 'COMBAT_INTENT') {
+    switch (action.intent.type) {
+      case 'use-ability':
+        return `ability:${action.intent.abilityId}`;
+      case 'move':
+        return 'move';
+      default:
+        return action.intent.type;
+    }
+  }
   switch (action.type) {
     case 'OPEN_DIALOGUE':
       return `open:${action.dialogueId}`;
@@ -180,6 +226,28 @@ function actionName(action: DemoNarrativeAction): string {
     default:
       return action.type.toLowerCase();
   }
+}
+
+function startEncounterEligibility(state: DemoSnapshot, transitionPending: boolean): string | null {
+  const durable = state.durable;
+  if (!durable.ready || state.bootstrap.status !== 'ready') return 'not-ready';
+  if (!durable.sessionValid) return 'session-invalidated';
+  if (transitionPending) return 'scene-pending';
+  if (durable.narrative.activeDialogue) return 'dialogue-active';
+  if (isEncounterActive(durable.gameplay)) return 'encounter-active';
+  if (durable.mapId !== 'map-courtyard') return 'scene-ineligible';
+  if (getFact(durable.narrative, 'seeking-vengeance') !== true) return 'scene-ineligible';
+  if (getFact(durable.narrative, 'guardian-trial-complete') === true) return 'scene-condition';
+  return null;
+}
+
+function combatIntentEligibility(state: DemoSnapshot, transitionPending: boolean): string | null {
+  const durable = state.durable;
+  if (!durable.ready || state.bootstrap.status !== 'ready') return 'not-ready';
+  if (!durable.sessionValid) return 'session-invalidated';
+  if (transitionPending) return 'scene-pending';
+  if (!isEncounterActive(durable.gameplay)) return 'encounter-inactive';
+  return null;
 }
 
 function eligibilityReason(
@@ -199,6 +267,7 @@ function eligibilityReason(
     hostSnapshot.active.definition.map.id !== durable.mapId
   )
     return 'scene-pending';
+  if (isEncounterActive(durable.gameplay)) return 'encounter-active';
 
   if (durable.narrative.activeDialogue) {
     if (getDialogueOwnerMap(durable.narrative.activeDialogue.dialogueId) !== durable.mapId)
@@ -252,6 +321,7 @@ function transitionReason(
   if (!durable.ready || state.bootstrap.status !== 'ready') return 'not-ready';
   if (!durable.sessionValid) return 'session-invalidated';
   if (durable.narrative.activeDialogue) return 'dialogue-active';
+  if (isEncounterActive(durable.gameplay)) return 'encounter-active';
   if (transitionPending) return 'scene-pending';
   const hostSnapshot = host.getSnapshot();
   if (
@@ -367,6 +437,82 @@ function reduceDemoState(
     };
   }
 
+  if (command.type === 'GAMEPLAY_ACTION') {
+    const name = actionName(command.action);
+    const blocked =
+      command.action.type === 'START_ENCOUNTER'
+        ? startEncounterEligibility(state, transitionPending())
+        : combatIntentEligibility(state, transitionPending());
+    if (blocked)
+      return {
+        ...state,
+        durable: state.durable,
+        feedback: feedback(command.token, name, false, state.durable.narrative.revision, blocked),
+      };
+
+    if (command.action.type === 'START_ENCOUNTER') {
+      const begun = transitionGameplay(bloodLeafGameplay, state.durable.gameplay, {
+        type: 'start-encounter',
+        playthroughId: state.durable.gameplay.playthroughId,
+        expectedRevision: state.durable.gameplay.revision,
+        encounterId: GUARDIAN_TRIAL_ENCOUNTER_ID,
+        instanceId: createEncounterInstanceId(),
+      });
+      if (!begun.accepted)
+        return {
+          ...state,
+          durable: state.durable,
+          feedback: feedback(
+            command.token,
+            name,
+            false,
+            state.durable.narrative.revision,
+            begun.reason.code,
+          ),
+        };
+      const durable = Object.freeze({ ...state.durable, gameplay: begun.state });
+      return {
+        ...state,
+        durable,
+        feedback: feedback(command.token, name, true, durable.narrative.revision),
+      };
+    }
+
+    const encounterInstanceId = state.durable.gameplay.encounter?.instanceId;
+    const combat = executeCombatTransaction({
+      gameplayCompiled: bloodLeafGameplay,
+      narrativeCompiled: bloodLeafNarrative,
+      gameplay: state.durable.gameplay,
+      narrative: state.durable.narrative,
+      intent: command.action.intent,
+      playthroughId: state.durable.gameplay.playthroughId,
+      expectedGameplayRevision: state.durable.gameplay.revision,
+      ...(encounterInstanceId !== undefined ? { encounterInstanceId } : {}),
+    });
+    if (!combat.accepted)
+      return {
+        ...state,
+        durable: state.durable,
+        feedback: feedback(
+          command.token,
+          name,
+          false,
+          state.durable.narrative.revision,
+          combat.reason,
+        ),
+      };
+    const durable = Object.freeze({
+      ...state.durable,
+      gameplay: combat.gameplay,
+      narrative: combat.narrative,
+    });
+    return {
+      ...state,
+      durable,
+      feedback: feedback(command.token, name, true, durable.narrative.revision),
+    };
+  }
+
   if (command.type === 'BOOTSTRAP_COMMITTED' || command.type === 'RESET_COMMITTED') {
     const active = host.getSnapshot().active;
     const isInitial = command.type === 'BOOTSTRAP_COMMITTED';
@@ -397,6 +543,7 @@ function reduceDemoState(
       mapId: command.mapId,
       anchorId: command.anchorId,
       narrative: command.narrative,
+      gameplay: command.gameplay,
     });
     return {
       ...state,
@@ -412,6 +559,7 @@ function reduceDemoState(
     state.durable.ready &&
     state.durable.sessionValid &&
     !state.durable.narrative.activeDialogue &&
+    !isEncounterActive(state.durable.gameplay) &&
     active?.definition.map.id === command.mapId &&
     host.getSnapshot().pendingMapId === null &&
     host.getSnapshot().currentAnchorId === command.anchorId;
@@ -464,6 +612,7 @@ export function createDemoRuntime(
         mapId: null,
         anchorId: null,
         narrative: createNarrativeState(bloodLeafNarrative, 'blood-leaf-bootstrap'),
+        gameplay: createGameplayState(bloodLeafGameplay, 'blood-leaf-bootstrap'),
       }),
       bootstrap: { status: 'starting', storageMode: 'unknown', reason: null },
       feedback: null,
@@ -494,6 +643,7 @@ export function createDemoRuntime(
           mapId: durable.mapId,
           entryAnchorId: durable.anchorId,
           narrative: durable.narrative,
+          gameplay: durable.gameplay,
         }),
       );
     } catch {
@@ -537,6 +687,7 @@ export function createDemoRuntime(
   const commitLoadedSession = (
     action: string,
     narrative: NarrativeState,
+    gameplay: GameplayState,
     expectedEpoch: number,
     mode: Exclude<DemoStorageMode, 'unknown'>,
     token: string,
@@ -552,6 +703,7 @@ export function createDemoRuntime(
       mapId: active.definition.map.id,
       anchorId: snapshot.currentAnchorId ?? active.entryAnchorId,
       narrative,
+      gameplay,
       expectedEpoch,
       storageMode: mode,
     };
@@ -569,7 +721,9 @@ export function createDemoRuntime(
     expectedEpoch: number,
     token: string,
   ): Promise<DemoFeedback> => {
-    const narrative = createNarrativeState(bloodLeafNarrative, idFactory());
+    const playthroughId = idFactory();
+    const narrative = createNarrativeState(bloodLeafNarrative, playthroughId);
+    const gameplay = createGameplayState(bloodLeafGameplay, playthroughId);
     const loaded = await host.start('map-courtyard');
     if (loaded.status !== 'committed') {
       setBootstrap({
@@ -579,7 +733,7 @@ export function createDemoRuntime(
       });
       return reject(action, `scene-${loaded.status}`, token);
     }
-    return commitLoadedSession(action, narrative, expectedEpoch, mode, token);
+    return commitLoadedSession(action, narrative, gameplay, expectedEpoch, mode, token);
   };
 
   const start: DemoRuntime['start'] = () => {
@@ -632,9 +786,13 @@ export function createDemoRuntime(
         });
         return reject('restore', `scene-${loaded.status}`, token);
       }
+      const restoredGameplay =
+        decoded.value.gameplay ??
+        createGameplayState(bloodLeafGameplay, decoded.value.narrative.playthroughId);
       const result = commitLoadedSession(
         'start',
         decoded.value.narrative,
+        restoredGameplay,
         expectedEpoch,
         'persistent',
         token,
@@ -674,9 +832,12 @@ export function createDemoRuntime(
         });
         return reject('retry-saved-scene', `scene-${loaded.status}`, token);
       }
+      const restoredGameplay =
+        pending.gameplay ?? createGameplayState(bloodLeafGameplay, pending.narrative.playthroughId);
       const result = commitLoadedSession(
         'start',
         pending.narrative,
+        restoredGameplay,
         expectedEpoch,
         'persistent',
         token,
@@ -724,6 +885,8 @@ export function createDemoRuntime(
       return Promise.resolve(reject('reset', 'session-not-ready'));
     if (before.durable.narrative.activeDialogue)
       return Promise.resolve(reject('reset', 'dialogue-active'));
+    if (isEncounterActive(before.durable.gameplay))
+      return Promise.resolve(reject('reset', 'encounter-active'));
 
     const token = createToken();
     const oldEpoch = before.durable.sessionEpoch;
@@ -752,9 +915,11 @@ export function createDemoRuntime(
       } catch {
         nextMode = 'session-only';
       }
+      const playthroughId = idFactory();
       const result = commitLoadedSession(
         'reset',
-        createNarrativeState(bloodLeafNarrative, idFactory()),
+        createNarrativeState(bloodLeafNarrative, playthroughId),
+        createGameplayState(bloodLeafGameplay, playthroughId),
         expectedEpoch,
         nextMode,
         token,
@@ -810,7 +975,9 @@ export function createDemoRuntime(
     dispatch: (action) => {
       const token = createToken();
       if (disposed) return reject(actionName(action), 'runtime-disposed', token);
-      dispatchCommitted({ type: 'NARRATIVE_ACTION', action, token });
+      if (action.type === 'START_ENCOUNTER' || action.type === 'COMBAT_INTENT')
+        dispatchCommitted({ type: 'GAMEPLAY_ACTION', action, token });
+      else dispatchCommitted({ type: 'NARRATIVE_ACTION', action, token });
       return store.getState().feedback!;
     },
     subscribe,

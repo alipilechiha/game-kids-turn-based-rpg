@@ -32,7 +32,32 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // Vite HMR tolerates co-exported helpers beside components; list the
+      // intentional non-component exports so lint stays silent without
+      // forcing artificial file splits across CameraRig/gltfModels/etc.
+      'react-refresh/only-export-components': [
+        'warn',
+        {
+          allowConstantExport: true,
+          allowExportNames: [
+            'useDismissOnEscape',
+            'HELD_ITEM',
+            'BATTLE_ACTION_ELEMENT',
+            'cameraFocus',
+            'publishCameraFocus',
+            'setCameraFocusOverride',
+            'clearCameraFocusOverride',
+            'updateCameraFocusOverride',
+            'getCameraFocusOverride',
+            'pathStonePositions',
+            'PATH_STONE_CLEARANCE',
+            'GLTF_MODELS',
+            'modelsForTier',
+            'preloadHubGltfModels',
+            'TAP_ONLY_MATERIAL',
+          ],
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
@@ -120,6 +145,17 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    // Entry shell: createRoot + lazy chunks, no component exports by design.
+    files: ['src/main.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
+    // Model set: co-exports the GLTF_MODELS registry + tier helpers with the
+    // Suspense wrappers — splitting would break the single ModelSet contract.
+    files: ['src/world/models/gltfModels.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
   },
   {
     files: ['e2e/**/*.ts', 'scripts/**/*.ts', '*.config.{ts,js}'],

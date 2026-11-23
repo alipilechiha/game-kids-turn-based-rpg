@@ -25,13 +25,17 @@ interface WorldProbe {
   __worldAt?: string;
   __worldDiscoveries?: string[];
   __worldToScreen?: (x: number, z: number) => { x: number; y: number };
-  __worldCamera?: { position: { x: number; z: number } };
+  __worldCamera?: { position: { x: number; y?: number; z: number } };
+  __worldCameraLook?: { x: number; z: number };
+  __worldCameraOrbit?: { yaw: number; pitch: number };
 }
 
-/** Camera ground target = camera position − the fixed isometric offset. */
+/** Prefer the published look target; fall back to classic ISO offset math. */
 async function cameraTarget(page: Page) {
   return page.evaluate(() => {
-    const cam = (window as unknown as WorldProbe).__worldCamera;
+    const probe = window as unknown as WorldProbe;
+    if (probe.__worldCameraLook) return { ...probe.__worldCameraLook };
+    const cam = probe.__worldCamera;
     if (!cam) return { x: Number.NaN, z: Number.NaN };
     return { x: cam.position.x - 10, z: cam.position.z - 10 };
   });
@@ -205,5 +209,39 @@ test.describe('follow camera', () => {
     const t = await cameraTarget(page);
     expect(t.x).toBeGreaterThanOrEqual(town.bounds.minX);
     expect(t.x).toBeLessThanOrEqual(town.bounds.maxX);
+  });
+
+  test('right-drag orbits yaw within the child-safe band and keeps look target stable', async ({
+    page,
+  }) => {
+    await startGame(page);
+    await waitForMap(page, 'map-town');
+    await waitForCameraSettle(page);
+    const before = await cameraTarget(page);
+    const orbitBefore = await page.evaluate(() => {
+      return (window as unknown as WorldProbe).__worldCameraOrbit ?? null;
+    });
+    expect(orbitBefore).not.toBeNull();
+
+    const box = await page.locator('canvas').boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+    const cx = box.x + box.width * 0.55;
+    const cy = box.y + box.height * 0.45;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.move(cx + Math.round(box.width * 0.18), cy + 20, { steps: 10 });
+    await page.mouse.up({ button: 'right' });
+    await waitForCameraSettle(page);
+
+    const orbitAfter = await page.evaluate(() => {
+      return (window as unknown as WorldProbe).__worldCameraOrbit ?? null;
+    });
+    expect(orbitAfter).not.toBeNull();
+    if (!orbitBefore || !orbitAfter) return;
+    expect(Math.abs(orbitAfter.yaw - orbitBefore.yaw)).toBeGreaterThan(0.05);
+
+    const after = await cameraTarget(page);
+    expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeLessThan(1.5);
   });
 });

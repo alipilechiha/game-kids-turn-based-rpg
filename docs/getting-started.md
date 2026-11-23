@@ -4,10 +4,9 @@
 
 Use Node.js `>=22.22.2 <23` and npm `>=10 <11` for the root workspace and its
 build tools. The standalone `waypoint-rpg-core` and optional
-`waypoint-rpg-narrative` manifests declare Node.js `>=22.0.0` runtime floors;
-the Phase 3 package checks ran on Node.js 22.23.5, not separately on the
-narrative package's declared minimum. These package runtime floors do not apply
-to the app toolchain.
+`waypoint-rpg-narrative` / `waypoint-rpg-gameplay` manifests declare Node.js
+`>=22.0.0` runtime floors; package checks ran on Node.js 22.23.x. These package
+runtime floors do not apply to the app toolchain.
 
 ```bash
 npm ci
@@ -39,11 +38,16 @@ camera, quality, and optional battle APIs. API reference:
 `packages/narrative/` is a separate optional ESM package. It provides
 game-neutral typed definitions, deterministic conditions/effects, dialogue,
 quest transitions, and validated narrative state. It has no dependency on the
-core, React, Three.js, browser storage, or authored game content. The Kids RPG
-does not consume it; the independent `examples/scene-demo/` validates both
-packages together with the original Persian story برگ خون. Narrative API and
-semantics are documented in [framework-api.md](framework-api.md) and
-`packages/narrative/README.md`.
+core, React, Three.js, browser storage, or authored game content.
+
+`packages/gameplay/` is a third optional ESM package for progression,
+inventory, abilities, and deterministic tactical combat. It also has no
+runtime dependencies and does not import core or narrative. The Kids RPG does
+not consume narrative or gameplay; the independent `examples/scene-demo/`
+validates core + narrative + gameplay together with برگ خون and a courtyard
+guardian trial. APIs are documented in [framework-api.md](framework-api.md)
+and the package READMEs. Verify the gameplay tarball with
+`npm run framework:gameplay-consumer`.
 
 Minimal consumer — the shipped `examples/hello-world/` is the canonical
 walkthrough and the API's validation consumer:

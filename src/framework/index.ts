@@ -23,10 +23,21 @@ export {
 } from './core/capabilities.ts';
 
 export {
+  CAMERA_ORBIT_SENSITIVITY,
   CAMERA_PADDING,
+  CAMERA_PITCH_MAX,
+  CAMERA_PITCH_MIN,
+  CAMERA_RADIUS,
+  CAMERA_YAW_MAX,
+  CAMERA_YAW_MIN,
+  cameraOffsetFromAngles,
+  clampCameraPitch,
   clampCameraTarget,
+  clampCameraYaw,
   clampUserZoom,
   clampZoom,
+  DEFAULT_CAMERA_PITCH,
+  DEFAULT_CAMERA_YAW,
   DEFAULT_ZOOM,
   ISO_OFFSET,
   MAX_ZOOM,

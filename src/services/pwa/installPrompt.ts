@@ -2,6 +2,11 @@
  * Captures the browser's `beforeinstallprompt` event so the parent area can
  * offer a real install button. iOS Safari never fires it — the install
  * section already explains the manual Share → Add to Home Screen flow there.
+ *
+ * Calling `preventDefault()` is required to defer the prompt; Chromium then
+ * logs "Banner not shown…" until `prompt()` runs from the parent area. That
+ * log is filtered in DEV via `src/dev/quietConsole.ts` — do not remove
+ * preventDefault or the mini-infobar returns on the child surface.
  */
 
 interface BeforeInstallPromptEvent extends Event {
