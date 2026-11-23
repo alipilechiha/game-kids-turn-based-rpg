@@ -18,13 +18,13 @@ export function isGardenSceneReadyForState(
 ): boolean {
   return Boolean(
     readiness &&
-      readiness.mapId === state.mapId &&
-      readiness.anchorId === state.anchorId &&
-      readiness.playthroughId === state.narrative.playthroughId &&
-      readiness.cameraKind === 'orthographic' &&
-      readiness.frameCount >= 1 &&
-      readiness.visibleMeshCount > 0 &&
-      readiness.playerAtAnchor,
+    readiness.mapId === state.mapId &&
+    readiness.anchorId === state.anchorId &&
+    readiness.playthroughId === state.narrative.playthroughId &&
+    readiness.cameraKind === 'orthographic' &&
+    readiness.frameCount >= 1 &&
+    readiness.visibleMeshCount > 0 &&
+    readiness.playerAtAnchor,
   );
 }
 

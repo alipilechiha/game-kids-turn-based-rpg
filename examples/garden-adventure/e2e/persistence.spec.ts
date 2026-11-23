@@ -140,9 +140,7 @@ test('autosaves only changed snapshots after the matching scene has rendered the
   });
 
   await startFresh(page);
-  await expect
-    .poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0))
-    .toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0)).toBe(1);
   await expect
     .poll(() => page.evaluate(() => window.__gardenProbe?.frameCount ?? 0))
     .toBeGreaterThan(1);
@@ -157,26 +155,18 @@ test('autosaves only changed snapshots after the matching scene has rendered the
   await expect(page.getByTestId('movement-status')).toContainText('در راه هستی');
   expect(await page.evaluate(() => window.__gardenSaveWrites?.length)).toBe(1);
   await expect(fountain).toHaveAttribute('data-nearby', 'true');
-  await expect
-    .poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0))
-    .toBe(2);
+  await expect.poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0)).toBe(2);
 
   await fountain.click();
   await expect(page.getByTestId('movement-status')).toContainText('آب‌نمای میدان');
   const gate = page.getByTestId('target-garden-gate');
   await gate.click();
   await expect(gate).toHaveAttribute('data-nearby', 'true');
-  await expect
-    .poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0))
-    .toBe(3);
+  await expect.poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0)).toBe(3);
   await gate.click();
   await expect(page.getByTestId('scene-garden')).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => window.__gardenProbe?.activeMap))
-    .toBe('garden');
-  await expect
-    .poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0))
-    .toBe(4);
+  await expect.poll(() => page.evaluate(() => window.__gardenProbe?.activeMap)).toBe('garden');
+  await expect.poll(() => page.evaluate(() => window.__gardenSaveWrites?.length ?? 0)).toBe(4);
 
   expect(await page.evaluate(() => window.__gardenSaveWrites)).toEqual([
     { mapId: 'village', anchorId: 'village-square', playerAtAnchor: true },
@@ -224,7 +214,10 @@ test('keeps invalid save bytes during temporary recovery and resets to a new pla
   await expect(page.getByTestId('scene-village')).toBeVisible();
   await expect
     .poll(() =>
-      page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null')?.schemaVersion, saveKey),
+      page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? 'null')?.schemaVersion,
+        saveKey,
+      ),
     )
     .toBe(2);
   const resetSave = await page.evaluate(

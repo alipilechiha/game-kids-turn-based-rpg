@@ -85,9 +85,7 @@ describe('Garden autosave eligibility', () => {
         },
       }),
     ).toBe(false);
-    expect(
-      shouldAutosaveGardenSnapshot({ ...eligible, storageMode: 'session-only' }),
-    ).toBe(false);
+    expect(shouldAutosaveGardenSnapshot({ ...eligible, storageMode: 'session-only' })).toBe(false);
     expect(
       shouldAutosaveGardenSnapshot({
         ...eligible,
@@ -127,11 +125,7 @@ describe('Garden autosave eligibility', () => {
     expect(otherAnchor).toBeDefined();
     const movedState = { ...state, anchorId: otherAnchor!.id };
     expect(
-      gardenSnapshotFingerprint(
-        movedState,
-        runtime.compiledNarrative,
-        runtime.compiledGameplay,
-      ),
+      gardenSnapshotFingerprint(movedState, runtime.compiledNarrative, runtime.compiledGameplay),
     ).not.toBe(first);
   });
 });
