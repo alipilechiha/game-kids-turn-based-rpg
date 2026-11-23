@@ -382,13 +382,21 @@ try {
     }
     await route.continue();
   });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(`http://127.0.0.1:${address.port}/?phase5=assets`, { waitUntil: 'networkidle' });
-  await page.waitForFunction(
-    () =>
-      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
-        'ready' &&
-      document.querySelector('[data-testid="model-status-rigged"]')?.getAttribute('data-status') ===
-        'ready',
+  await page.waitForTimeout(1500);
+  const modelReadiness = await page.evaluate(() =>
+    Object.fromEntries(
+      ['static', 'traveler', 'guardian'].map((id) => {
+        const element = document.querySelector(`[data-testid="model-status-${id}"]`);
+        return [id, { status: element?.getAttribute('data-status'), text: element?.textContent }];
+      }),
+    ),
+  );
+  assert.deepEqual(
+    Object.values(modelReadiness).map((entry) => entry.status),
+    ['ready', 'ready', 'ready'],
+    `model load state: ${JSON.stringify(modelReadiness)}`,
   );
   assert.equal(await page.getByTestId('phase5-model-canvas').count(), 1);
   assert.equal(await page.getByTestId('model-status-static').getAttribute('data-meshes'), '1');
@@ -405,6 +413,45 @@ try {
     (await page.getByTestId('model-status-rigged').getAttribute('data-clips'))?.split(','),
     ['idle', 'move', 'interact', 'combat'],
   );
+  assert.equal(
+    await page.getByTestId('model-status-traveler').getAttribute('data-skinned-meshes'),
+    '1',
+  );
+  assert.equal(
+    await page.getByTestId('model-status-guardian').getAttribute('data-skinned-meshes'),
+    '1',
+  );
+  assert.equal(
+    await page.getByTestId('reduced-motion-state').getAttribute('data-reduced-motion'),
+    'true',
+  );
+  const initialRevision = await page.getByTestId('gameplay-revision').textContent();
+  await page.getByTestId('gameplay-move').click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-testid="gameplay-feedback"]')
+      ?.textContent?.startsWith('Accepted movement'),
+  );
+  assert.notEqual(await page.getByTestId('gameplay-revision').textContent(), initialRevision);
+  assert.match(
+    (await page.getByTestId('gameplay-traveler-position').textContent()) ?? '',
+    /cell 1,0/,
+  );
+  assert.match(
+    (await page.getByTestId('gameplay-guardian-position').textContent()) ?? '',
+    /cell 5,0/,
+  );
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[data-testid="animation-action-traveler"]')
+        ?.textContent?.includes('move') &&
+      document
+        .querySelector('[data-testid="animation-action-guardian"]')
+        ?.textContent?.includes('move'),
+  );
+  assert.match((await page.getByTestId('animation-action-traveler').textContent()) ?? '', /move/);
+  assert.match((await page.getByTestId('animation-action-guardian').textContent()) ?? '', /move/);
   assert.deepEqual(
     externalAssetRequests,
     [],
@@ -421,7 +468,7 @@ try {
   assert.deepEqual(pageErrors, []);
 
   log(
-    'independent Three.js consumer passed narrative, persistence, lifecycle, and local static/rigged model smoke',
+    'independent Three.js consumer passed narrative, persistence, lifecycle, local static/rigged models, gameplay-driven animation, and reduced-motion smoke',
   );
 } finally {
   await browser?.close();

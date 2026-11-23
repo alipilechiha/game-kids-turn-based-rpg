@@ -52,6 +52,12 @@ export async function checkFrameworkSceneConsumer() {
         !source.split(path.sep).some((part) => ['node_modules', 'dist'].includes(part)),
     });
 
+    const manifestPath = path.join(consumerRoot, 'package.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    manifest.dependencies = { ...manifest.dependencies };
+    const packageNames = ['waypoint-rpg-core', 'waypoint-rpg-narrative', 'waypoint-rpg-gameplay'];
+    for (const packageName of packageNames) delete manifest.dependencies[packageName];
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     runNpm(['ci', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: consumerRoot });
     log('scene consumer development tools: locked npm ci passed');
 
@@ -66,13 +72,15 @@ export async function checkFrameworkSceneConsumer() {
         workspace: 'packages/narrative',
         outputVariable: 'NARRATIVE_TARBALL_OUTPUT',
       },
+      {
+        name: 'waypoint-rpg-gameplay',
+        workspace: 'packages/gameplay',
+        outputVariable: 'GAMEPLAY_TARBALL_OUTPUT',
+      },
     ];
     for (const packageToInstall of tarballs) {
       packageToInstall.tarball = await getTarball(temporaryRoot, packageToInstall);
     }
-    const manifestPath = path.join(consumerRoot, 'package.json');
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-    manifest.dependencies = { ...manifest.dependencies };
     for (const packageToInstall of tarballs) {
       const relativeTarballPath = path
         .relative(consumerRoot, packageToInstall.tarball)
@@ -121,7 +129,7 @@ export async function checkFrameworkSceneConsumer() {
     runNpm(['run', 'build'], { cwd: consumerRoot });
     runNpm(['run', 'test:e2e'], { cwd: consumerRoot });
     log(
-      'framework scene consumer: offline core+narrative tarball install, typecheck, unit tests, Vite build, and Chromium narrative/lifecycle smoke passed',
+      'framework scene consumer: offline core+narrative+gameplay tarball install, typecheck, unit tests, Vite build, and Chromium narrative/lifecycle/model smoke passed',
     );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
