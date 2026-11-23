@@ -73,7 +73,9 @@ test('recovers the active rendered scene after a software-WebGL context restore'
   await expect(page.getByTestId('garden-canvas')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__gardenProbe?.frameCount)).toBeGreaterThan(0);
 
-  const initialFrameCount = await page.evaluate(() => window.__gardenProbe?.frameCount ?? 0);
+  const initialSceneGeneration = await page.evaluate(
+    () => window.__gardenProbe?.sceneGeneration ?? 0,
+  );
   const canLoseContext = await page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>('canvas[data-testid="garden-canvas"]');
     const gl = canvas?.getContext('webgl2') ?? canvas?.getContext('webgl');
@@ -119,8 +121,18 @@ test('recovers the active rendered scene after a software-WebGL context restore'
   await expect(page.getByTestId('scene-village')).toBeVisible();
   await expect(page.getByTestId('garden-canvas')).toBeVisible();
   await expect
-    .poll(() => page.evaluate(() => window.__gardenProbe?.frameCount ?? 0))
-    .toBeGreaterThan(initialFrameCount);
+    .poll(() => page.evaluate(() => window.__gardenProbe?.sceneGeneration ?? 0))
+    .toBeGreaterThan(initialSceneGeneration);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.__gardenProbe?.cameraKind === 'orthographic' &&
+          window.__gardenProbe.frameCount > 0 &&
+          window.__gardenProbe.playerAtAnchor,
+      ),
+    )
+    .toBe(true);
 });
 
 test('keeps keyboard and touch navigation responsive with reduced motion enabled', async ({
@@ -136,6 +148,17 @@ test('keeps keyboard and touch navigation responsive with reduced motion enabled
   await gate.focus();
   await page.keyboard.press('Enter');
   await expect(gate).toHaveAttribute('data-nearby', 'true');
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.__gardenProbe?.arrivalReports.some(
+          (report) =>
+            report.committedAnchor === 'village-square' &&
+            report.targetAnchor === 'village-garden-gate',
+        ),
+      ),
+    )
+    .toBe(true);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('scene-garden')).toBeVisible();
 

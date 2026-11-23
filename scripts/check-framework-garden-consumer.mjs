@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { error as logError, log } from 'node:console';
-import { cp, mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdtemp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -215,9 +215,34 @@ export async function checkFrameworkGardenConsumer() {
     log(
       'framework Garden consumer: independent source copy, locked toolchain, offline core+narrative+gameplay archives, isolated ESM/declaration probes, tests, production build, and Chromium smoke passed',
     );
+  } catch (error) {
+    try {
+      await preserveGardenConsumerDiagnostics(consumerRoot);
+    } catch (diagnosticsError) {
+      logError('Could not preserve Garden consumer diagnostics:', diagnosticsError);
+    }
+    throw error;
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+async function preserveGardenConsumerDiagnostics(consumerRoot) {
+  const output = process.env['FRAMEWORK_GARDEN_DIAGNOSTICS_OUTPUT'];
+  if (!output) return;
+  const outputRoot = path.resolve(output);
+  await mkdir(outputRoot, { recursive: true });
+  for (const name of ['playwright-report', 'test-results']) {
+    const source = path.join(consumerRoot, name);
+    try {
+      await lstat(source);
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      throw error;
+    }
+    await cp(source, path.join(outputRoot, name), { recursive: true, force: true });
+  }
+  log(`Garden consumer diagnostics copied to ${outputRoot}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

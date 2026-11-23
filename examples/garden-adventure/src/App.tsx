@@ -1,5 +1,13 @@
 import { Canvas } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import {
   getEffectiveCharacterAttributes,
   getInventorySlotCount,
@@ -20,14 +28,23 @@ import {
   writeGardenSave,
   type GardenSaveInspection,
 } from './persistence/garden-save.js';
+import {
+  gardenSnapshotFingerprint,
+  isGardenSceneReadyForState,
+  shouldAutosaveGardenSnapshot,
+} from './persistence/garden-autosave.js';
 import { registerGardenServiceWorker } from './pwa.js';
 import { GardenScene } from './scenes/GardenScene.js';
+import type { GardenSceneReadiness } from './scenes/probe.js';
 import { gardenTargets, getGardenTarget, type GardenTargetId } from './world/world.js';
 
 export function App() {
   const runtime = useMemo(() => createGardenRuntime(), []);
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
   const [rendererReady, setRendererReady] = useState(false);
+  const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
+  const [sceneGeneration, setSceneGeneration] = useState(0);
+  const [sceneReadiness, setSceneReadiness] = useState<GardenSceneReadiness | null>(null);
   const [manualRecapOpen, setManualRecapOpen] = useState(false);
   const [dismissedEndingId, setDismissedEndingId] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -45,14 +62,13 @@ export function App() {
   const [saveInspection, setSaveInspection] = useState(initialInspection);
   const initialStorageMode =
     initialInspection.status === 'unavailable' ? 'session-only' : 'persistent';
-  const storageModeRef = useRef<'persistent' | 'session-only'>(initialStorageMode);
+  const lastSavedFingerprint = useRef<string | null>(null);
   const [storageMode, setStorageModeState] = useState<'persistent' | 'session-only'>(
     initialStorageMode,
   );
   const [saveFeedback, setSaveFeedback] = useState('');
   const [offlineStatus, setOfflineStatus] = useState<'checking' | 'ready' | 'failed'>('checking');
   const dialogue = getDialogueView(runtime.compiledNarrative, state.narrative, 'fa');
-  const dialogueOpen = dialogue !== null;
   const endingId = state.narrative.endingId;
   const recapVisible = manualRecapOpen || Boolean(endingId && endingId !== dismissedEndingId);
   const storyPath = getFact(state.narrative, 'story-path');
@@ -79,9 +95,23 @@ export function App() {
   useEffect(() => () => runtime.dispose(), [runtime]);
 
   const setStorageMode = useCallback((mode: 'persistent' | 'session-only') => {
-    storageModeRef.current = mode;
     setStorageModeState(mode);
   }, []);
+
+  const onSceneReady = useCallback(
+    (readiness: GardenSceneReadiness) => {
+      const current = runtime.getState();
+      if (
+        current.phase !== 'playing' ||
+        current.mapId !== readiness.mapId ||
+        current.anchorId !== readiness.anchorId ||
+        current.narrative.playthroughId !== readiness.playthroughId
+      )
+        return;
+      setSceneReadiness(readiness);
+    },
+    [runtime],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -94,30 +124,69 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = runtime.subscribe(() => {
-      if (storageModeRef.current !== 'persistent') return;
-      const current = runtime.getState();
-      if (current.phase !== 'playing' || current.walk) return;
-      try {
-        writeGardenSave(
-          window.localStorage,
-          {
-            mapId: current.mapId,
-            anchorId: current.anchorId,
-            narrative: current.narrative,
-            gameplay: current.gameplay,
-          },
-          runtime.compiledNarrative,
-          runtime.compiledGameplay,
-        );
-        setSaveFeedback(faUi.saveComplete);
-      } catch {
+    if (
+      !rendererReady ||
+      storageMode !== 'persistent' ||
+      state.phase !== 'playing' ||
+      state.walk ||
+      !isGardenSceneReadyForState(state, sceneReadiness)
+    )
+      return;
+    try {
+      const fingerprint = gardenSnapshotFingerprint(
+        state,
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
+      if (
+        !shouldAutosaveGardenSnapshot({
+          state,
+          readiness: sceneReadiness,
+          storageMode,
+          fingerprint,
+          lastSavedFingerprint: lastSavedFingerprint.current,
+        })
+      )
+        return;
+      writeGardenSave(
+        window.localStorage,
+        {
+          mapId: state.mapId,
+          anchorId: state.anchorId,
+          narrative: state.narrative,
+          gameplay: state.gameplay,
+        },
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
+      lastSavedFingerprint.current = fingerprint;
+    } catch {
+      queueMicrotask(() => {
         setStorageMode('session-only');
         setSaveFeedback(faUi.saveFailed);
-      }
-    });
-    return unsubscribe;
-  }, [runtime, setStorageMode]);
+      });
+    }
+  }, [rendererReady, runtime, sceneReadiness, setStorageMode, state, storageMode]);
+
+  useEffect(() => {
+    if (!canvasElement) return;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      setSceneReadiness(null);
+      setRendererReady(false);
+    };
+    const onContextRestored = () => {
+      setSceneReadiness(null);
+      setRendererReady(true);
+      setSceneGeneration((generation) => generation + 1);
+    };
+    canvasElement.addEventListener('webglcontextlost', onContextLost);
+    canvasElement.addEventListener('webglcontextrestored', onContextRestored);
+    return () => {
+      canvasElement.removeEventListener('webglcontextlost', onContextLost);
+      canvasElement.removeEventListener('webglcontextrestored', onContextRestored);
+    };
+  }, [canvasElement]);
 
   const closeRecap = useCallback(() => {
     setManualRecapOpen(false);
@@ -125,37 +194,24 @@ export function App() {
   }, [endingId]);
 
   useEffect(() => {
-    if (!dialogueOpen && !recapVisible && !resetOpen && !activeEncounter) return;
+    if (!activeEncounter) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (dialogueOpen) runtime.dispatch({ type: 'DIALOGUE_EXIT' });
-      else if (resetOpen) setResetOpen(false);
-      else if (activeEncounter) {
-        const current = runtime.getState();
-        const encounter = current.gameplay.encounter;
-        if (encounter?.outcome === null) {
-          runtime.dispatch({
-            type: 'BATTLE_ACTION',
-            playthroughId: current.gameplay.playthroughId,
-            expectedRevision: current.gameplay.revision,
-            encounterInstanceId: encounter.instanceId,
-            intent: { type: 'withdraw' },
-          });
-        }
-      } else closeRecap();
+      if (event.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+      const current = runtime.getState();
+      const encounter = current.gameplay.encounter;
+      if (encounter?.outcome === null) {
+        runtime.dispatch({
+          type: 'BATTLE_ACTION',
+          playthroughId: current.gameplay.playthroughId,
+          expectedRevision: current.gameplay.revision,
+          encounterInstanceId: encounter.instanceId,
+          intent: { type: 'withdraw' },
+        });
+      }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [
-    closeRecap,
-    dialogue?.dialogueId,
-    dialogue?.nodeId,
-    dialogueOpen,
-    activeEncounter,
-    recapVisible,
-    resetOpen,
-    runtime,
-  ]);
+  }, [activeEncounter, runtime]);
 
   const startFresh = useCallback(
     (mode: 'persistent' | 'session-only') => {
@@ -163,6 +219,7 @@ export function App() {
       setSaveFeedback(mode === 'session-only' ? faUi.sessionOnly : '');
       setManualRecapOpen(false);
       setDismissedEndingId(null);
+      lastSavedFingerprint.current = null;
       runtime.dispatch({ type: 'NEW_GAME' });
       setBattleNotice('');
     },
@@ -173,6 +230,13 @@ export function App() {
     if (saveInspection.status !== 'ready') return;
     setStorageMode('persistent');
     setSaveFeedback('');
+    lastSavedFingerprint.current = saveInspection.migratedFrom
+      ? null
+      : gardenSnapshotFingerprint(
+          saveInspection.snapshot,
+          runtime.compiledNarrative,
+          runtime.compiledGameplay,
+        );
     runtime.dispatch({ type: 'RESTORE_GAME', ...saveInspection.snapshot });
   }, [runtime, saveInspection, setStorageMode]);
 
@@ -192,7 +256,16 @@ export function App() {
     if (storageMode !== 'persistent') return;
     const current = runtime.getState();
     if (current.phase !== 'playing') return;
+    if (current.walk || !rendererReady || !isGardenSceneReadyForState(current, sceneReadiness)) {
+      setSaveFeedback(faUi.saveSceneUnavailable);
+      return;
+    }
     try {
+      const fingerprint = gardenSnapshotFingerprint(
+        current,
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
       writeGardenSave(
         window.localStorage,
         {
@@ -204,13 +277,14 @@ export function App() {
         runtime.compiledNarrative,
         runtime.compiledGameplay,
       );
+      lastSavedFingerprint.current = fingerprint;
       setStorageMode('persistent');
       setSaveFeedback(faUi.saveComplete);
     } catch {
       setStorageMode('session-only');
       setSaveFeedback(faUi.saveFailed);
     }
-  }, [runtime, setStorageMode, storageMode]);
+  }, [rendererReady, runtime, sceneReadiness, setStorageMode, storageMode]);
 
   const onBattleIntent = useCallback(
     (intent: GameplayPlayerIntent) => {
@@ -327,7 +401,7 @@ export function App() {
                 className="quiet-button"
                 data-testid="garden-start"
                 type="button"
-                onClick={() => startFresh('persistent')}
+                onClick={() => setResetOpen(true)}
               >
                 {faUi.start}
               </button>
@@ -376,6 +450,11 @@ export function App() {
             </>
           ) : null}
           {saveFeedback ? <p role="status">{saveFeedback}</p> : null}
+          <ResetConfirmation
+            open={resetOpen}
+            onCancel={() => setResetOpen(false)}
+            onConfirm={clearAndStartFresh}
+          />
         </section>
       ) : (
         <section className="game-shell" aria-label={mapLabel} data-active-scene={state.mapId}>
@@ -387,14 +466,17 @@ export function App() {
               onCreated={({ gl }) => {
                 gl.domElement.dataset.testid = 'garden-canvas';
                 gl.domElement.dataset.cameraKind = 'loading';
+                setCanvasElement(gl.domElement);
                 setRendererReady(true);
               }}
             >
               <GardenScene
-                key={state.mapId}
+                key={`${state.mapId}:${sceneGeneration}`}
                 runtime={runtime}
                 state={state}
+                sceneGeneration={sceneGeneration}
                 onTargetPress={onTargetPress}
+                onSceneReady={onSceneReady}
               />
             </Canvas>
             {!rendererReady ? (
@@ -506,20 +588,12 @@ export function App() {
             />
           ) : null}
           {dialogue ? (
-            <div className="dialogue-layer" data-testid="dialogue-layer">
-              <button
-                className="dialogue-backdrop"
-                type="button"
-                aria-label={faUi.dialogueBackdropLabel}
-                onClick={() => runtime.dispatch({ type: 'DIALOGUE_EXIT' })}
-              />
-              <section
-                className="dialogue-panel"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="garden-dialogue-heading"
-                data-testid="dialogue-panel"
-              >
+            <GardenModal
+              testId="dialogue-layer"
+              labelledBy="garden-dialogue-heading"
+              onDismiss={() => runtime.dispatch({ type: 'DIALOGUE_EXIT' })}
+            >
+              <section className="dialogue-panel" data-testid="dialogue-panel">
                 <p className="dialogue-speaker">
                   {faUi.speakers[dialogue.speakerId as keyof typeof faUi.speakers] ??
                     faUi.dialogueHeading}
@@ -551,23 +625,15 @@ export function App() {
                   {faUi.closeDialogue}
                 </button>
               </section>
-            </div>
+            </GardenModal>
           ) : null}
           {endingId && recapVisible ? (
-            <div className="dialogue-layer" data-testid="ending-layer">
-              <button
-                className="dialogue-backdrop"
-                type="button"
-                aria-label={faUi.closeRecap}
-                onClick={closeRecap}
-              />
-              <section
-                className="dialogue-panel ending-panel"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="garden-ending-heading"
-                data-testid="ending-panel"
-              >
+            <GardenModal
+              testId="ending-layer"
+              labelledBy="garden-ending-heading"
+              onDismiss={closeRecap}
+            >
+              <section className="dialogue-panel ending-panel" data-testid="ending-panel">
                 <p className="dialogue-speaker">{faUi.recapHeading}</p>
                 <h2 id="garden-ending-heading">
                   {endingId === 'ending-garden' ? faUi.gardenerEnding : faUi.lanternEnding}
@@ -583,46 +649,13 @@ export function App() {
                   {faUi.closeRecap}
                 </button>
               </section>
-            </div>
+            </GardenModal>
           ) : null}
-          {resetOpen ? (
-            <div className="dialogue-layer" data-testid="reset-layer">
-              <button
-                className="dialogue-backdrop"
-                type="button"
-                aria-label={faUi.cancel}
-                onClick={() => setResetOpen(false)}
-              />
-              <section
-                className="dialogue-panel"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="garden-reset-heading"
-                data-testid="reset-panel"
-              >
-                <h2 id="garden-reset-heading">{faUi.resetPrompt}</h2>
-                <div className="dialogue-choices">
-                  <button
-                    className="primary-button"
-                    data-testid="garden-confirm-reset"
-                    type="button"
-                    autoFocus
-                    onClick={clearAndStartFresh}
-                  >
-                    {faUi.confirmReset}
-                  </button>
-                  <button
-                    className="quiet-button"
-                    data-testid="garden-cancel-reset"
-                    type="button"
-                    onClick={() => setResetOpen(false)}
-                  >
-                    {faUi.cancel}
-                  </button>
-                </div>
-              </section>
-            </div>
-          ) : null}
+          <ResetConfirmation
+            open={resetOpen}
+            onCancel={() => setResetOpen(false)}
+            onConfirm={clearAndStartFresh}
+          />
         </section>
       )}
     </main>
@@ -633,6 +666,127 @@ type BattleIntent = Extract<
   GameplayPlayerIntent,
   { type: 'move' | 'use-ability' | 'wait' | 'withdraw' }
 >;
+
+function ResetConfirmation({
+  open,
+  onCancel,
+  onConfirm,
+}: {
+  readonly open: boolean;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <GardenModal testId="reset-layer" labelledBy="garden-reset-heading" onDismiss={onCancel}>
+      <section className="dialogue-panel" data-testid="reset-panel">
+        <h2 id="garden-reset-heading">{faUi.resetPrompt}</h2>
+        <div className="dialogue-choices">
+          <button
+            className="primary-button"
+            data-testid="garden-confirm-reset"
+            type="button"
+            autoFocus
+            onClick={onConfirm}
+          >
+            {faUi.confirmReset}
+          </button>
+          <button
+            className="quiet-button"
+            data-testid="garden-cancel-reset"
+            type="button"
+            onClick={onCancel}
+          >
+            {faUi.cancel}
+          </button>
+        </div>
+      </section>
+    </GardenModal>
+  );
+}
+
+function GardenModal({
+  children,
+  testId,
+  labelledBy,
+  onDismiss,
+}: {
+  readonly children: ReactNode;
+  readonly testId: string;
+  readonly labelledBy: string;
+  readonly onDismiss: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const onDismissRef = useRef(onDismiss);
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const activeElement = document.activeElement;
+    const opener = activeElement instanceof HTMLElement ? activeElement : null;
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector<HTMLElement>('[autofocus]')?.focus();
+    return () => {
+      if (dialog.open) dialog.close();
+      if (opener?.isConnected) {
+        window.requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+      }
+    };
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="garden-modal"
+      data-testid={testId}
+      aria-labelledby={labelledBy}
+      aria-modal="true"
+      onCancel={(event) => {
+        event.preventDefault();
+        onDismissRef.current();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusable = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter(
+          (element) => element.tabIndex >= 0 && element.getAttribute('aria-hidden') !== 'true',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+        if (
+          event.shiftKey &&
+          (document.activeElement === first || document.activeElement === dialog)
+        ) {
+          event.preventDefault();
+          last.focus();
+        } else if (
+          !event.shiftKey &&
+          (document.activeElement === last || document.activeElement === dialog)
+        ) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+    >
+      <div
+        className="garden-modal-backdrop"
+        aria-hidden="true"
+        onClick={() => onDismissRef.current()}
+      />
+      {children}
+    </dialog>
+  );
+}
 
 function BattlePanel({
   runtime,

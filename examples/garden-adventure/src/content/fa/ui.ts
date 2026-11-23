@@ -16,6 +16,7 @@ export const faUi = {
   save: 'ذخیره بازی',
   saveComplete: 'بازی ذخیره شد',
   saveFailed: 'ذخیره در دسترس نیست',
+  saveSceneUnavailable: 'وقتی باغ آماده شد و به مقصد رسیدی، دوباره ذخیره کن.',
   sessionOnly: 'این بازی موقت ذخیره نمی‌شود',
   continueGame: 'ادامه بازی',
   saveChecking: 'بررسی ذخیره بازی',

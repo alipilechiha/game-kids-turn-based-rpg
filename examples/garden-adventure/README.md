@@ -65,9 +65,15 @@ basket, and the garden gate. The garden contains the planting bed, hidden clue,
 ancient lantern, guardian, and return gate. `src/scenes/registry.ts` validates
 the map/graph pairings. A single demand-rendered R3F canvas loads the selected
 scene, and the sample-owned camera, probe, and scene components dispose their
-listeners and arrival timers on unmount. Camera and rendered consequence probes
-are used by browser checks. The visible tree and warm lantern lighting are
-projections of committed narrative facts.
+listeners on unmount. During movement the player is rendered toward the next
+route anchor while the reducer retains its last committed anchor. The scene
+probe observes the player at that destination across consecutive frames, with a
+render between observations, before asking the runtime to dispatch `ARRIVE`.
+The runtime rechecks the map, playthrough, route, next index, and committed
+anchor; stale callbacks after reset or scene replacement cannot advance state.
+This keeps arrival synchronized to rendered motion without a wall-clock timer.
+Camera and rendered consequence probes are used by browser checks. The visible
+tree and warm lantern lighting are projections of committed narrative facts.
 
 Geometry is procedural and sample-owned. Landmark component boundaries in
 `src/scenes/GardenScene.tsx` keep artwork replaceable by locally bundled GLB

@@ -66,7 +66,10 @@ assert.equal(granted.accepted, true);
 if (!granted.accepted) throw new Error('The deterministic gameplay grant was rejected.');
 assert.equal(getCharacterLevel(definition, granted.state, 'hero'), 2);
 assert.deepEqual(getUnlockedAbilityIds(definition, granted.state, 'hero'), ['spark', 'focus']);
-const restored = decodeGameplayState(definition, JSON.parse(encodeGameplayState(granted.state)));
+const restored = decodeGameplayState(
+  definition,
+  JSON.parse(encodeGameplayState(definition, granted.state)),
+);
 assert.equal(restored.ok, true);
 if (!restored.ok) throw new Error('The gameplay snapshot did not decode.');
 assert.equal(restored.state.playthroughId, 'node-22-minimum-probe');
