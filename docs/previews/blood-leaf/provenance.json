@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "0498429b580caf413e67ab45dd9abc4d039c1162",
+  "images": [
+    {
+      "file": "01-courtyard.png",
+      "width": 1360,
+      "height": 929,
+      "bytes": 47782,
+      "sha256": "2cd04509e1d7e150f1958c22c643ad545fc967309875f002345695fdc0934728"
+    },
+    {
+      "file": "02-dialogue.png",
+      "width": 1360,
+      "height": 929,
+      "bytes": 57961,
+      "sha256": "af570dc43fc56263a7e2fb943b988f96140989860ad346d517eb92e522e02110"
+    },
+    {
+      "file": "03-lit-lantern.png",
+      "width": 1360,
+      "height": 929,
+      "bytes": 60530,
+      "sha256": "a7e518bc234cdd385059afd973b75df7809b659463e74fad9fb11a241d44e413"
+    }
+  ]
+}

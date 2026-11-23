@@ -16,7 +16,7 @@ microphone, geolocation or device identifiers. Progress lives only in the browse
 
 ## Framework roadmap
 
-**3/7 phases completed** · Next: **Phase 4 — Gameplay modules** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
+**4/7 phases completed** · Next: **Phase 5 — Animation/cinematics** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
 
 ```mermaid
 flowchart LR
@@ -24,9 +24,9 @@ flowchart LR
   classDef complete fill:#dcfce7,stroke:#15803d,color:#14532d
   classDef next fill:#fef3c7,stroke:#b45309,color:#78350f
   classDef planned fill:#e5e7eb,stroke:#6b7280,color:#1f2937
-  class P1,P2,P3 complete
-  class P4 next
-  class P5,P6,P7 planned
+  class P1,P2,P3,P4 complete
+  class P5 next
+  class P6,P7 planned
 ```
 
 | Phase | Status | Evidence |
@@ -34,8 +34,8 @@ flowchart LR
 | 1. Reusable core | ✅ Complete | [PR #110](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/110) |
 | 2. World/renderer | ✅ Complete | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111) |
 | 3. Narrative/quests | ✅ Complete | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113) |
-| 4. Gameplay modules | ➡️ Next | — |
-| 5. Animation/cinematics | ⏳ Planned | — |
+| 4. Gameplay modules | ✅ Complete | [PR #116](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/116); [29 gameplay tests](../packages/gameplay/test/) |
+| 5. Animation/cinematics | ➡️ Next | — |
 | 6. Developer tools | ⏳ Planned | — |
 | 7. Shahnameh proof of concept | ⏳ Planned | — |
 
@@ -43,6 +43,68 @@ _Generated from the canonical roadmap. Update status and evidence in [docs/FRAME
 
 <!-- prettier-ignore-end -->
 <!-- framework-roadmap:end -->
+
+<!-- sample-games:begin -->
+<!-- prettier-ignore-start -->
+
+## Samples / Playable Games
+
+These independent samples show how the reusable packages fit into different games. Screenshots below come from Chromium rendering each production build. Captures are documentation previews, not pixel-perfect regression baselines.
+
+### محله مهربانی — Implemented and playable
+
+The existing child-oriented reference RPG. Its runtime and navigation consume `waypoint-rpg-core`; game-specific quests and rendering remain owned by the app.
+
+[Game guide](README.md) · `npm ci && npm run dev`
+
+| Capture | Actual browser rendering |
+| --- | --- |
+| Town hub | ![Actual محله مهربانی — Town hub](docs/previews/legacy-sample/04-town-hub.png) |
+| Town hub · portrait | ![Actual محله مهربانی — Town hub · portrait](docs/previews/legacy-sample/05-town-portrait.png) |
+| Persian NPC dialogue | ![Actual محله مهربانی — Persian NPC dialogue](docs/previews/legacy-sample/06-guardian-dialogue.png) |
+| Encounter choice | ![Actual محله مهربانی — Encounter choice](docs/previews/legacy-sample/07-encounter-choice.png) |
+
+Other captures: [01-title](docs/previews/legacy-sample/01-title.png) · [02-avatar-select](docs/previews/legacy-sample/02-avatar-select.png) · [03-headwear-select](docs/previews/legacy-sample/03-headwear-select.png).
+
+> **Draft content.** The existing game still contains educational and religious placeholders that require review; its screenshots do not imply content approval.
+
+### برگ خون — Technical demonstration
+
+An independent two-scene consumer demonstrating framework narrative, scene loading, transitions, persistence, and runtime-fact projection.
+
+[Game guide](examples/scene-demo/README.md) · `npm run example:scene-build`
+
+| Capture | Actual browser rendering |
+| --- | --- |
+| Village courtyard | ![Actual برگ خون — Village courtyard](docs/previews/blood-leaf/01-courtyard.png) |
+| Persian story choice | ![Actual برگ خون — Persian story choice](docs/previews/blood-leaf/02-dialogue.png) |
+| Narrative-driven lantern | ![Actual برگ خون — Narrative-driven lantern](docs/previews/blood-leaf/03-lit-lantern.png) |
+
+### باغ قصه‌ها — Implemented and playable
+
+A complete Persian 3D adventure using the installed public core, narrative, and gameplay packages. Two story paths include a real tactical encounter, visible garden changes, and persistent progress.
+
+[Game guide](examples/garden-adventure/README.md) · `npm run sample:garden:dev`
+
+| Capture | Actual browser rendering |
+| --- | --- |
+| Village | ![Actual باغ قصه‌ها — Village](docs/previews/garden-adventure/02-village.png) |
+| Persian NPC dialogue | ![Actual باغ قصه‌ها — Persian NPC dialogue](docs/previews/garden-adventure/03-dialogue.png) |
+| Inventory and equipment | ![Actual باغ قصه‌ها — Inventory and equipment](docs/previews/garden-adventure/04-inventory.png) |
+| Garden before the objective | ![Actual باغ قصه‌ها — Garden before the objective](docs/previews/garden-adventure/05-garden-before.png) |
+| Garden · gardener path | ![Actual باغ قصه‌ها — Garden · gardener path](docs/previews/garden-adventure/06-garden-restored.png) |
+| 5×5 tactical battle | ![Actual باغ قصه‌ها — 5×5 tactical battle](docs/previews/garden-adventure/07-tactical-battle.png) |
+| Ability and status effect | ![Actual باغ قصه‌ها — Ability and status effect](docs/previews/garden-adventure/08-ability-effect.png) |
+| Garden · guardian path | ![Actual باغ قصه‌ها — Garden · guardian path](docs/previews/garden-adventure/09-guardian-outcome.png) |
+| Story ending | ![Actual باغ قصه‌ها — Story ending](docs/previews/garden-adventure/10-ending.png) |
+| Restored saved garden | ![Actual باغ قصه‌ها — Restored saved garden](docs/previews/garden-adventure/12-restored.png) |
+
+Other captures: [01-title](docs/previews/garden-adventure/01-title.png) · [11-mobile](docs/previews/garden-adventure/11-mobile.png).
+
+**Status key:** Implemented and playable means the sample can be completed; Technical demonstration means it focuses on framework integration. The Shahnameh proof of concept is **Planned**. Verification beyond Chromium with software WebGL and on physical devices is **Not yet verified**.
+
+<!-- prettier-ignore-end -->
+<!-- sample-games:end -->
 
 ## Library-backed reference game
 
@@ -54,8 +116,9 @@ tested equivalent library APIs are adopted.
 
 See the [library adoption matrix](docs/MAHALLE-LIBRARY-ADOPTION.md) for what is
 already integrated and what remains to migrate. Real source-rendered screenshots
-are captured with Playwright on merges to `main`, published as Actions artifacts,
-and proposed for the README gallery through a reviewable documentation PR.
+for the Kids RPG, the independent Blood Leaf demonstration, and Garden of Stories
+are captured with Playwright on merges to `main`, uploaded as Actions artifacts,
+and proposed with the gallery through one reviewable documentation PR.
 
 To capture them locally after installing Chromium, run
 `npm run build && npm run sample:previews`. This capture suite is separate
@@ -75,24 +138,28 @@ npm run dev          # http://localhost:5173
 
 ## Scripts
 
-| Script                             | Purpose                                                                   |
-| ---------------------------------- | ------------------------------------------------------------------------- |
-| `npm run dev`                      | Vite dev server                                                           |
-| `npm run dev:linked`               | Package watch build followed by Vite, for live core-library edits         |
-| `npm run framework:watch:check`    | Chromium check for linked updates, failed-build preservation and recovery |
-| `npm run build`                    | Content validation → strict `tsc -b` → production bundle → budget check   |
-| `npm run preview`                  | Serve `dist/` on port 4173 (used by Playwright)                           |
-| `npm run typecheck`                | Strict TypeScript project build                                           |
-| `npm run lint` / `lint:fix`        | ESLint (flat config, type-aware)                                          |
-| `npm run format` / `format:check`  | Prettier                                                                  |
-| `npm test`                         | Vitest unit + component tests (jsdom)                                     |
-| `npm run test:e2e`                 | Playwright golden paths against the production preview                    |
-| `npm run validate:content`         | Content/provenance validation (development mode: drafts warn)             |
-| `npm run validate:content:release` | Release gate: **fails** while any reachable record is not `approved`      |
-| `npm run check:budgets`            | Gzip transfer budgets over `dist/`                                        |
-| `npm run framework:build`          | Compile the dependency-free ESM core package                              |
-| `npm run framework:consumer`       | Pack and verify an isolated tarball consumer                              |
-| `npm run verify`                   | format:check → lint → package boundary/build/tests → app gates            |
+| Script                              | Purpose                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `npm run dev`                       | Vite dev server                                                           |
+| `npm run dev:linked`                | Package watch build followed by Vite, for live core-library edits         |
+| `npm run framework:watch:check`     | Chromium check for linked updates, failed-build preservation and recovery |
+| `npm run build`                     | Content validation → strict `tsc -b` → production bundle → budget check   |
+| `npm run preview`                   | Serve `dist/` on port 4173 (used by Playwright)                           |
+| `npm run typecheck`                 | Strict TypeScript project build                                           |
+| `npm run lint` / `lint:fix`         | ESLint (flat config, type-aware)                                          |
+| `npm run format` / `format:check`   | Prettier                                                                  |
+| `npm test`                          | Vitest unit + component tests (jsdom)                                     |
+| `npm run test:e2e`                  | Playwright golden paths against the production preview                    |
+| `npm run validate:content`          | Content/provenance validation (development mode: drafts warn)             |
+| `npm run validate:content:release`  | Release gate: **fails** while any reachable record is not `approved`      |
+| `npm run check:budgets`             | Gzip transfer budgets over `dist/`                                        |
+| `npm run framework:build`           | Compile the dependency-free ESM core package                              |
+| `npm run framework:consumer`        | Pack and verify an isolated tarball consumer                              |
+| `npm run sample:garden:dev`         | Play the Persian Garden adventure locally                                 |
+| `npm run sample:garden:e2e`         | Run the Garden production-browser gameplay suite                          |
+| `npm run sample:garden:previews`    | Capture real Garden gameplay screenshots                                  |
+| `npm run framework:garden-consumer` | Verify Garden against installed core and narrative tarballs               |
+| `npm run verify`                    | format:check → lint → package boundary/build/tests → app gates            |
 
 ## Architecture
 

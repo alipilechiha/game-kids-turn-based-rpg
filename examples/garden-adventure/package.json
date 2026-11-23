@@ -1,0 +1,40 @@
+{
+  "name": "waypoint-rpg-garden-adventure",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.2 <23",
+    "npm": ">=10 <11"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4180",
+    "test:e2e": "playwright test",
+    "previews": "playwright test --config=playwright.previews.config.ts"
+  },
+  "dependencies": {
+    "@react-three/fiber": "9.7.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.186.0",
+    "vazirmatn": "33.0.3",
+    "waypoint-rpg-core": "file:../../packages/core",
+    "waypoint-rpg-gameplay": "file:../../packages/gameplay",
+    "waypoint-rpg-narrative": "file:../../packages/narrative"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@types/three": "0.186.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "30.1.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.0",
+    "vitest": "4.1.11"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "bfb3d8a892f0fc4dc4c4ff3318486dea43cd381f",
+  "images": [
+    {
+      "file": "01-title.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 37212,
+      "sha256": "07814f9d2e2fce9864707e5233821872d7b78026c61bcdf1e37e9d971f3337ac"
+    },
+    {
+      "file": "02-village.png",
+      "width": 1440,
+      "height": 1115,
+      "bytes": 81292,
+      "sha256": "7fd726ebbb09f0787635436d02f3b641263b336b46fb7a896cdad47c8de67406"
+    },
+    {
+      "file": "03-dialogue.png",
+      "width": 1440,
+      "height": 1115,
+      "bytes": 92339,
+      "sha256": "a227368584abd0470dad3408ef7f9ee75497b00028dab877d1e1e941f7279f99"
+    },
+    {
+      "file": "04-inventory.png",
+      "width": 1440,
+      "height": 1381,
+      "bytes": 109321,
+      "sha256": "95a0ec13d072149183ee8066e063119e2075c103ee623d15c9996c1116d5b999"
+    },
+    {
+      "file": "05-garden-before.png",
+      "width": 1440,
+      "height": 1115,
+      "bytes": 78877,
+      "sha256": "28eba795ba896b2f66a19a6f0c8210315855fb124236d91c3bcd461bdfde885c"
+    },
+    {
+      "file": "06-garden-restored.png",
+      "width": 1440,
+      "height": 1179,
+      "bytes": 88577,
+      "sha256": "98666fb8491d7caadfbdc27fce4f518000966fae14fa241bbd3c68446ab54b61"
+    },
+    {
+      "file": "07-tactical-battle.png",
+      "width": 1440,
+      "height": 1115,
+      "bytes": 93254,
+      "sha256": "857ff924d4115c6006e84db95eb0f6d2ba4ee8de9e417a5a4b48c97620e28ac0"
+    },
+    {
+      "file": "08-ability-effect.png",
+      "width": 1440,
+      "height": 1115,
+      "bytes": 101140,
+      "sha256": "4209b19399047336b63d438ffcac3f0f401c1b62f50bfb47b1604307f10e7367"
+    },
+    {
+      "file": "09-guardian-outcome.png",
+      "width": 1440,
+      "height": 1179,
+      "bytes": 95570,
+      "sha256": "43327904c1e9fceeff85f7d09c192016ab876cb9aef515dc278a806c6d58fffe"
+    },
+    {
+      "file": "10-ending.png",
+      "width": 1440,
+      "height": 1179,
+      "bytes": 102300,
+      "sha256": "757edd1b2ba68e11085dad9d2e260e161c4f4937087716d5fce4fcbc4b5f2d7a"
+    },
+    {
+      "file": "11-mobile.png",
+      "width": 390,
+      "height": 1402,
+      "bytes": 77892,
+      "sha256": "9a201bacf5f15c88baf994a9f277b54af655c71d5c373437bd6dee9207762a64"
+    },
+    {
+      "file": "12-restored.png",
+      "width": 1440,
+      "height": 1115,
+      "bytes": 97696,
+      "sha256": "796555662c7b509769cc7cd116596c864fb4bf673a888e790c99b1ef41b769be"
+    }
+  ]
+}
