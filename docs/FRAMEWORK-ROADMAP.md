@@ -234,7 +234,11 @@ Dependency direction:
 
 This table is the source of truth for the generated README roadmap. Change a phase's status only when its exit criteria are met; after editing, run `npm run roadmap:sync`. Merging alone does not complete a phase.
 
-Blood of Siyavash exercises narrative and tactical play. Iron and Serpents can validate real-time combat. The Burned Feather can validate transformations and cinematic animation. Story and theme remain game-owned.
+The five-game portfolio, asset catalog, capability matrix, execution dependencies, and release/evaluation rules live in `docs/PRODUCT-RELEASE-ROADMAP.md`. The current two-scene Garden sample and the Phase 4 scene-demo remain reference consumers, not portfolio releases. Proposed game names and stories remain proposals until approved.
+
+### Baseline evidence at Phase 5 planning
+
+Phase 4 merge `693aae689065d108e84b85a16c5651d625c29ab2` has successful Pages and roadmap-synchronization workflows. Its framework consumer and E2E shard 4 passed when inspected. E2E shards 1–3 were still running, so full post-merge E2E was not yet confirmed. The [Reference game screenshots workflow](https://github.com/hmmftg/game-kids-turn-based-rpg/actions/runs/45018058155) failed at step 5, **Check repository formatting**. Chromium installation, production build, screenshot capture, and gallery update were skipped. Track and diagnose this baseline independently before attributing a formatting failure to later documentation changes.
 
 ## Compatibility, policy and risks
 

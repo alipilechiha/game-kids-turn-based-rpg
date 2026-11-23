@@ -11,8 +11,15 @@ import { createDemoRuntime, getDialogueOwnerMap } from './runtime.js';
 import { SceneHost } from './scene-host.js';
 import { sceneRegistry } from './scenes/registry.js';
 import { subscribeDemoRuntime } from './scenes/scene-runtime.js';
+import { Phase5AssetDemo } from './animation/Phase5AssetDemo.js';
 
 export function App() {
+  if (new URLSearchParams(window.location.search).get('phase5') === 'assets')
+    return <Phase5AssetDemo />;
+  return <NarrativeDemo />;
+}
+
+function NarrativeDemo() {
   const host = useMemo(() => new SceneHost(sceneRegistry), []);
   const runtime = useMemo(() => createDemoRuntime(host, { storage: browserDemoStorage }), [host]);
   const snapshot = useSyncExternalStore(host.subscribe, host.getSnapshot, host.getSnapshot);
