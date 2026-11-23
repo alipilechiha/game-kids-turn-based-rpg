@@ -16,7 +16,7 @@ microphone, geolocation or device identifiers. Progress lives only in the browse
 
 ## Framework roadmap
 
-**3/9 phases completed** · Next: **Phase 5 — Model, animation, and cinematics** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
+**3/9 phases completed** · Next: **Phase 4 — Gameplay modules** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
 
 ```mermaid
 flowchart LR
@@ -25,8 +25,7 @@ flowchart LR
   classDef next fill:#fef3c7,stroke:#b45309,color:#78350f
   classDef planned fill:#e5e7eb,stroke:#6b7280,color:#1f2937
   class P1,P2,P3 complete
-  class P4 next
-  class P5 next
+  class P4,P5 next
   class P6,P7,P8,P9 planned
 ```
 
@@ -36,7 +35,7 @@ flowchart LR
 | 2. 3D scene consumer | ✅ Complete | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111) |
 | 3. Narrative and quests | ✅ Complete | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113) |
 | 4. Gameplay modules | 🚧 In progress | [PR #116](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/116) |
-| 5. Model, animation, and cinematics | ➡️ Next | [Phase 5 plan](../.plans/phase-5-model-animation-cinematics.md) |
+| 5. Model, animation, and cinematics | 🚧 In progress | [Phase 5 plan](../.plans/phase-5-model-animation-cinematics.md) |
 | 6. Asset and game creation tools | ⏳ Planned | [Product release roadmap](PRODUCT-RELEASE-ROADMAP.md) |
 | 7. Five playable games | ⏳ Planned | [Product release roadmap](PRODUCT-RELEASE-ROADMAP.md) |
 | 8. Individual releases | ⏳ Planned | [Product release roadmap](PRODUCT-RELEASE-ROADMAP.md) |

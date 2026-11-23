@@ -140,3 +140,23 @@ Keep `waypoint-rpg-core`, `waypoint-rpg-narrative`, and `waypoint-rpg-gameplay` 
 P5 is complete when all five milestone gates pass, static and genuinely rigged source-rendered captures exist with provenance, the two rigs remain independently animatable, application state drives semantic animation, a short timeline is skippable/cancelable/reduced-motion compatible, all resources recover and dispose across cancellation and context loss, local import works offline, and the three existing packages and Kids RPG pass their compatibility gates. This proves an animated reference consumer. It does not prove every model provider, arbitrary skeleton retargeting, every browser, or a renderer package.
 
 The implementation branch begins from the latest fetched `main`. Commit P5.0 through P5.4 as small local commits with exact test commands/results recorded in this plan. User authorization is required before pushing, opening a PR, deploying, or purchasing services. Phase 6+ remains in `docs/PRODUCT-RELEASE-ROADMAP.md`.
+
+## Execution record
+
+### Baseline on `693aae689065d108e84b85a16c5651d625c29ab2`
+
+- Current GitHub `main` resolves to the recorded PR #116 merge SHA. The implementation worktree is `codex/phase5-animation-assets`; the existing planning worktree remains on `codex/phase5-roadmap`.
+- The initial `npm run verify` exposed two existing root-gate issues. `scripts/sync-sample-gallery.mjs` failed Prettier and `e2e/sample-previews.preview.ts` failed ESLint because a runtime constant existed only for a type query. These were fixed in separate commits `3bc4e4e` and `6657db7` before feature work.
+- After those fixes, `npm run verify` passed: formatting, roadmap check, lint (18 existing warnings), core/narrative/gameplay builds and boundaries, 15 core tests, 34 narrative tests, 29 gameplay tests, narrative tarball consumer, typecheck, 502 application tests, app build/content/assets/budgets/deploy checks, and hello-world/scene-demo builds.
+- `npm run framework:scene-consumer` passed offline core+narrative tarball installation, typecheck, unit tests, Vite build, and Chromium lifecycle smoke.
+- `npm run framework:watch:check` passed cold/warm linked builds, default Vite resolution, linked package updates, error preservation, and recovery.
+- The planning baseline's screenshot workflow run `45018058155` failed at formatting before browser setup and capture. This failure predates the implementation branch; no screenshot result was inferred from it.
+
+### P5.0 — architecture and baseline contracts
+
+- Added `examples/scene-demo/src/animation/contracts.ts` with a renderer-neutral schema-v1 model record, source and output hashes, rights/provenance, normalized axis and bounds, fixture budgets, semantic clip mappings, and diagnostics. The module imports no Three.js or gameplay/narrative package.
+- Added focused record validation and semantic fallback tests. `npx vitest run --config examples/scene-demo/vitest.config.ts` passed 41/41; `npx tsc --noEmit -p examples/scene-demo/tsconfig.json` passed. The repository-wide lint gate passed with 18 existing warnings.
+- `npm run verify` passed after P5.0: all 506 application tests, core/narrative/gameplay package tests and builds, narrative tarball consumer, typechecks, content/assets/budget/deploy validation, and all three example builds.
+- `npm run framework:scene-consumer` passed the offline core+narrative tarball install, typecheck, unit tests, Vite build, and Chromium lifecycle smoke.
+- `npm run framework:watch:check` passed cold/warm linked builds, Vite's default linked-ESM resolution, multi-package HMR, error preservation, and recovery. No Vite resolver override is configured.
+- Phase 5 is marked In progress in the canonical roadmap. The contract intentionally remains private to the independent example until another consumer proves a stable renderer API.
