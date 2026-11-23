@@ -473,6 +473,7 @@ export function App() {
                 key={`${state.mapId}:${sceneGeneration}`}
                 runtime={runtime}
                 state={state}
+                sceneGeneration={sceneGeneration}
                 onTargetPress={onTargetPress}
                 onSceneReady={onSceneReady}
               />

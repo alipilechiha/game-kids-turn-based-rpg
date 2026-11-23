@@ -3,7 +3,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera, Vector3, type Group } from 'three';
 import { getFact } from 'waypoint-rpg-narrative';
 import { getAnchor, type AnchorId } from 'waypoint-rpg-core';
-import type { GardenRuntime, GardenState } from '../game/runtime.js';
+import type { GardenRuntime, GardenState, GardenWalk } from '../game/runtime.js';
+import { commitRenderedArrival } from '../game/rendered-arrival.js';
 import {
   gardenTargets,
   gardenGraphs,
@@ -12,19 +13,23 @@ import {
 } from '../world/world.js';
 import { SceneCamera } from './SceneCamera.js';
 import { sceneForMap } from './registry.js';
-import {
-  currentGardenProbe,
-  type GardenSceneReadiness,
-} from './probe.js';
+import { currentGardenProbe, type GardenSceneReadiness } from './probe.js';
 
 interface GardenSceneProps {
   readonly runtime: GardenRuntime;
   readonly state: GardenState;
+  readonly sceneGeneration: number;
   readonly onTargetPress: (targetId: GardenTarget['id']) => void;
   readonly onSceneReady: (readiness: GardenSceneReadiness) => void;
 }
 
-export function GardenScene({ runtime, state, onTargetPress, onSceneReady }: GardenSceneProps) {
+export function GardenScene({
+  runtime,
+  state,
+  sceneGeneration,
+  onTargetPress,
+  onSceneReady,
+}: GardenSceneProps) {
   const definition = sceneForMap(state.mapId);
   const entry = getAnchor(definition.graph, state.anchorId);
   const targets = gardenTargets.filter((target) => target.mapId === state.mapId);
@@ -38,12 +43,14 @@ export function GardenScene({ runtime, state, onTargetPress, onSceneReady }: Gar
       <SceneProbe
         mapId={state.mapId}
         anchorId={state.anchorId}
+        walk={state.walk}
+        runtime={runtime}
+        sceneGeneration={sceneGeneration}
         playthroughId={state.narrative.playthroughId}
         treeGrown={treeGrown}
         lanternLit={lanternLit}
         onSceneReady={onSceneReady}
       />
-      <ArrivalDriver runtime={runtime} state={state} />
       <color attach="background" args={[state.mapId === 'village' ? '#c7e2cf' : '#a9c8aa']} />
       <ambientLight intensity={1.7} />
       <directionalLight position={[4, 12, 7]} intensity={2.2} />
@@ -61,7 +68,13 @@ export function GardenScene({ runtime, state, onTargetPress, onSceneReady }: Gar
           lanternLit={lanternLit}
         />
       ))}
-      <PlayerCharacter anchor={entry} previousAnchorId={state.lastAnchorId} mapId={state.mapId} />
+      <PlayerCharacter
+        anchorId={state.anchorId}
+        anchor={entry}
+        walk={state.walk}
+        playthroughId={state.narrative.playthroughId}
+        mapId={state.mapId}
+      />
     </group>
   );
 }
@@ -79,24 +92,12 @@ function ContextRecovery() {
   return null;
 }
 
-function ArrivalDriver({ runtime, state }: Pick<GardenSceneProps, 'runtime' | 'state'>) {
-  useEffect(() => {
-    const walk = state.walk;
-    const nextAnchor = walk?.path[walk.nextIndex];
-    if (!walk || !nextAnchor) return;
-    const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 190;
-    const timer = window.setTimeout(() => {
-      runtime.dispatch({ type: 'ARRIVE', routeId: walk.routeId, anchorId: nextAnchor });
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [runtime, state.walk]);
-
-  return null;
-}
-
 function SceneProbe({
   mapId,
   anchorId,
+  walk,
+  runtime,
+  sceneGeneration,
   playthroughId,
   treeGrown,
   lanternLit,
@@ -104,6 +105,9 @@ function SceneProbe({
 }: {
   readonly mapId: GardenMapId;
   readonly anchorId: string;
+  readonly walk: GardenWalk | null;
+  readonly runtime: GardenRuntime;
+  readonly sceneGeneration: number;
   readonly playthroughId: string;
   readonly treeGrown: boolean;
   readonly lanternLit: boolean;
@@ -112,7 +116,11 @@ function SceneProbe({
   const { camera, scene, gl, invalidate, size } = useThree();
   const firstRenderedFrameKey = useRef('');
   const reportedReadyKey = useRef('');
+  const arrivalCandidateKey = useRef('');
+  const arrivalCandidateFrameCount = useRef<number | null>(null);
+  const reportedArrivalKey = useRef('');
   const readinessKey = `${mapId}:${anchorId}:${playthroughId}`;
+  const walkTargetAnchorId = walk?.path[walk.nextIndex] ?? null;
 
   useEffect(() => {
     let visibleMeshCount = 0;
@@ -120,6 +128,7 @@ function SceneProbe({
       if (object.type === 'Mesh' && object.visible) visibleMeshCount += 1;
     });
     const cleanupCount = currentGardenProbe()?.cleanupCount ?? 0;
+    const existingProbe = currentGardenProbe();
     camera.updateMatrixWorld(true);
     const targetPoints = Object.fromEntries(
       gardenTargets
@@ -136,6 +145,7 @@ function SceneProbe({
       activeMap: mapId,
       activeAnchor: anchorId,
       playthroughId,
+      sceneGeneration,
       cameraKind:
         camera instanceof OrthographicCamera ? ('orthographic' as const) : ('unknown' as const),
       visibleMeshCount,
@@ -143,6 +153,11 @@ function SceneProbe({
       cleanupCount,
       playerPosition: { x: Number.NaN, z: Number.NaN },
       playerAtAnchor: false,
+      walkRouteId: walk?.routeId ?? null,
+      walkTargetAnchor: walkTargetAnchorId,
+      playerAtWalkTarget: false,
+      arrivalReports:
+        existingProbe?.playthroughId === playthroughId ? existingProbe.arrivalReports : [],
       targetPoints,
       renderedConsequences: [
         ...(treeGrown && scene.getObjectByName('garden-grown-tree')?.visible
@@ -170,10 +185,14 @@ function SceneProbe({
     lanternLit,
     mapId,
     playthroughId,
+    sceneGeneration,
     scene,
     size.height,
     size.width,
     treeGrown,
+    walk?.routeId,
+    walk?.nextIndex,
+    walkTargetAnchorId,
   ]);
 
   useEffect(() => {
@@ -181,6 +200,13 @@ function SceneProbe({
     reportedReadyKey.current = '';
     invalidate();
   }, [invalidate, readinessKey]);
+
+  useEffect(() => {
+    arrivalCandidateKey.current = '';
+    arrivalCandidateFrameCount.current = null;
+    reportedArrivalKey.current = '';
+    invalidate();
+  }, [invalidate, walk?.routeId, walk?.nextIndex, walkTargetAnchorId]);
 
   useFrame(() => {
     const probe = currentGardenProbe();
@@ -196,14 +222,73 @@ function SceneProbe({
     scene.updateMatrixWorld(true);
     const playerPosition = player.getWorldPosition(new Vector3());
     const anchor = getAnchor(gardenGraphs[mapId], anchorId as AnchorId);
-    const playerAtAnchor = Math.hypot(playerPosition.x - anchor.x, playerPosition.z - anchor.z) < 0.02;
+    const playerAtAnchor =
+      Math.hypot(playerPosition.x - anchor.x, playerPosition.z - anchor.z) < 0.02;
+    const walkTarget = walkTargetAnchorId
+      ? getAnchor(gardenGraphs[mapId], walkTargetAnchorId as AnchorId)
+      : null;
+    const playerAtWalkTarget =
+      walkTarget !== null &&
+      Math.hypot(playerPosition.x - walkTarget.x, playerPosition.z - walkTarget.z) < 0.02;
     const frameCount = probe.frameCount + 1;
     window.__gardenProbe = {
       ...probe,
       frameCount,
       playerPosition: { x: playerPosition.x, z: playerPosition.z },
       playerAtAnchor,
+      walkRouteId: walk?.routeId ?? null,
+      walkTargetAnchor: walkTargetAnchorId,
+      playerAtWalkTarget,
     };
+
+    const arrivalKey =
+      walk && walkTargetAnchorId
+        ? `${playthroughId}:${walk.routeId}:${walk.nextIndex}:${walkTargetAnchorId}`
+        : '';
+    if (!arrivalKey || !playerAtWalkTarget) {
+      if (arrivalCandidateKey.current === arrivalKey) {
+        arrivalCandidateKey.current = '';
+        arrivalCandidateFrameCount.current = null;
+      }
+      if (!arrivalKey) reportedArrivalKey.current = '';
+    } else if (walk && walkTargetAnchorId && reportedArrivalKey.current !== arrivalKey) {
+      if (arrivalCandidateKey.current !== arrivalKey) {
+        arrivalCandidateKey.current = arrivalKey;
+        arrivalCandidateFrameCount.current = frameCount;
+        invalidate();
+      } else {
+        const candidateFrameCount = arrivalCandidateFrameCount.current ?? frameCount;
+        const report = {
+          routeId: walk.routeId,
+          targetAnchor: walkTargetAnchorId,
+          committedAnchor: anchorId,
+          nextIndex: walk.nextIndex,
+          playerAtTarget: true,
+          candidateFrameCount,
+          renderedFrameGap: frameCount - candidateFrameCount,
+          frameCount,
+        };
+        const currentProbe = currentGardenProbe();
+        if (currentProbe?.playthroughId === playthroughId) {
+          window.__gardenProbe = {
+            ...currentProbe,
+            arrivalReports: [...currentProbe.arrivalReports, report].slice(-16),
+          };
+        }
+        reportedArrivalKey.current = arrivalKey;
+        const arrival = {
+          mapId,
+          committedAnchor: anchorId as GardenState['anchorId'],
+          playthroughId,
+          routeId: walk.routeId,
+          nextIndex: walk.nextIndex,
+          targetAnchor: walkTargetAnchorId as GardenState['anchorId'],
+        };
+        queueMicrotask(() => {
+          commitRenderedArrival(runtime, arrival);
+        });
+      }
+    }
 
     if (firstRenderedFrameKey.current !== readinessKey) {
       firstRenderedFrameKey.current = readinessKey;
@@ -231,6 +316,8 @@ function SceneProbe({
         playerAtAnchor,
       });
     }
+
+    if (walk) invalidate();
   });
 
   return null;
@@ -314,44 +401,58 @@ function SimpleTree({
 }
 
 function PlayerCharacter({
+  anchorId,
   anchor,
-  previousAnchorId,
+  walk,
+  playthroughId,
   mapId,
 }: {
+  readonly anchorId: string;
   readonly anchor: { readonly x: number; readonly z: number };
-  readonly previousAnchorId: string | null;
+  readonly walk: GardenWalk | null;
+  readonly playthroughId: string;
   readonly mapId: GardenMapId;
 }) {
   const groupRef = useRef<Group>(null);
   const elapsed = useRef(0);
+  const activeStepKey = useRef('');
   const { invalidate } = useThree();
-  const previous = previousAnchorId
-    ? getAnchor(gardenGraphs[mapId], previousAnchorId as AnchorId)
-    : anchor;
-  useEffect(() => {
-    elapsed.current = 0;
-  }, [anchor.x, anchor.z, previous.x, previous.z]);
+  const targetAnchorId = walk?.path[walk.nextIndex] ?? null;
+  const target = targetAnchorId ? getAnchor(gardenGraphs[mapId], targetAnchorId as AnchorId) : null;
+  const stepKey =
+    walk && targetAnchorId
+      ? `${playthroughId}:${mapId}:${walk.routeId}:${walk.nextIndex}:${anchorId}:${targetAnchorId}`
+      : '';
 
   useFrame((_frame, delta) => {
     const group = groupRef.current;
     if (!group) return;
-    if (!previousAnchorId) {
+    if (!walk || !target || !stepKey) {
+      activeStepKey.current = '';
+      elapsed.current = 0;
       group.position.set(anchor.x, 0, anchor.z);
       return;
+    }
+    if (activeStepKey.current !== stepKey) {
+      activeStepKey.current = stepKey;
+      elapsed.current = 0;
+      group.position.set(anchor.x, 0, anchor.z);
     }
     elapsed.current += delta;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const progress = reducedMotion ? 1 : Math.min(1, elapsed.current / 0.18);
     group.position.set(
-      previous.x + (anchor.x - previous.x) * progress,
+      anchor.x + (target.x - anchor.x) * progress,
       0,
-      previous.z + (anchor.z - previous.z) * progress,
+      anchor.z + (target.z - anchor.z) * progress,
     );
-    if (progress < 1) invalidate();
+    // Keep demand rendering alive until SceneProbe confirms the arrival on a
+    // subsequent rendered frame and commits the corresponding ARRIVE command.
+    invalidate();
   });
 
   return (
-    <group ref={groupRef} position={[previous.x, 0, previous.z]} name="garden-player">
+    <group ref={groupRef} position={[anchor.x, 0, anchor.z]} name="garden-player">
       <mesh position={[0, 0.68, 0]} castShadow>
         <capsuleGeometry args={[0.28, 0.65, 4, 10]} />
         <meshStandardMaterial color="#c37850" />
