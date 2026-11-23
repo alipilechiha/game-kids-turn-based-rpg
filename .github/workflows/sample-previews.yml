@@ -11,6 +11,9 @@ on:
       - scripts/sync-sample-gallery.mjs
       - examples/garden-adventure/**
       - examples/scene-demo/**
+      - packages/gameplay/**
+      - scripts/check-framework-garden-consumer.mjs
+      - scripts/check-framework-runtime.mjs
       - docs/MAHALLE-LIBRARY-ADOPTION.md
       - docs/FRAMEWORK-ROADMAP.md
       - docs/CREATING-A-SAMPLE-GAME.md
@@ -48,6 +51,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y fonts-noto-color-emoji
       - name: Build the actual Kids RPG application
         run: npm run build
+      - name: Verify Garden against independently installed framework tarballs
+        run: npm run framework:garden-consumer
+        env:
+          FRAMEWORK_INSTALL_CHROMIUM: browser-only
       - name: Capture real rendered scenes using Playwright
         run: npm run sample:previews
       - name: Build and capture the independent Blood Leaf demonstration

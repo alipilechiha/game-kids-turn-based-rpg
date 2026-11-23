@@ -238,7 +238,7 @@ describe('Garden story and Phase 4 gameplay integration', () => {
   it('rolls back a terminal gameplay outcome when the authored narrative trigger rejects it', () => {
     const definition = {
       ...gardenNarrativeDefinition,
-      triggers: gardenNarrativeDefinition.triggers?.filter(
+      triggers: (gardenNarrativeDefinition.triggers ?? []).filter(
         (trigger) => trigger.id !== 'guardian-victory',
       ),
     };

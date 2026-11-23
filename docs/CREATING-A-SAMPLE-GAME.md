@@ -1,82 +1,76 @@
-# Creating a game with the Waypoint RPG packages
+# Creating a sample game with Waypoint RPG
 
-This guide describes the packages and integration points that exist in this
-checkout. It uses Garden of Stories as a complete example. A new game should
-author its own world, characters, story, interface, renderer, and storage
-policy, while consuming reusable behavior from the two package roots.
+This guide documents the APIs present in the current checkout. A new game owns
+its world, narrative, gameplay definitions, renderer, user interface, cross-
+package policy, and persistence adapter. It installs the optional framework
+packages for generic state-machine behavior.
 
 ## Package ownership
 
-| Reusable package         | Provides                                                                                                                                           | Remains game-owned                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `waypoint-rpg-core`      | Generic reducer runtime, world/map/anchor types, graph navigation, pathfinding, persistence contracts                                              | Application state, commands, movement policy, spatial checks, world content, renderer, storage adapter |
-| `waypoint-rpg-narrative` | Definition validation/compilation, conditions, typed effects, dialogue cursors, quest transitions, replay protection, state decoding and selectors | Narrative definitions and copy, valid interaction mapping, save envelope, interface, scene effects     |
+| Package                  | Reusable behavior                                                                                                                                               | Game-owned behavior                                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `waypoint-rpg-core`      | `createGameRuntime`, world/map/anchor types, navigation graphs, pathfinding, generic persistence contracts                                                      | Application state and commands, movement rules, arrival and interaction checks, browser storage                     |
+| `waypoint-rpg-narrative` | Definition validation/compilation, typed conditions and effects, dialogue, quest transitions, replay protection, snapshot decoding and selectors                | Characters, quests, dialogue text, trigger eligibility, narrative-to-world policy                                   |
+| `waypoint-rpg-gameplay`  | Progression, experience, inventory, equipment, derived attributes, abilities, statuses, deterministic tactical combat, rewards, outcome markers, snapshot codec | Items and combat definitions, encounter eligibility, trusted rewards, UI, mapping combat outcomes into story events |
 
 ```mermaid
-flowchart LR
-  G[Game UI and world] -->|validated command| R[Game reducer]
-  R --> C[waypoint-rpg-core]
-  R --> N[waypoint-rpg-narrative]
-  A[Game-authored definitions] --> N
-  N -->|committed snapshot| R
-  R -->|facts / quest status| G
-  R -->|snapshot| S[Game-owned storage adapter]
-  S -->|decoded snapshot| R
+flowchart TD
+  UI[Browser UI and Three.js scenes] -->|validated game commands| G[Game application]
+  G --> C[waypoint-rpg-core]
+  G --> N[waypoint-rpg-narrative]
+  G --> P[waypoint-rpg-gameplay]
+  A[Game-owned story and gameplay definitions] --> N
+  A --> P
+  G --> X[Cross-package transaction coordinator]
+  X -->|accepted outcome and authored trigger| N
+  X -->|verified combat state and bounded reward| P
+  G -->|facts, quests, progression, world| UI
+  G --> S[Game-owned versioned persistence adapter]
+  S -->|decoded package snapshots| G
 ```
 
-The core and narrative packages deliberately have different roles. Narrative
-is optional; a world-navigation game can install core without the narrative
-package. Neither package contains a renderer, game story, browser UI, or
-browser storage implementation.
+The packages have no dependency on one another. A game may install only the
+ones it uses. None includes a renderer, story, browser UI, or browser-storage
+implementation. Do not import package internals or copy package algorithms
+into a sample.
 
-## Start with a game-owned runtime
+## Compose one authoritative runtime
 
-Import only public package roots. The packages do not support private deep
-imports. Keep one runtime store as the authoritative owner of committed game
-state, and put all durable state transitions in its reducer:
+Import the package roots and keep committed game state in one application-owned
+reducer hosted by core:
 
 ```ts
 import { createGameRuntime, findPath } from 'waypoint-rpg-core';
 import type { AnchorId } from 'waypoint-rpg-core';
 
-interface State {
+interface GameState {
   readonly mapId: 'village' | 'garden';
   readonly anchorId: AnchorId;
+  readonly narrative: NarrativeState;
+  readonly gameplay: GameplayState;
 }
 
-type Command =
-  | { readonly type: 'MOVE_TO'; readonly anchorId: AnchorId }
-  | { readonly type: 'ARRIVE'; readonly anchorId: AnchorId };
-
-const runtime = createGameRuntime<State, Command>({
-  createInitialState: () => initialState,
-  reducer(state, command) {
-    // Validate map, route, and committed arrival here before returning new state.
-    return reduceGameCommand(state, command);
-  },
+const runtime = createGameRuntime<GameState, GameCommand>({
+  createInitialState: createInitialGame,
+  reducer: reduceGameCommand,
 });
 ```
 
-The concrete game may use a smaller or richer state and command union. The
-runtime supplies state access, dispatch, subscription, and disposal; it does
-not choose the game's rules. Use `findPath(graph, startId, targetId)` and other
-core world helpers for declared graph navigation. A reachable path is not an
-arrival: the game must dispatch and validate its own arrival command before
-allowing target interaction or narrative effects. Check exact map, committed
-anchor, and other spatial rules in the reducer or application-owned command
-boundary.
+The core runtime provides state access, dispatch, subscription, and disposal;
+it does not make game decisions or access storage. A path found by `findPath`
+does not prove that the player arrived. The application commits arrival
+commands and checks current map, exact anchor, interaction owner, and any
+required quest facts before an interaction can cause an effect.
 
-Garden's `src/game/runtime.ts` shows these checks, including guarded route IDs,
-per-waypoint `ARRIVE`, valid map transitions, and an exact-target interaction
-requirement. Its DOM and 3D scene both dispatch commands; neither edits state
-directly.
+`examples/garden-adventure/src/game/runtime.ts` shows an application-owned
+coordinator for narrative and gameplay snapshots. UI components dispatch
+commands and read selectors; they do not mutate package state directly.
 
-## Author and compile the story
+## Author narrative content
 
-Write a `NarrativeDefinition` in the game package, keeping stable IDs and
-locale-keyed copy with that game. The current public API supports versioned
-definitions, dialogues, choices, conditions, typed effects, quests, and
-triggers. Validate definitions and compile once at runtime creation:
+Keep stable dialogue, node, choice, quest, trigger, fact, and ending IDs with
+the game. Validate and compile the authored `NarrativeDefinition`; create one
+state with the same playthrough ID used by compatible package states:
 
 ```ts
 import {
@@ -87,114 +81,127 @@ import {
   getQuestStatus,
   transitionNarrative,
   validateNarrative,
-  type NarrativeDefinition,
 } from 'waypoint-rpg-narrative';
 
-const definition: NarrativeDefinition = authoredStory;
-const diagnostics = validateNarrative(definition);
-if (!diagnostics.ok) throw new Error('Fix the authored narrative diagnostics');
-const compiled = compileNarrative(definition);
-let narrative = createNarrativeState(compiled, newPlaythroughId());
+const report = validateNarrative(storyDefinition);
+if (!report.ok) throw new Error('Fix story definition diagnostics first.');
+const story = compileNarrative(storyDefinition);
+let narrative = createNarrativeState(story, playthroughId);
 
-const result = transitionNarrative(compiled, narrative, {
+const result = transitionNarrative(story, narrative, {
   type: 'open-dialogue',
-  dialogueId: definition.entryDialogueId,
+  dialogueId: storyDefinition.entryDialogueId,
   playthroughId: narrative.playthroughId,
   expectedRevision: narrative.revision,
 });
 if (result.accepted) narrative = result.state;
 
-const dialogue = getDialogueView(compiled, narrative, 'fa');
-const questStatus = getQuestStatus(compiled, narrative, 'my-quest');
-const worldFact = getFact(narrative, 'my-world-change');
+const dialogue = getDialogueView(story, narrative, 'fa');
+const questStatus = getQuestStatus(story, narrative, 'quest-id');
+const fact = getFact(narrative, 'world-change');
 ```
 
-Actual transition commands are discriminated by `type` (`open-dialogue`,
-`choose`, `advance`, `exit-dialogue`, `finish`, or `trigger`). Each command must
-include the current `playthroughId` and `expectedRevision`. The result says
-whether the transition was accepted; only replace state with an accepted
-result. These checks reject stale or replayed commands and keep the transition
-deterministic. `getDialogueView`, `getQuestStatus`, and `getFact` are selectors;
-they do not mutate the story.
+Supported commands include `open-dialogue`, `choose`, `advance`,
+`exit-dialogue`, `finish`, and `trigger`. Each uses the current playthrough ID
+and expected revision. Use `decodeNarrativeState` to validate restored data.
+Only replace the snapshot after an accepted transition. Trigger effects are
+authored data; location, target ownership, and command eligibility are still
+application policy.
 
-Garden stores its story at `examples/garden-adventure/src/content/story.ts`.
-Its triggers declare both condition and effects. Application code first checks
-the active map, committed arrival, and exact target, then submits only a known
-trigger ID with `transitionNarrative`. There is no arbitrary effect callback or
-general event-bus API.
+## Author gameplay and render package state
 
-## Project facts into the game world
+Define characters, attributes/resources, items, equipment, abilities, status
+effects, boards, encounters, rewards, and outcome mappings as a
+`GameplayDefinition`. Validate and compile it once. The public package APIs
+include:
 
-The reducer stores the accepted narrative snapshot alongside the app-owned map
-and anchor. React UI and scene components read facts and quest selectors from
-the committed snapshot. For example, Garden maps `tree-grown` to a blossoming
-tree and `lantern-lit` to a lit lantern. A scene displays these facts; it does
-not complete quests or call narrative effects directly.
+- `createGameplayState`, `transitionGameplay`, and trusted `applyGameplayGrant`
+- `getCharacterLevel`, `getCharacterAttributes`,
+  `getEffectiveCharacterAttributes`, `getUnlockedAbilityIds`, and
+  `getInventorySlotCount`
+- `encodeGameplayState` and `decodeGameplayState`
 
-World registrations, scene loading/unloading, camera choice, pointer/touch
-ownership, keyboard controls, and cleanup are app-owned. The
-`examples/scene-demo/` and `examples/garden-adventure/` directories show two
-small independent 3D hosts. Their private files are examples, not shared
-modules to import. Do not add a renderer package solely to reuse a small scene
-component.
+The package owns progression arithmetic, inventory limits, equipment
+eligibility, target/range validation, turn ownership, enemy decisions, status
+durations, outcome markers, and reward replay protection. Do not recreate those
+rules in React. Author sample-specific definitions and use selectors to render
+the results. In Garden, the charm modifier comes from
+`getCharacterAttributes`, status-adjusted movement comes from
+`getEffectiveCharacterAttributes`, and inventory capacity comes from
+`getInventorySlotCount`.
 
-For replaceable art, expose sample-owned model components with stable props
-such as position, target type, and narrative facts. Keep interaction and game
-state outside those components. Locally licensed GLB models can replace the
-procedural component bodies without changing story or navigation logic.
+The renderer projects committed facts and gameplay state. For example, Garden
+renders a blossoming tree when the narrative `tree-grown` fact is true and a
+lit lantern when `lantern-lit` is true. Scene components never complete quests,
+grant experience, or resolve combat.
 
-## Own storage and recovery in the game
+## Coordinate cross-package outcomes transactionally
 
-The narrative package defines a JSON-compatible snapshot but never reads
-storage. The core package publishes generic persistence contracts, but does
-not provide the browser repository, boot coordinator, or save schema for a
-particular game. Define an application-owned envelope that includes a schema
-version, game identity, content/compatibility version, active map, committed
-anchor, and narrative snapshot. Namescope browser keys to that sample.
+Do not let a battle UI dispatch an arbitrary narrative trigger or reward grant.
+The application reducer should handle a terminal encounter as one combined
+state transition:
 
-Use `decodeNarrativeState(compiled, value)` to validate narrative state and
-classify unsupported or structurally incompatible content. Validate the map
-and anchor against the game's current world. Then restore through a game
-command, keeping reducers and framework packages free of `localStorage` or
-IndexedDB calls. Explicitly choose how the game preserves bad bytes, offers a
-temporary session, handles reset, and saves only after stable transitions.
+1. Check the active map, playthrough ID, gameplay revision, and encounter
+   instance ID.
+2. Pass the player intent to `transitionGameplay`.
+3. For a terminal accepted result, find the package-authored outcome marker and
+   verify its consequence against the compiled encounter's outcome mapping.
+4. Map only that known consequence ID to a predefined narrative trigger.
+5. Run `transitionNarrative` with the current narrative revision.
+6. Commit both resulting snapshots together only if every step succeeds.
 
-Garden implements this in `src/persistence/garden-save.ts` with the isolated
-`waypoint-rpg:garden-adventure:save` key, strict envelope checks, temporary
-recovery, manual and arrival autosave, and reset. The reducer accepts only the
-decoded plain snapshot through `RESTORE_GAME`.
+If narrative rejects the event, return the original combined application
+state. This prevents a saved victory without its story consequence or a story
+ending without a verified encounter. Stable encounter instance IDs, each
+package revision, playthrough identity, and package replay guards reject stale
+or duplicate commands. Garden's `applyBattleAction` implements this boundary.
 
-## Verify installed packages, not only workspace links
+## Own persistence and recovery
 
-Workspace builds prove the API works in the monorepo. An independent consumer
-should pack the compiled packages, install those archives in a temporary
-directory outside the checkout, resolve JavaScript and declarations from the
-package roots, and reject private deep imports. Then build and run its browser
-smoke from that isolated installation.
+Packages never read browser storage. Define a game-owned envelope containing a
+schema version, compatibility metadata, playthrough identity, current map and
+anchor, narrative snapshot, and `encodeGameplayState` output. Restore through
+`decodeNarrativeState` and `decodeGameplayState`, verify cross-package
+consistency, then dispatch a plain restore command. Never serialize compiled
+indexes, Three.js objects, UI state, or renderer resources.
 
-From this repository, the Garden gate is:
+Garden stores its envelope under the isolated key
+`waypoint-rpg:garden-adventure:save`. It supports new game, save/continue,
+active-combat reload, completed-story reload, reset, and v1-to-v2 migration.
+Corrupt or unsupported bytes remain untouched until the player confirms a
+reset; browser storage exceptions switch the current session to unsaved mode.
+
+## Build and verify independent packages
+
+Workspace links are useful during development, but they do not prove
+independent consumption. Pack each compiled package, install the archives in a
+temporary consumer outside the checkout, reject deep imports, resolve root
+ESM and TypeScript declarations, build the application, and run its browser
+smoke. Garden's three-package gate is:
 
 ```bash
 npm run framework:garden-consumer
 ```
 
-It copies the sample outside the repository, installs the locked development
-toolchain separately, installs the locally packed core and narrative tarballs
-offline, verifies ESM and TypeScript declarations, and runs unit/build/browser
-checks. Offline archive installation does not imply that a fresh Vite,
-TypeScript, or Playwright toolchain can be installed offline.
+It installs the locked toolchain separately from offline package archives.
+Each of the three archives is also installed alone and checked with native
+ESM plus TypeScript NodeNext and Bundler resolution. The combined sample is
+then type-checked, unit-tested, production-built, and exercised in Chromium.
+Offline archive installation does not mean a new Playwright/Vite toolchain can
+be downloaded offline.
 
-## Useful sample commands
+## Develop, test, and capture
 
 ```bash
 npm run sample:garden:dev
 npm run sample:garden:build
 npm run sample:garden:test
 npm run sample:garden:e2e
+npm run framework:garden-consumer
 npm run sample:garden:previews
 ```
 
-The screenshot command captures actual production browser states, including
-both story outcomes and a restored save, then records the source commit and
-image hashes. The full gallery generation and merge-triggered artifact/README
-proposal remain integrated with the existing `sample-previews.yml` workflow.
+The last command captures the production build in Chromium. It waits for the
+scene probe, checks the canvas/camera/mesh state, verifies PNG dimensions and
+hashes, and records the capture's source commit. Images are documentation
+artifacts, not pixel-perfect regression baselines.

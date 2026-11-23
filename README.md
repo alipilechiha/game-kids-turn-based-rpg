@@ -16,7 +16,7 @@ microphone, geolocation or device identifiers. Progress lives only in the browse
 
 ## Framework roadmap
 
-**3/7 phases completed** · Next: **Phase 4 — Gameplay modules** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
+**4/7 phases completed** · Next: **Phase 5 — Animation/cinematics** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
 
 ```mermaid
 flowchart LR
@@ -24,9 +24,9 @@ flowchart LR
   classDef complete fill:#dcfce7,stroke:#15803d,color:#14532d
   classDef next fill:#fef3c7,stroke:#b45309,color:#78350f
   classDef planned fill:#e5e7eb,stroke:#6b7280,color:#1f2937
-  class P1,P2,P3 complete
-  class P4 next
-  class P5,P6,P7 planned
+  class P1,P2,P3,P4 complete
+  class P5 next
+  class P6,P7 planned
 ```
 
 | Phase | Status | Evidence |
@@ -34,8 +34,8 @@ flowchart LR
 | 1. Reusable core | ✅ Complete | [PR #110](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/110) |
 | 2. World/renderer | ✅ Complete | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111) |
 | 3. Narrative/quests | ✅ Complete | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113) |
-| 4. Gameplay modules | ➡️ Next | — |
-| 5. Animation/cinematics | ⏳ Planned | — |
+| 4. Gameplay modules | ✅ Complete | [PR #116](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/116); [29 gameplay tests](../packages/gameplay/test/) |
+| 5. Animation/cinematics | ➡️ Next | — |
 | 6. Developer tools | ⏳ Planned | — |
 | 7. Shahnameh proof of concept | ⏳ Planned | — |
 
@@ -82,23 +82,24 @@ An independent two-scene consumer demonstrating framework narrative, scene loadi
 
 ### باغ قصه‌ها — Implemented and playable
 
-A complete Persian 3D adventure using the installed public core and narrative packages. Two story paths change the garden and persist across reloads.
+A complete Persian 3D adventure using the installed public core, narrative, and gameplay packages. Two story paths include a real tactical encounter, visible garden changes, and persistent progress.
 
 [Game guide](examples/garden-adventure/README.md) · `npm run sample:garden:dev`
 
 | Capture | Actual browser rendering |
 | --- | --- |
 | Village | ![Actual باغ قصه‌ها — Village](docs/previews/garden-adventure/02-village.png) |
-| Persian NPC dialogue | ![Actual باغ قصه‌ها — Persian NPC dialogue](docs/previews/garden-adventure/03-npc-dialogue.png) |
-| Branching story choice | ![Actual باغ قصه‌ها — Branching story choice](docs/previews/garden-adventure/04-story-choice.png) |
+| Persian NPC dialogue | ![Actual باغ قصه‌ها — Persian NPC dialogue](docs/previews/garden-adventure/03-dialogue.png) |
+| Inventory and equipment | ![Actual باغ قصه‌ها — Inventory and equipment](docs/previews/garden-adventure/04-inventory.png) |
 | Garden before the objective | ![Actual باغ قصه‌ها — Garden before the objective](docs/previews/garden-adventure/05-garden-before.png) |
-| Garden · gardener path | ![Actual باغ قصه‌ها — Garden · gardener path](docs/previews/garden-adventure/06-garden-after-help.png) |
-| Garden · lantern path | ![Actual باغ قصه‌ها — Garden · lantern path](docs/previews/garden-adventure/07-garden-after-light.png) |
-| Story ending | ![Actual باغ قصه‌ها — Story ending](docs/previews/garden-adventure/08-ending.png) |
-| Mobile portrait | ![Actual باغ قصه‌ها — Mobile portrait](docs/previews/garden-adventure/09-portrait.png) |
-| Restored saved garden | ![Actual باغ قصه‌ها — Restored saved garden](docs/previews/garden-adventure/10-restored.png) |
+| Garden · gardener path | ![Actual باغ قصه‌ها — Garden · gardener path](docs/previews/garden-adventure/06-garden-restored.png) |
+| 5×5 tactical battle | ![Actual باغ قصه‌ها — 5×5 tactical battle](docs/previews/garden-adventure/07-tactical-battle.png) |
+| Ability and status effect | ![Actual باغ قصه‌ها — Ability and status effect](docs/previews/garden-adventure/08-ability-effect.png) |
+| Garden · guardian path | ![Actual باغ قصه‌ها — Garden · guardian path](docs/previews/garden-adventure/09-guardian-outcome.png) |
+| Story ending | ![Actual باغ قصه‌ها — Story ending](docs/previews/garden-adventure/10-ending.png) |
+| Restored saved garden | ![Actual باغ قصه‌ها — Restored saved garden](docs/previews/garden-adventure/12-restored.png) |
 
-Other captures: [01-title](docs/previews/garden-adventure/01-title.png).
+Other captures: [01-title](docs/previews/garden-adventure/01-title.png) · [11-mobile](docs/previews/garden-adventure/11-mobile.png).
 
 **Status key:** Implemented and playable means the sample can be completed; Technical demonstration means it focuses on framework integration. The Shahnameh proof of concept is **Planned**. Verification beyond Chromium with software WebGL and on physical devices is **Not yet verified**.
 

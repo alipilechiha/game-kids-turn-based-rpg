@@ -7,16 +7,17 @@ import { expect, test, type Page } from '@playwright/test';
 const fileNames = [
   '01-title.png',
   '02-village.png',
-  '03-npc-dialogue.png',
-  '04-story-choice.png',
+  '03-dialogue.png',
+  '04-inventory.png',
   '05-garden-before.png',
-  '06-garden-after-help.png',
-  '07-garden-after-light.png',
-  '08-ending.png',
-  '09-portrait.png',
-  '10-restored.png',
+  '06-garden-restored.png',
+  '07-tactical-battle.png',
+  '08-ability-effect.png',
+  '09-guardian-outcome.png',
+  '10-ending.png',
+  '11-mobile.png',
+  '12-restored.png',
 ] as const;
-const saveKey = 'waypoint-rpg:garden-adventure:save';
 const repoRoot = resolve(process.cwd(), '../..');
 const output = resolve(repoRoot, 'docs/previews/garden-adventure');
 const manifestPath = resolve(output, 'provenance.json');
@@ -69,12 +70,26 @@ async function capture(page: Page, fileName: (typeof fileNames)[number]) {
   };
 }
 
-async function beginGame(page: Page) {
+async function startGame(page: Page) {
   await page.getByTestId('garden-start').click();
   await waitForScene(page, 'village');
 }
 
-test('capture the real production Garden adventure and verify its image provenance', async ({
+async function followGuardianPath(page: Page) {
+  await interact(page, 'traveler');
+  await page.getByTestId('dialogue-choice-meet-traveler').click();
+  await expect(page.getByTestId('dialogue-panel')).toContainText('نشانی روی سنگ پنهان است');
+  await page.getByTestId('dialogue-choice-follow-light').click();
+  await interact(page, 'garden-gate');
+  await waitForScene(page, 'garden');
+  await interact(page, 'clue-stone');
+  await interact(page, 'guardian');
+  await expect(page.getByTestId('dialogue-panel')).toContainText('بازی نوری دوستانه');
+  await page.getByTestId('dialogue-choice-challenge-guardian').click();
+  await expect(page.getByTestId('battle-board').locator('button')).toHaveCount(25);
+}
+
+test('capture real production gameplay states and verify screenshot provenance', async ({
   page,
 }) => {
   const dirtyRuntime = execFileSync(
@@ -100,7 +115,6 @@ test('capture the real production Garden adventure and verify its image provenan
   expect(sourceCommit).toMatch(/^[0-9a-f]{40}$/);
   mkdirSync(output, { recursive: true });
 
-  const previous = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : null;
   const pageErrors: string[] = [];
   const captures: Awaited<ReturnType<typeof capture>>[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -112,40 +126,40 @@ test('capture the real production Garden adventure and verify its image provenan
   );
   captures.push(await capture(page, '01-title.png'));
 
-  await beginGame(page);
+  await startGame(page);
   captures.push(await capture(page, '02-village.png'));
   await interact(page, 'gardener');
   await expect(page.getByTestId('dialogue-panel')).toContainText('چراغ باغ خاموش شده است');
-  captures.push(await capture(page, '03-npc-dialogue.png'));
+  captures.push(await capture(page, '03-dialogue.png'));
   await page.getByTestId('dialogue-choice-listen-gardener').click();
-  await expect(page.getByTestId('dialogue-panel')).toContainText('یک دانه ویژه دارم');
-  captures.push(await capture(page, '04-story-choice.png'));
   await page.getByTestId('dialogue-choice-help-gardener').click();
 
   await interact(page, 'garden-gate');
   await waitForScene(page, 'garden');
-  await expect(page.getByTestId('quest-status')).toContainText('سبد دانه‌ها را در روستا پیدا کن');
   captures.push(await capture(page, '05-garden-before.png'));
-
   await interact(page, 'village-gate');
   await waitForScene(page, 'village');
   await interact(page, 'seed-basket');
+  await expect(page.getByTestId('quest-status')).toContainText('دانه را در بستر باغ بکار');
   await interact(page, 'garden-gate');
   await waitForScene(page, 'garden');
   await interact(page, 'planting-bed');
   await expect(page.getByTestId('ending-panel')).toContainText('دانه جوانه زد');
-  captures.push(await capture(page, '08-ending.png'));
   await page.getByTestId('ending-close').click();
   await expect
     .poll(() =>
       page.evaluate(() => window.__gardenProbe?.renderedConsequences.includes('grown-tree')),
     )
     .toBe(true);
-  captures.push(await capture(page, '06-garden-after-help.png'));
+  captures.push(await capture(page, '06-garden-restored.png'));
+  await page.getByTestId('inventory-panel').locator('summary').click();
+  await expect(page.getByTestId('inventory-lantern-charm')).toContainText('آویز فانوس: 1');
+  await expect(page.getByTestId('toggle-lantern-charm')).toBeVisible();
+  captures.push(await capture(page, '04-inventory.png'));
 
-  await page.setViewportSize({ width: 430, height: 860 });
+  await page.setViewportSize({ width: 390, height: 844 });
   await waitForScene(page, 'garden');
-  captures.push(await capture(page, '09-portrait.png'));
+  captures.push(await capture(page, '11-mobile.png'));
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await page.reload();
@@ -159,20 +173,25 @@ test('capture the real production Garden adventure and verify its image provenan
       page.evaluate(() => window.__gardenProbe?.renderedConsequences.includes('grown-tree')),
     )
     .toBe(true);
-  captures.push(await capture(page, '10-restored.png'));
 
-  await page.evaluate((key) => localStorage.removeItem(key), saveKey);
+  await page.getByTestId('garden-new-game').click();
+  await page.getByTestId('garden-confirm-reset').click();
+  await waitForScene(page, 'village');
+  await followGuardianPath(page);
+  captures.push(await capture(page, '07-tactical-battle.png'));
+  await page.getByTestId('battle-cell-2-2').click();
+  await expect(page.getByTestId('battle-statuses')).toContainText('گرده رنگین');
   await page.reload();
-  await expect(page.getByTestId('garden-start')).toBeVisible();
-  await beginGame(page);
-  await interact(page, 'traveler');
-  await page.getByTestId('dialogue-choice-meet-traveler').click();
-  await expect(page.getByTestId('dialogue-panel')).toContainText('نشانی روی سنگ پنهان است');
-  await page.getByTestId('dialogue-choice-follow-light').click();
-  await interact(page, 'garden-gate');
-  await waitForScene(page, 'garden');
-  await interact(page, 'clue-stone');
-  await interact(page, 'ancient-lantern');
+  await expect(page.getByTestId('garden-continue')).toBeVisible();
+  await page.getByTestId('garden-continue').click();
+  await expect(page.getByTestId('battle-layer')).toBeVisible();
+  await expect(page.getByTestId('battle-statuses')).toContainText('گرده رنگین');
+  captures.push(await capture(page, '12-restored.png'));
+  await page.getByTestId('battle-ability-gentle-ward').click();
+  await expect(page.getByTestId('battle-statuses')).toContainText('درخشش پایدار');
+  captures.push(await capture(page, '08-ability-effect.png'));
+  await page.getByTestId('battle-ability-light-ray').click();
+  await page.getByTestId('battle-ability-light-ray').click();
   await expect(page.getByTestId('ending-panel')).toContainText('فانوس روشن شد');
   await page.getByTestId('ending-close').click();
   await expect
@@ -180,32 +199,42 @@ test('capture the real production Garden adventure and verify its image provenan
       page.evaluate(() => window.__gardenProbe?.renderedConsequences.includes('lit-lantern')),
     )
     .toBe(true);
-  captures.push(await capture(page, '07-garden-after-light.png'));
+  captures.push(await capture(page, '09-guardian-outcome.png'));
+  await page.getByTestId('garden-view-recap').click();
+  await expect(page.getByTestId('ending-panel')).toContainText('فانوس روشن شد');
+  captures.push(await capture(page, '10-ending.png'));
+  await page.getByTestId('ending-close').click();
+  await page.reload();
+  await expect(page.getByTestId('garden-continue')).toBeVisible();
+  await page.getByTestId('garden-continue').click();
+  await expect(page.getByTestId('ending-panel')).toContainText('فانوس روشن شد');
+  await page.getByTestId('ending-close').click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__gardenProbe?.renderedConsequences.includes('lit-lantern')),
+    )
+    .toBe(true);
 
   expect(pageErrors, 'Unhandled browser errors during Garden screenshot capture').toEqual([]);
   expect(captures.map((item) => item.file).sort()).toEqual([...fileNames].sort());
 
-  const previousHashes = new Map(
-    (previous?.images ?? []).map((image: { file: string; sha256: string }) => [
-      image.file,
-      image.sha256,
-    ]),
-  );
-  const imagesChanged = captures.some((item) => previousHashes.get(item.file) !== item.sha256);
   const manifest = {
     schemaVersion: 1,
-    sourceCommit:
-      imagesChanged || previous?.sourceCommit === undefined ? sourceCommit : previous.sourceCommit,
+    sourceCommit,
     images: captures.sort((a, b) => a.file.localeCompare(b.file)),
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 });
 
-function existsSync(path: string): boolean {
-  try {
-    statSync(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
+test('portrait layout remains legible and controls meet the responsive viewport', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'باغ قصه‌ها' })).toBeVisible();
+  await page.getByTestId('garden-start').click();
+  await waitForScene(page, 'village');
+  await expect(page.locator('.target-navigation')).toBeVisible();
+  await expect(page.getByTestId('target-gardener')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+});

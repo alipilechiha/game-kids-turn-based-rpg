@@ -1,90 +1,219 @@
-# باغ قصه‌ها — Garden of Stories
+# باغ قصه‌ها — Phase 1–4 Sample Implementation
 
-## Objective
+## Objective and constraints
 
-Add a small, complete Persian 3D RPG sample at `examples/garden-adventure/` that proves a new game can consume the published `waypoint-rpg-core` and `waypoint-rpg-narrative` archives. Players explore a village and garden, choose one of two quests, see a different persistent 3D outcome, and finish a short story. Keep the root Kids RPG and both framework packages free of Garden content.
+Deliver a complete, independently playable Persian 3D RPG at
+`examples/garden-adventure/` using the public roots of `waypoint-rpg-core`,
+`waypoint-rpg-narrative`, and `waypoint-rpg-gameplay`. The sample demonstrates
+Phases 1–4 without adding Garden content to reusable packages or changing the
+Kids RPG, Blood Leaf, or hello-world behavior. Do not push, open a PR, or merge.
 
-## Current repository state
+The sample contains two connected environments, a gardener story path with
+inventory and planting, a guardian path with genuine package-backed tactical
+combat, two positive endings, a non-punitive withdrawal outcome, coordinated
+save/restore/reset, production Chromium gameplay tests, and actual browser
+screenshots. Phase 5 cinematics and Phase 6 editors are outside scope.
 
-- Feature branch `codex/garden-adventure-sample` starts from the verified remote main commit `db66865827f78db4c97a4347711e314e47c984d9`, after PRs #113, #114, and #115 were merged.
-- `examples/scene-demo/` already demonstrates the core and narrative root exports, standalone React Three Fiber rendering, navigation, cancellable scene transitions, persistence, story save/load, software-WebGL smoke, and an isolated tarball install.
-- The root README roadmap is generated from `docs/FRAMEWORK-ROADMAP.md`. The existing `sample-previews.yml` workflow captures legacy game states and creates a reviewable README gallery PR from branch `automation/legacy-sample-previews`.
-- Core and narrative packages export only their package root. Their `exports` map provides ESM JavaScript and TypeScript declarations.
-- `npm ci` completed in the feature worktree with Node.js 22.23.5 and npm 10.9.9. The first baseline `npm run verify` stops at `format:check` because the merged `scripts/sync-sample-gallery.mjs` is not Prettier-formatted. This is a verified pre-existing main-branch issue. Finish the shared gallery integration in S6 with that generator correctly formatted, then run the full verification without skipping stages.
+## Baseline and source audit
 
-## Architecture and dependency flow
+- Phase 4 merge evidence: PR #116, commit
+  `693aae689065d108e84b85a16c5651d625c29ab2`.
+- The cached `origin/main` points to that merge commit. A fresh `git ls-remote`
+  request could not reach GitHub in this environment, so a newer remote tip
+  could not be confirmed during finalization.
+- The actual current package roots and exported APIs were inspected before the
+  Garden integration. No package internals are imported by the sample.
+- The existing screenshot workflow was extended in place; it retains one
+  reviewable gallery PR path and uploads preview artifacts after captures.
+- `src/domain/`, `src/framework/`, and `src/app/` have no Garden changes.
+- The root Kids RPG save format and IndexedDB schema are unchanged.
+
+## Dependency and transaction model
 
 ```text
-Pointer / keyboard / touch
-        ↓ validated sample-owned commands
-Garden reducer ← createGameRuntime ← waypoint-rpg-core
-        ↓ narrative command with playthrough ID and expected revision
-transitionNarrative ← authored Garden definition ← waypoint-rpg-narrative
-        ↓ committed narrative facts, quest status, map and anchor
-Persian DOM HUD + registered Three.js scenes
-        ↑ committed durable state
-Garden save coordinator → versioned, Garden-only localStorage key
+Browser UI and sample-owned Three.js scenes
+                 │ validated game commands
+                 ▼
+     Garden coordinator and reducer
+       ├── waypoint-rpg-core runtime and navigation
+       ├── waypoint-rpg-narrative story snapshot
+       ├── waypoint-rpg-gameplay combat/progression snapshot
+       ├── trusted cross-package outcome transaction
+       └── isolated, versioned Garden save adapter
 ```
 
-The runtime store is the sole owner of committed application state. The narrative package owns dialogue and quest transitions. Garden owns proximity and interaction checks, map registration, path animation and arrival commits, rendering, copy, and browser storage. Rendering reads narrative facts and never changes them. Store commands reject stale routes, wrong-map targets, distant interactions, invalid narrative revisions, and duplicate one-time triggers.
+The application reducer owns the combined durable state and domain policy.
+Core hosts the runtime and graph/pathfinding primitives. Narrative owns the
+authored story transition machine. Gameplay owns character progression,
+inventory/equipment, abilities/statuses, tactical combat, rewards, and its
+snapshot codec. The app validates location/arrival and interaction ownership.
+Rendering projects committed facts and gameplay selectors; it does not write
+domain state.
 
-## File map
+Combat terminal actions pass through `transitionGameplay`. The coordinator
+verifies the accepted terminal outcome, playthrough and encounter instance,
+maps only the authored consequence ID to a fixed narrative trigger, and applies
+`transitionNarrative`. It commits both resulting snapshots only if both package
+transitions accept. Rejection preserves the original combined state. Rewards
+are package-owned and replay-protected; the browser UI cannot dispatch trusted
+grants, enemy turns, or arbitrary narrative triggers.
 
-- `examples/garden-adventure/package.json`, `package-lock.json`, `index.html`, `tsconfig.json`, `vite.config.ts`, and `playwright.config.ts` define the separately installable web application and its scripts.
-- `examples/garden-adventure/src/main.tsx`, `App.tsx`, and `style.css` own Persian RTL screens, accessibility, responsive layout, browser lifecycle, and the R3F canvas.
-- `examples/garden-adventure/src/game/runtime.ts`, `commands.ts`, and `state.ts` compose the generic core runtime with sample-owned state and guarded gameplay commands.
-- `examples/garden-adventure/src/content/fa/story.ts` owns the definition and Persian dialogue. `content/narrative.ts` compiles it. Story-specific tests validate its alternatives, effects, conditions, quests, terminal outcomes, and replay behavior.
-- `examples/garden-adventure/src/world/` owns village and garden maps, typed anchors, graph edges, landmarks, interaction range, arrival completion, and reciprocal transitions.
-- `examples/garden-adventure/src/scenes/` owns scene registry, orthographic camera, procedural landmarks, player, visible branch consequences, load cancellation, and disposal. `assets/` is the future local GLB replacement boundary.
-- `examples/garden-adventure/src/ui/` owns accessible title, dialogue, quest objective, save, recovery, reset, and ending views. All authored child-facing Persian copy remains in `src/content/fa/`.
-- `examples/garden-adventure/src/persistence/` owns the versioned save envelope, decoding, autosave, reset, and storage failure policy.
-- `examples/garden-adventure/test/` holds unit and DOM tests. `examples/garden-adventure/e2e/` holds the dedicated full-playthrough, lifecycle and screenshot tests. The sample Playwright config is excluded from root Kids RPG E2E discovery.
-- `scripts/check-framework-garden-consumer.mjs` reuses the existing temporary archive-consumer helpers. `scripts/capture-garden-previews.mjs` validates PNG signatures, dimensions, sizes, and SHA provenance after Playwright drives the production sample.
-- `.github/workflows/sample-previews.yml`, `scripts/sync-sample-gallery.mjs`, the generated README gallery, and `docs/previews/garden-adventure/` extend the existing screenshot workflow.
-- `examples/garden-adventure/README.md` documents this game. `docs/CREATING-A-SAMPLE-GAME.md` explains the checked-out public APIs and independent archive workflow.
+## Implemented file map
 
-## Decisions and scope
+- `examples/garden-adventure/src/game/` composes the three public packages,
+  validates map/anchor and interaction ownership, and contains the
+  cross-package transaction coordinator.
+- `examples/garden-adventure/src/content/story.ts` and
+  `src/content/gameplay.ts` hold all Garden-specific definitions and stable
+  authored IDs. `src/content/fa/` holds the Persian interface copy.
+- `examples/garden-adventure/src/world/` defines the village and garden,
+  navigation anchors, gates, and committed arrivals.
+- `examples/garden-adventure/src/scenes/` owns the map registry, procedural
+  landmarks, camera, player presentation, load cancellation, disposal, and
+  projections of story facts into a grown tree or lit lantern.
+- `examples/garden-adventure/src/persistence/` owns the isolated versioned save
+  envelope, package snapshot decode/encode, migration, recovery, reset, and
+  storage-failure behavior.
+- `examples/garden-adventure/src/ui/`, `App.tsx`, and `style.css` provide the
+  title, RTL HUD, interactions, inventory/equipment, tactical board, endings,
+  responsive layouts, keyboard/touch controls, and accessibility behavior.
+- `examples/garden-adventure/test/` contains story, runtime, gameplay, and
+  persistence tests. `e2e/` contains full production browser paths, safety and
+  lifecycle checks, plus real preview captures.
+- `scripts/check-framework-garden-consumer.mjs` builds and packs all packages,
+  installs the archives in a temporary consumer outside the checkout, checks
+  root-only ESM and TypeScript declarations, then builds and smoke-tests Garden.
+- `scripts/capture-garden-previews.mjs` validates source-rendered PNGs and
+  records source/image SHA-256 provenance.
+- `.github/workflows/sample-previews.yml` extends the existing merge-triggered
+  preview/artifact/gallery proposal flow. `scripts/sync-sample-gallery.mjs`
+  generates the three-game README gallery.
+- `examples/garden-adventure/README.md` and
+  `docs/CREATING-A-SAMPLE-GAME.md` document the sample and its actual package
+  boundaries/APIs. `docs/FRAMEWORK-ROADMAP.md` remains the roadmap source of
+  truth; `npm run roadmap:sync` generates its README copy.
 
-- Use the existing React, Three.js, React Three Fiber, Vite, Vitest, and Playwright versions without a new dependency unless the implementation proves one is needed.
-- Use original procedural geometry and a single demand-rendered canvas, with an application-owned scene registry patterned on the public scene demo. Do not import scene-demo files.
-- One story definition offers gardener and traveler choices. Each choice starts one quest. The gardener path requires collecting a seed then planting it. The traveler path requires revealing a stone clue then lighting the lantern. One-time condition-checked triggers update narrative facts and complete quests. Terminal branch outcomes remain mutually exclusive per playthrough.
-- Players may exit dialogue freely, explore and change maps, and return to a recap after an ending. Arrival is committed only when the current requested path completes. Interaction dispatch validates the committed map and arrival anchor.
-- Save only committed map, anchor, and narrative snapshot under `waypoint-rpg:garden-adventure:save`. Preserve corrupt or incompatible bytes until explicit recovery or reset. An unsuccessful clear disables future saves for that new session.
-- Use all ten required screenshot filenames and capture only from the actual source-built production game. Capture on merges through the existing preview job, retaining its one review branch. Upload artifacts separately from the README proposal.
-- Keep the phase statuses in `docs/FRAMEWORK-ROADMAP.md` unchanged. Do not push, open a PR, or merge.
+## Milestone ledger
 
-## Implementation milestones
+### S1 — Source audit and plan: complete
 
-1. **S1 Audit and plan.** Record this architecture, file map, baseline and acceptance evidence. Commit this plan before implementation.
-2. **S2 Independent bootstrap.** Add the standalone Vite app, locked tool dependencies, core runtime composition, and archive gate. Pack and install both package archives in a temporary directory outside this repository. Typecheck and build before adding gameplay.
-3. **S3 Playable environments.** Complete: two connected navigable scenes, camera framing, keyboard/pointer controls, actual arrival commits, interactive targets, route cancellation, and cleanup. Verified premature, stale, and wrong-map interactions are rejected.
-4. **S4 Narrative.** Complete: author Persian content and two condition-gated quests. Both full branches and visibly different fact-driven consequences pass unit and production Chromium checks through the public narrative exports only.
-5. **S5 Persistence and gameplay tests.** Complete: the isolated storage adapter, validated restore command, save/reload, current-map restoration, duplicate/stale/invalid commands, ending revisit, reset, corrupt/unsupported recovery, offline reload, accessible controls, and lifecycle cleanup are covered by unit and production browser tests.
-6. **S6 Screenshots and docs.** Capture all ten states from the production build, record source and image hashes, extend the existing merge-triggered artifact and gallery workflow, write both docs, and commit.
-7. **S7 Final verification.** Run `npm run verify`, the core, narrative, and scene consumer gates, the Garden archive consumer, unit and Playwright suites, screenshot generation, and applicable release rollback compatibility. Review diffs for package boundary violations and legacy behavior changes. Commit scoped changes and verify a clean worktree.
+Inspected the three public package APIs, existing examples, consumer scripts,
+roadmap source, and merge-triggered preview workflow. Recorded the verified
+PR #116 baseline and implementation file map above. The cached `origin/main`
+points to the PR #116 merge; `git ls-remote` could not reach GitHub, so a newer
+remote tip could not be confirmed.
 
-## Execution ledger
+### S2 — Sample bootstrap and independent consumer gate: complete
 
-- S1 — complete. Rechecked merged PRs and package APIs, created the isolated feature branch from `db66865827f78db4c97a4347711e314e47c984d9`, installed locked dependencies, and recorded the baseline failure above. The baseline failure blocks the full suite at formatting only. No other baseline checks ran yet.
-- S2 — complete. Plan commit `56bef24`; bootstrap commit `141d908`. Added the Garden React/Vite project, a file lock using the repository-pinned toolchain and local framework workspace packages, a core-backed initial runtime, initial title/canvas, and the isolated tarball consumer script. The runtime test passed (1/1), standalone sample `npm ci --ignore-scripts --offline`, typecheck/build, and Chromium smoke (1/1) passed. `npm run framework:garden-consumer` passed package boundary checks, build and pack, separate toolchain install, offline archive install, ESM and declaration checks, unit tests, production build, and Chromium smoke from a temporary copy. The minimal Three.js bundle currently emits the standard Vite large-chunk warning; assess splitting after scenes are implemented.
-- S3 — complete. Added two sample-owned registered scenes, reciprocal transitions, orthographic camera following, procedural landmarks and targets, projected 3D pointer interaction, accessible target controls, waypoint pathfinding, guarded arrival commits, reduced-motion-aware movement, and scene/timer cleanup. World tests cover both graphs, reciprocal transitions, stale or premature arrival rejection, and wrong-map interactions. `npm run sample:garden:test` passed (5 tests), `npm run sample:garden:build` passed, and `npm run sample:garden:e2e` passed both production Chromium tests, including physical pointer movement and village→garden→village transitions. The 1.12 MB minified Three.js bundle still emits a Vite chunk-size warning; the built game remains interactive.
-- S4 — complete. Replaced the placeholder with the validated Persian `NarrativeDefinition`: two character-led routes, two conditional quests, four one-time world triggers, branch-specific terminal outcomes, and Garden-owned command gating. The core reducer dispatches authored narrative commands only after the player reaches the exact target; ending resolution uses the package’s dialogue, advance, and finish transitions. The DOM reads dialogue and quest state through public selectors, while the scene projects facts into a grown tree or warm lantern light. Seven Garden unit tests and all four production Chromium tests passed, including both complete branches and checks that the visible 3D consequences differ.
-- S5 — complete. Added a versioned sample-owned save envelope at `waypoint-rpg:garden-adventure:save`, validates current map anchors and snapshots through `decodeNarrativeState`, restores only through a pure runtime command, autosaves committed locations, and exposes manual save, continue, reset, temporary recovery, and unsupported/incompatible-save handling. Corrupt bytes remain untouched until explicit clear. Added a manifest and scoped native service worker; its install cache includes production JS, CSS, and local font assets. Thirteen Garden unit tests and all nine production Chromium tests passed, including map/quest/fact restoration, world visuals after reload, independent playthrough reset, corrupt/future-version recovery, and offline reload. The first offline run exposed duplicate local font URLs in CSS; precache URL deduplication fixed the service worker install, and failed installation now produces an explicit UI status.
-- S2 caveat — Garden package lock refers to local `../../packages/core` and `../../packages/narrative` only for in-repository development. The independent consumer gate removes those local links in its temporary copy, then installs built archives under its own `node_modules`. Offline archive installation and toolchain `npm ci` are separate steps.
-- Ruling — Use this plan’s ledger for progress because the installed SDD scratch helper could not start under Windows due to an MSYS signal-pipe permission error. The requested tracked plan already provides a durable, reviewable task record.
-- Ruling — Include the formatting repair for the existing gallery generator with S6, the shared gallery changes that expose the issue. This keeps S1’s baseline evidence intact and allows final `npm run verify` to run in full.
+Added the Vite/React app and a three-package archive consumer. The gate builds
+and packs the compiled packages, installs each archive independently in a
+temporary consumer outside the checkout, rejects deep imports, verifies native
+ESM plus NodeNext/Bundler declarations, then type-checks, unit-tests,
+production-builds, and launches Chromium against the app. Locked toolchain
+installation is separate from offline package archive installation.
 
-## Verification and completion criteria
+### S3 — World and interaction: complete
 
-- Run baseline `npm run verify` before gameplay implementation and record the result. Run it again on the finished branch.
-- Run `npm run framework:consumer`, `npm run framework:narrative-consumer`, and `npm run framework:scene-consumer` plus `npm run framework:garden-consumer`.
-- Garden consumer installs built archives offline in its own `node_modules`, verifies package realpaths, ESM and declarations, rejects private imports, launches the production output, and drives both stories in software-WebGL Chromium.
-- Garden unit and Playwright tests cover all acceptance cases in the original request, including actual committed arrival, visible restored consequences, no duplicated one-time effects, touch/keyboard and reduced motion, clean subscriptions, and no uncaught browser errors.
-- `npm run sample:garden:previews` generates ten valid real-browser screenshots from a documented source commit. No screenshot is presented as a pixel-perfect test baseline.
-- The game and new developer guide describe the actual public API, installed archive check, separate game-owned and reusable responsibilities, run/test/build/capture commands, offline behavior, and limitations.
-- No files in `src/domain/`, `src/framework/`, or `src/app/` change. No story content enters `packages/`. The legacy Kids RPG keeps its existing save and deployment behavior.
-- All S1–S7 commits are local. The final feature worktree is clean. Publishing and PR creation are outside authorization.
+Added registered village and garden scenes, camera framing, pointer/keyboard/
+touch targets, graph navigation, validated map transitions, committed-arrival
+checks, async cleanup, and WebGL context recovery. Procedural landmarks are
+sample-owned and can be replaced through a future local GLB asset boundary.
 
-## Known verification limits
+### S4 — Narrative and gardener path: complete
 
-The browser acceptance gate uses Chromium and software WebGL. It does not verify physical devices or every browser. The preview workflow’s create-PR operation depends on repository Actions permissions, while artifact upload remains independent. Network access may prevent toolchain installation; report a real blocker with the failing command if offline cache recovery cannot resolve it.
+Added the authored Persian story, condition-gated choices and quests, one-time
+triggers, endings, gardener seed objective, package-backed inventory and
+consumption, reward/equipment/progression, and fact-driven tree growth. The
+gardener route completes without combat.
+
+### S5 — Tactical gameplay and guardian path: complete
+
+Added a real package-backed 5×5 encounter with validated movement, turn
+ownership, resource-checked abilities, deterministic enemy decisions,
+temporary status effects, rewards, and terminal markers. The application
+verifies the committed outcome and atomically applies only its authored
+narrative consequence. Withdrawal returns a gentle retry state.
+
+### S6 — Persistence and regression tests: complete
+
+Added the isolated version-2 save envelope for both package snapshots, shared
+playthrough ID, current map/anchor, mid-combat restoration, ending restoration,
+reset, v1 Garden migration, corrupt/unsupported recovery, and storage
+exceptions. Garden unit tests pass 19/19; its production Chromium gameplay suite
+passes 13/13, including both story paths, replay/invalid-command guards,
+cross-package rollback, lifecycle, touch/keyboard, reduced motion, and restored
+world visuals.
+
+### S7 — Screenshots, documentation, roadmap and CI: complete
+
+- Captured twelve production-built Chromium states under
+  `docs/previews/garden-adventure/`, including both outcomes, the tactical
+  board, ending, portrait view, and restored save.
+- The manifest records source commit
+  `bfb3d8a892f0fc4dc4c4ff3318486dea43cd381f`, image dimensions, byte counts,
+  and SHA-256 values. Preview tests passed 2/2 and wait for actual WebGL/scene
+  state before capture.
+- Updated the sample README, three-package authoring guide, and generated
+  gallery with the real screenshots and accurate capability labels.
+- Updated the authoritative roadmap with Phase 4 Complete, Phase 5 Next, and
+  PR #116 plus package/integration evidence. The README roadmap was regenerated.
+- Extended the existing merge-triggered workflow to run the Garden consumer and
+  preview capture while retaining artifact upload and the single reviewable
+  gallery PR path.
+
+### S8 — Final verification and scoped local commit: complete
+
+The full `npm run verify` passed, including all 52 root test files (521 tests),
+content and asset checks, build budgets, and both existing example builds. The
+core, narrative, and scene consumers passed. Gameplay boundary, build, and
+prepared tests passed (29/29). The independent three-package Garden consumer
+passed each isolated archive ESM/declaration probe, combined sample checks,
+production build, and Chromium smoke. Garden unit/E2E/preview suites passed
+19/19, 13/13, and 2/2 respectively. `npm run sample:gallery`,
+`npm run roadmap:check`, and `npm run format:check` passed on the final tree.
+
+Generated TypeScript build-info changes were restored. The scoped work is
+committed locally on `codex/garden-adventure-sample`; publishing was not
+authorized and was not attempted.
+
+## Verification matrix
+
+| Command/check                                                  | Recorded evidence                                                                           |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `npm run verify`                                               | Passed; 52 root test files and 521 tests, content/asset checks, budgets and builds          |
+| `npm run framework:consumer`                                   | Passed; independent core archive, declarations, Vite and Chromium                           |
+| `npm run framework:narrative-consumer`                         | Passed; narrative archive, NodeNext/Bundler and offline install                             |
+| `npm run framework:scene-consumer`                             | Passed; core+narrative archive, build and Chromium lifecycle smoke                          |
+| `npm run framework:gameplay:check` / `build` / `test:prepared` | Passed; 29/29 package tests                                                                 |
+| `npm run framework:garden-consumer`                            | Passed; three independent archives, declarations, sample build and Chromium on Node 22.23.5 |
+| `npm run sample:garden:test` / `e2e`                           | Passed; 19/19 unit tests and 13/13 Chromium tests                                           |
+| `npm run sample:garden:previews`                               | Passed; 2 preview tests captured 12 validated production PNGs                               |
+| `npm run sample:gallery`                                       | Passed; all three screenshot manifests validated                                            |
+| `npm run roadmap:check` / `format:check`                       | Both passed on final tree                                                                   |
+| Root Kids RPG compatibility                                    | Root unit suite passed; protected gameplay and save files unchanged                         |
+| Node 22.0.0 runtime floor                                      | Dedicated CI probe configured; no local 22.0.0 binary or workflow run available             |
+
+The workflow configures a separate Node 22.0.0 runtime probe for the gameplay
+package. Local archive checks ran under Node 22.23.5. GitHub Actions was not
+run from this worktree, so the Node 22.0.0 result is unavailable and must not
+be reported as locally verified. A fresh GitHub `main` lookup was blocked by
+the environment's network connection; the cached ref is the PR #116 merge.
+
+## Acceptance review
+
+- [x] Garden launches and both authored story paths are playable.
+- [x] The guardian route uses package combat rather than dialogue-selected
+      results.
+- [x] Narrative and gameplay snapshots are coordinated transactionally and
+      persisted together.
+- [x] Progress, outcomes, item/equipment state, and scene consequences survive
+      reload.
+- [x] Three framework packages are consumed through public package roots.
+- [x] Production Chromium tests and source-rendered screenshots exist.
+- [x] README gallery, sample guide, authoring guide, and roadmap identify the
+      actual demonstrated capabilities.
+- [x] Root Kids RPG protected gameplay and save code were not changed.
+- [x] Final repository and independent-consumer checks complete on the final
+      docs/screenshot tree.
+- [x] Scoped implementation and evidence commits are local; no push or PR was
+      created.

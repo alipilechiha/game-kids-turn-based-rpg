@@ -75,7 +75,7 @@ test('recovers the active rendered scene after a software-WebGL context restore'
 
   const initialFrameCount = await page.evaluate(() => window.__gardenProbe?.frameCount ?? 0);
   const canLoseContext = await page.evaluate(() => {
-    const canvas = document.querySelector('canvas[data-testid="garden-canvas"]');
+    const canvas = document.querySelector<HTMLCanvasElement>('canvas[data-testid="garden-canvas"]');
     const gl = canvas?.getContext('webgl2') ?? canvas?.getContext('webgl');
     const extension = gl?.getExtension('WEBGL_lose_context');
     if (!extension) return false;
@@ -91,7 +91,9 @@ test('recovers the active rendered scene after a software-WebGL context restore'
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const canvas = document.querySelector('canvas[data-testid="garden-canvas"]');
+        const canvas = document.querySelector<HTMLCanvasElement>(
+          'canvas[data-testid="garden-canvas"]',
+        );
         const gl = canvas?.getContext('webgl2') ?? canvas?.getContext('webgl');
         return gl?.isContextLost() ?? false;
       }),
@@ -106,7 +108,9 @@ test('recovers the active rendered scene after a software-WebGL context restore'
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const canvas = document.querySelector('canvas[data-testid="garden-canvas"]');
+        const canvas = document.querySelector<HTMLCanvasElement>(
+          'canvas[data-testid="garden-canvas"]',
+        );
         const gl = canvas?.getContext('webgl2') ?? canvas?.getContext('webgl');
         return gl !== null && gl !== undefined && !gl.isContextLost();
       }),

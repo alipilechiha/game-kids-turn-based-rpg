@@ -1,119 +1,144 @@
 # باغ قصه‌ها — Garden of Stories
 
-Garden of Stories is a small, offline-capable Persian 3D RPG that exercises the
-public `waypoint-rpg-core` and `waypoint-rpg-narrative` packages in a second
-independent game. Talk to the gardener or traveler in the village, explore the
-connected garden, complete that character's objective, and return to see one of
-two persistent outcomes.
+Garden of Stories is a short, family-friendly Persian 3D RPG that exercises
+`waypoint-rpg-core`, `waypoint-rpg-narrative`, and
+`waypoint-rpg-gameplay` as independently packaged libraries. Choose to help a
+gardener restore a tree or follow a clue to a friendly guardian's tactical
+light game. Both paths change the garden and lead to a positive ending.
 
-The interface is Persian and right-to-left. Text, dialogue, quests, and endings
-are HTML rather than canvas textures. The sample has no backend, accounts,
-tracking, or runtime API requests. Its browser save uses a Garden-only storage
-key and cannot change either the Kids RPG profile database or the scene-demo
-save.
+The game runs in a browser without a backend, account, analytics, or runtime
+external API. Its RTL interface is DOM-based, including dialogue, inventory,
+quest status, combat controls, and endings. Saves use a Garden-only key and do
+not access the Kids RPG's IndexedDB profiles or the scene demo's storage.
 
-## Real browser captures
+## Real production screenshots
 
-These images are captured from the production build with Chromium and software
-WebGL. The adjacent `provenance.json` files record the source commit and each
-image's dimensions and SHA-256 hash. They are documentation examples, not
+`npm run sample:garden:previews` drives the production build in Chromium with
+software WebGL. `provenance.json` records the source commit, dimensions, and
+SHA-256 for every image. Captures document real game states; they are not
 pixel-perfect regression baselines.
 
-| Scene                       | Screenshot                                                                                                   |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Title                       | ![Garden of Stories title screen](../../docs/previews/garden-adventure/01-title.png)                         |
-| Village                     | ![Village scene](../../docs/previews/garden-adventure/02-village.png)                                        |
-| Persian NPC conversation    | ![Gardener dialogue](../../docs/previews/garden-adventure/03-npc-dialogue.png)                               |
-| Story choice                | ![Branching story choice](../../docs/previews/garden-adventure/04-story-choice.png)                          |
-| Garden before the objective | ![Garden before completing the objective](../../docs/previews/garden-adventure/05-garden-before.png)         |
-| Gardener outcome            | ![Garden after planting the special seed](../../docs/previews/garden-adventure/06-garden-after-help.png)     |
-| Traveler outcome            | ![Garden after lighting the ancient lantern](../../docs/previews/garden-adventure/07-garden-after-light.png) |
-| Ending                      | ![Story ending](../../docs/previews/garden-adventure/08-ending.png)                                          |
-| Portrait                    | ![Mobile portrait layout](../../docs/previews/garden-adventure/09-portrait.png)                              |
-| Reloaded save               | ![Restored garden with its saved outcome](../../docs/previews/garden-adventure/10-restored.png)              |
+| Capture                 | Screenshot                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Title                   | ![Garden of Stories title](../../docs/previews/garden-adventure/01-title.png)                              |
+| Village                 | ![Village before the quest](../../docs/previews/garden-adventure/02-village.png)                           |
+| Persian dialogue        | ![Gardener dialogue](../../docs/previews/garden-adventure/03-dialogue.png)                                 |
+| Inventory and equipment | ![Inventory and equipment](../../docs/previews/garden-adventure/04-inventory.png)                          |
+| Garden before           | ![Garden before restoration](../../docs/previews/garden-adventure/05-garden-before.png)                    |
+| Gardener outcome        | ![Grown tree after planting](../../docs/previews/garden-adventure/06-garden-restored.png)                  |
+| Tactical battle         | ![Five by five guardian trial](../../docs/previews/garden-adventure/07-tactical-battle.png)                |
+| Ability effect          | ![Temporary status and active ability effects](../../docs/previews/garden-adventure/08-ability-effect.png) |
+| Guardian outcome        | ![Lit lantern after the guardian trial](../../docs/previews/garden-adventure/09-guardian-outcome.png)      |
+| Story ending            | ![Guardian path ending](../../docs/previews/garden-adventure/10-ending.png)                                |
+| Portrait layout         | ![Mobile portrait viewport](../../docs/previews/garden-adventure/11-mobile.png)                            |
+| Restored save           | ![Restored saved garden](../../docs/previews/garden-adventure/12-restored.png)                             |
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-  UI[Persian DOM UI and Three.js scene] -->|validated game commands| R[Garden reducer]
-  R -->|createGameRuntime| C[waypoint-rpg-core public root]
-  R -->|typed narrative commands| N[waypoint-rpg-narrative public root]
-  S[Authored story definition] --> N
-  N -->|committed facts and quest status| R
-  R -->|facts, map, committed anchor| UI
-  R -->|snapshot| P[Garden-owned versioned localStorage adapter]
-  P -->|validated snapshot| R
+  UI[Persian DOM UI and Three.js scenes] -->|validated game commands| R[Garden runtime and reducer]
+  R --> C[waypoint-rpg-core public root]
+  R --> N[waypoint-rpg-narrative public root]
+  R --> G[waypoint-rpg-gameplay public root]
+  S[Game-owned story and gameplay definitions] --> N
+  S --> G
+  R --> X[Application cross-package transaction]
+  X -->|verified outcome trigger| N
+  X -->|committed encounter rewards| G
+  R -->|facts, quest, progression, map| UI
+  R --> P[Garden-owned versioned save adapter]
+  P -->|decoded snapshots| R
 ```
 
-The core runtime is the authoritative state machine for the application-owned
-`GardenState`. Its reducer validates map ownership, target ownership, exact
-arrival anchors, and interaction rules. The navigation graph and
-`findPath`/`getAnchor` operations come from the core package. Movement only
-advances after the reducer receives the next valid `ARRIVE` command; knowing
-that a target is reachable does not count as reaching it.
+### Core runtime and world navigation
 
-The narrative package owns dialogue cursors, conditional choices, typed facts,
-quest lifecycle, trigger conditions, replay protection, and terminal endings.
-`src/content/story.ts` is the only location for Garden story definitions.
-`src/content/fa/ui.ts` holds sample-owned interface copy. Neither story nor
-character data belongs in the reusable packages.
+The application composes `createGameRuntime<GardenState, GardenCommand>` with
+one pure reducer. `waypoint-rpg-core` provides the runtime, graph traversal,
+`findPath`, and world types. Garden owns scene registration, map and target
+ownership, path movement, arrival commits, interaction range, and the
+`ARRIVE`/transition rules. A reachable path does not count as an arrival: the
+reducer verifies each committed waypoint before the player can interact.
 
-`src/scenes/registry.ts` maps each Garden map to its public core `WorldMap` and
-navigation graph. `GardenScene.tsx` projects the committed map, anchor, and
-narrative facts into the active Three.js scene. The `tree-grown` fact adds the
-blossom tree; `lantern-lit` adds visible emissive light and a point light. The
-renderer never dispatches quest effects or writes narrative state.
+The village contains a fountain, market shelter, gardener, traveler, seed
+basket, and the garden gate. The garden contains the planting bed, hidden clue,
+ancient lantern, guardian, and return gate. `src/scenes/registry.ts` validates
+the map/graph pairings. A single demand-rendered R3F canvas loads the selected
+scene, and the sample-owned camera, probe, and scene components dispose their
+listeners and arrival timers on unmount. Camera and rendered consequence probes
+are used by browser checks. The visible tree and warm lantern lighting are
+projections of committed narrative facts.
 
-Procedural geometry is sample-owned. The model components in
-`src/scenes/GardenScene.tsx` are the visual replacement seam: a later version
-can replace those components with locally bundled `.glb` assets while keeping
-their positions, target ownership, narrative facts, and interaction commands
-unchanged. This sample does not require generated models or an asset service.
+Geometry is procedural and sample-owned. Landmark component boundaries in
+`src/scenes/GardenScene.tsx` keep artwork replaceable by locally bundled GLB
+models without moving story, movement, or interaction rules into assets. No
+generated model or external asset service is needed.
 
-## Runtime and narrative integration
+### Narrative and gameplay packages
 
-The runtime composes `createGameRuntime<GardenState, GardenCommand>` with a
-pure reducer. UI controls dispatch commands and subscribe through
-`useSyncExternalStore`; no Redux or parallel global store is used. The sample
-imports the core root for `createGameRuntime`, `findPath`, `getAnchor`, and
-world/navigation types.
+`src/content/story.ts` authors stable dialogue, choice, quest, fact, trigger,
+and ending IDs. The runtime uses `validateNarrative`, `compileNarrative`,
+`createNarrativeState`, `transitionNarrative`, `getDialogueView`,
+`getQuestStatus`, `getFact`, and `decodeNarrativeState` through the public
+narrative root. Persian interface copy is in `src/content/fa/ui.ts`.
 
-At startup the game calls `validateNarrative`, then `compileNarrative`, and
-creates one narrative state with `createNarrativeState`. Each valid choice or
-trigger calls `transitionNarrative` with that state's playthrough ID and
-expected revision. `getDialogueView`, `getQuestStatus`, and `getFact` provide
-read-only UI and renderer projections. Save restoration passes the stored
-snapshot through `decodeNarrativeState` before the runtime accepts it. All of
-these are imports from `waypoint-rpg-narrative`'s public package root.
+`src/content/gameplay.ts` owns the hero and guardian definitions, attributes,
+resources, three items, charm equipment, abilities, temporary statuses, 5×5
+board, encounter, enemy policy, outcome mapping, and bounded victory reward.
+The application uses `validateGameplay` in sample tests and
+`compileGameplay`, `createGameplayState`, `transitionGameplay`,
+`applyGameplayGrant`, `getCharacterLevel`, `getCharacterAttributes`,
+`getEffectiveCharacterAttributes`, `getUnlockedAbilityIds`,
+`getInventorySlotCount`, `encodeGameplayState`, and `decodeGameplayState` via
+the gameplay package root. UI renders those selectors and transition results;
+it does not simulate turns, derive equipment modifiers, grant rewards, or
+change quests.
 
-The gardener path starts `gardener-quest`, records the found seed, and completes
-when the player interacts with the planting bed after the seed is found. Its
-committed `tree-grown` and `garden-outcome` facts produce a blossoming tree. The
-traveler path starts `lantern-quest`, requires the hidden clue before the
-ancient lantern, then commits `lantern-lit` and a different outcome. Invalid
-order, wrong map, distant target, stale movement, and duplicate one-time
-triggers cannot bypass those rules.
+Path A grants one special seed, consumes it at the planting bed, completes the
+gardener quest, grants experience and two items, equips the charm, and grows a
+blossom tree. Path B requires the traveler's clue before the guardian can be
+challenged. The gameplay package owns movement validation, turn ownership,
+range/resources, deterministic enemy turns, status effects, terminal outcome
+markers, replay checks, and victory rewards.
 
-## Persistence and offline behavior
+### Cross-package combat transaction
 
-`src/persistence/garden-save.ts` owns a storage adapter and a strict version-1
-envelope under `waypoint-rpg:garden-adventure:save`. It stores the current map,
-known anchor, and validated narrative snapshot. The reducer and narrative
-package do not access browser storage. Progress saves at stable arrivals and
-can be saved manually; the title screen offers Continue or a new playthrough.
+`applyBattleAction` in `src/game/runtime.ts` owns the trusted transaction. It
+checks map, playthrough, gameplay revision, and encounter-instance identity,
+then passes the intent to `transitionGameplay`. For a terminal result it
+verifies the gameplay package's committed outcome marker against the authored
+encounter mapping, maps only that known consequence to a pre-authored narrative
+trigger, and runs `transitionNarrative` with its current revision. The reducer
+commits the resulting gameplay and narrative snapshots together only if both
+accept the result. A rejected trigger returns the original combined state.
+The UI cannot dispatch internal enemy decisions, reward grants, or arbitrary
+story triggers.
 
-Corrupt, incompatible, unsupported-version, and unavailable storage states are
-handled explicitly. Corrupt bytes are retained until the player chooses to
-clear the old save. A temporary session is available when storage cannot be
-used. Reset removes only the Garden key and starts a new narrative playthrough.
-The scoped native service worker caches same-origin production assets and
-supports an offline return after the first successful installation.
+Winning illuminates the ancient lantern and completes the lantern quest.
+Withdrawal or an exhausted challenge produces a gentle retry message and keeps
+the quest available. The two victories have different visible world facts and
+ending text; defeat is not punitive.
 
-## Develop, build, test, and play
+## Save architecture
 
-Use the repository's pinned Node.js 22 and npm 10 toolchain. From the
-repository root:
+`src/persistence/garden-save.ts` owns the isolated
+`waypoint-rpg:garden-adventure:save` key and a strict version-2 envelope with
+the current map/anchor, shared playthrough identity, narrative snapshot, and
+the gameplay package's encoded snapshot. Both package decoders run before
+restore, and the adapter rejects inconsistent story facts, rewards, encounter
+markers, or map/anchor pairs. Version-1 narrative-only Garden saves are
+migrated using bounded gameplay grants.
+
+New game, save, continue, active-combat reload, completed-story reload, reset,
+corrupt/future-version recovery, and storage exceptions are supported. Invalid
+bytes remain untouched until explicit reset; an unavailable storage session
+can still be played without saving. Storage code remains outside package
+reducers and the narrative/gameplay libraries.
+
+## Build, play, and test
+
+Use the repository's pinned Node 22 and npm 10 toolchain from the repository
+root:
 
 ```bash
 npm ci
@@ -124,34 +149,33 @@ npm run sample:garden:e2e
 npm run framework:garden-consumer
 ```
 
-For offline screenshot capture, install the Playwright Chromium browser once,
-then run:
+The browser suite runs the complete gardener and guardian paths, including a
+mid-combat reload. The independent consumer gate packs all three compiled
+libraries, copies Garden outside the checkout, installs each archive offline,
+verifies root-only ESM and declarations in NodeNext and Bundler modes, then
+type-checks, unit-tests, builds, and launches Chromium against that install.
+Development-tool installation is separate from offline archive installation.
+
+To capture the twelve screenshots from the production app, install Chromium
+once and run:
 
 ```bash
 npx playwright install chromium
 npm run sample:garden:previews
 ```
 
-The command builds the sample, starts its production preview, waits for the
-ready service worker and a rendered non-empty orthographic scene, and drives
-both complete stories. It writes the ten screenshots and
-`docs/previews/garden-adventure/provenance.json`. It rejects screenshots that
-are missing, unexpectedly small, not PNGs, or inconsistent with their recorded
-image hashes. The sample has no screenshot-only scene or fabricated UI state.
-
-`npm run framework:garden-consumer` builds and packs the framework packages,
-copies the sample to a temporary directory outside this checkout, installs the
-archives there, checks public ESM and declaration resolution, rejects private
-package imports, and runs the production browser smoke from the isolated
-consumer. Installing the locked development tools is a separate `npm ci` step
-from installing the local framework archives offline.
+The capture waits for a live canvas, orthographic camera, populated scene,
+active map, and rendered world consequence. It checks each PNG's signature,
+dimensions, size, and hash before writing the source-commit provenance manifest.
+The existing `sample-previews.yml` workflow uploads all sample captures and
+uses the existing reviewable README-gallery pull request path.
 
 ## Known limits
 
-- Browser gameplay and captures are verified in Chromium with software WebGL;
-  other browsers and physical touch devices are not yet verified.
-- The story is intentionally short and has no combat, inventory, accounts, or
-  network service.
-- The 3D art is procedural placeholder geometry. A licensed local GLB pipeline
-  can replace it behind the sample-owned model components.
-- Vite currently reports the expected large Three.js production chunk warning.
+- Chromium software-WebGL is verified; other browsers and physical touch
+  devices remain unverified.
+- Art is lightweight procedural geometry. A locally licensed GLB art pass is
+  a future replacement, not a runtime dependency.
+- The encounter is one deterministic friendly challenge, not a general combat
+  campaign. There is no multiplayer, inventory crafting, or cinematic system.
+- Vite reports the expected large Three.js bundle warning in this small sample.
