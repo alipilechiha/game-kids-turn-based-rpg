@@ -44,8 +44,34 @@ jobs:
           node-version: '22'
       - name: Generate README roadmap from the canonical document
         run: node scripts/sync-framework-roadmap.mjs
+      - name: Prepare a review patch when automated PR creation is disabled
+        id: fallback
+        if: github.event_name != 'pull_request' && (github.ref != 'refs/heads/main' || vars.FRAMEWORK_ROADMAP_AUTOPR != 'true')
+        run: |
+          patch="$RUNNER_TEMP/framework-roadmap-readme.patch"
+          git diff -- README.md > "$patch"
+          if [ -s "$patch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "patch=$patch" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Framework roadmap synchronization"
+              echo
+              echo "The README was regenerated. Automated PR creation is disabled, so the README patch is attached as a workflow artifact for review. No protected branch was modified."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "The generated README already matches the canonical roadmap."
+          fi
+      - name: Upload the README patch for maintainer review
+        if: steps.fallback.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: framework-roadmap-readme-patch
+          path: ${{ steps.fallback.outputs.patch }}
+          if-no-files-found: error
       - name: Open or update a synchronization PR when needed
         uses: peter-evans/create-pull-request@v7
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.FRAMEWORK_ROADMAP_AUTOPR == 'true'
         with:
           branch: automation/sync-framework-roadmap
           base: main
