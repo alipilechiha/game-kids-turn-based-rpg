@@ -1,73 +1,185 @@
 #!/usr/bin/env node
-// Called only after Playwright has rendered the actual Kids RPG application.
-// The README summary is separate from the generated framework roadmap.
+// Runs after the three production-built samples have been rendered by Chromium.
+import { createHash } from 'node:crypto';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 
 const readmePath = 'README.md';
-const folder = 'docs/previews/legacy-sample';
-const start = '<!-- legacy-sample-previews:begin -->';
-const end = '<!-- legacy-sample-previews:end -->';
+const start = '<!-- sample-games:begin -->';
+const end = '<!-- sample-games:end -->';
 const tick = String.fromCharCode(96);
-const images = [
-  '01-title.png',
-  '02-avatar-select.png',
-  '03-headwear-select.png',
-  '04-town-hub.png',
-  '05-town-portrait.png',
-  '06-guardian-dialogue.png',
-  '07-encounter-choice.png',
+
+const games = [
+  {
+    name: 'محله مهربانی',
+    status: 'Implemented and playable',
+    description:
+      'The existing child-oriented reference RPG. Its runtime and navigation consume ' +
+      tick +
+      'waypoint-rpg-core' +
+      tick +
+      '; game-specific quests and rendering remain owned by the app.',
+    readme: 'README.md',
+    run: 'npm ci && npm run dev',
+    folder: 'docs/previews/legacy-sample',
+    images: [
+      '01-title.png',
+      '02-avatar-select.png',
+      '03-headwear-select.png',
+      '04-town-hub.png',
+      '05-town-portrait.png',
+      '06-guardian-dialogue.png',
+      '07-encounter-choice.png',
+    ],
+    columns: [
+      ['04-town-hub.png', 'Town hub'],
+      ['05-town-portrait.png', 'Town hub · portrait'],
+      ['06-guardian-dialogue.png', 'Persian NPC dialogue'],
+      ['07-encounter-choice.png', 'Encounter choice'],
+    ],
+  },
+  {
+    name: 'برگ خون',
+    status: 'Technical demonstration',
+    description:
+      'An independent two-scene consumer demonstrating framework narrative, scene loading, ' +
+      'transitions, persistence, and runtime-fact projection.',
+    readme: 'examples/scene-demo/README.md',
+    run: 'npm run example:scene-build',
+    folder: 'docs/previews/blood-leaf',
+    images: ['01-courtyard.png', '02-dialogue.png', '03-lit-lantern.png'],
+    columns: [
+      ['01-courtyard.png', 'Village courtyard'],
+      ['02-dialogue.png', 'Persian story choice'],
+      ['03-lit-lantern.png', 'Narrative-driven lantern'],
+    ],
+  },
+  {
+    name: 'باغ قصه‌ها',
+    status: 'Implemented and playable',
+    description:
+      'A complete Persian 3D adventure using the installed public core, narrative, and gameplay packages. ' +
+      'Two story paths include a real tactical encounter, visible garden changes, and persistent progress.',
+    readme: 'examples/garden-adventure/README.md',
+    run: 'npm run sample:garden:dev',
+    folder: 'docs/previews/garden-adventure',
+    images: [
+      '01-title.png',
+      '02-village.png',
+      '03-dialogue.png',
+      '04-inventory.png',
+      '05-garden-before.png',
+      '06-garden-restored.png',
+      '07-tactical-battle.png',
+      '08-ability-effect.png',
+      '09-guardian-outcome.png',
+      '10-ending.png',
+      '11-mobile.png',
+      '12-restored.png',
+    ],
+    columns: [
+      ['02-village.png', 'Village'],
+      ['03-dialogue.png', 'Persian NPC dialogue'],
+      ['04-inventory.png', 'Inventory and equipment'],
+      ['05-garden-before.png', 'Garden before the objective'],
+      ['06-garden-restored.png', 'Garden · gardener path'],
+      ['07-tactical-battle.png', '5×5 tactical battle'],
+      ['08-ability-effect.png', 'Ability and status effect'],
+      ['09-guardian-outcome.png', 'Garden · guardian path'],
+      ['10-ending.png', 'Story ending'],
+      ['12-restored.png', 'Restored saved garden'],
+    ],
+  },
 ];
 
-for (const file of images) {
-  const size = statSync(folder + '/' + file).size;
-  if (size <= 5_000) {
-    throw new Error('Missing or empty real screenshot: ' + file);
+function verifyImageSet(game) {
+  const manifestPath = `${game.folder}/provenance.json`;
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  if (manifest.schemaVersion !== 1 || !/^[0-9a-f]{40}$/.test(manifest.sourceCommit)) {
+    throw new Error(`Invalid screenshot provenance manifest: ${manifestPath}`);
+  }
+  const records = new Map(manifest.images.map((image) => [image.file, image]));
+  for (const file of game.images) {
+    const path = `${game.folder}/${file}`;
+    const record = records.get(file);
+    if (!record) throw new Error(`Missing screenshot record: ${path}`);
+    const bytes = readFileSync(path);
+    const size = statSync(path).size;
+    if (size <= 5_000) throw new Error(`Missing or unexpectedly small screenshot: ${path}`);
+    if (bytes.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') {
+      throw new Error(`Screenshot is not a PNG: ${path}`);
+    }
+    const width = bytes.readUInt32BE(16);
+    const height = bytes.readUInt32BE(20);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (
+      width <= 300 ||
+      height <= 300 ||
+      record.bytes !== size ||
+      record.width !== width ||
+      record.height !== height ||
+      record.sha256 !== sha256
+    ) {
+      throw new Error(`Screenshot does not match its provenance record: ${path}`);
+    }
+  }
+  if (records.size !== game.images.length) {
+    throw new Error(`Unexpected screenshot entry in provenance manifest: ${manifestPath}`);
   }
 }
 
-// Keep the authored Markdown gallery stable between captures.
+for (const game of games) verifyImageSet(game);
+
 // prettier-ignore
 const section = [
   start,
+  '<!-- prettier-ignore-start -->',
   '',
-  '## Reference game — محله مهربانی',
+  '## Samples / Playable Games',
   '',
-  '**Real Chromium/Playwright captures from the source-built Kids RPG.** ' +
-    'The game currently uses ' + tick + 'waypoint-rpg-core' + tick +
-    ' for runtime/navigation; its child-specific quests, dialogue, battle and ' +
-    'renderer remain game-owned. See [the adoption matrix](docs/MAHALLE-LIBRARY-ADOPTION.md).',
+  'These independent samples show how the reusable packages fit into different games. ' +
+    'Screenshots below come from Chromium rendering each production build. Captures are ' +
+    'documentation previews, not pixel-perfect regression baselines.',
   '',
-  '> **Development previews only.** The game still contains draft educational ' +
-    'content requiring review; these screenshots do not indicate content approval.',
+  ...games.flatMap((game) => [
+    '### ' + game.name + ' — ' + game.status,
+    '',
+    game.description,
+    '',
+    '[Game guide](' + game.readme + ') · ' + tick + game.run + tick,
+    '',
+    '| Capture | Actual browser rendering |',
+    '| --- | --- |',
+    ...game.columns.map(([file, label]) =>
+      '| ' + label + ' | ![Actual ' + game.name + ' — ' + label + '](' + game.folder + '/' + file + ') |',
+    ),
+    '',
+    game.images.length > game.columns.length
+      ? 'Other captures: ' + game.images
+          .filter((file) => !game.columns.some(([shown]) => shown === file))
+          .map((file) => '[' + file.replace('.png', '') + '](' + game.folder + '/' + file + ')')
+          .join(' · ') + '.'
+      : '',
+    '',
+    game.name === 'محله مهربانی'
+      ? '> **Draft content.** The existing game still contains educational and religious placeholders that require review; its screenshots do not imply content approval.'
+      : '',
+    '',
+  ]),
+  '**Status key:** Implemented and playable means the sample can be completed; Technical demonstration means it focuses on framework integration. ' +
+    'The Shahnameh proof of concept is **Planned**. Verification beyond Chromium with software WebGL and on physical devices is **Not yet verified**.',
   '',
-  '| Town hub · landscape | Town hub · portrait |',
-  '| --- | --- |',
-  '| ![Actual Kids RPG town hub in landscape](' + folder + '/04-town-hub.png) | ' +
-    '![Actual Kids RPG town hub in portrait](' + folder + '/05-town-portrait.png) |',
-  '',
-  '| NPC dialogue | Encounter choice |',
-  '| --- | --- |',
-  '| ![Actual Persian NPC dialogue](' + folder + '/06-guardian-dialogue.png) | ' +
-    '![Actual physical choice encounter](' + folder + '/07-encounter-choice.png) |',
-  '',
-  'Additional captures: [title](' + folder + '/01-title.png), ' +
-    '[avatar selection](' + folder + '/02-avatar-select.png), ' +
-    '[headwear](' + folder + '/03-headwear-select.png).',
-  '',
-  '_Captures are generated on each merge and proposed for review; ' +
-    'they are not AI-generated target concepts._',
-  '',
+  '<!-- prettier-ignore-end -->',
   end,
-].join('\n');
+].filter((line, index, lines) => line !== '' || (index > 0 && lines[index - 1] !== '')).join('\n');
 
-const original = readFileSync(readmePath, 'utf8');
+const existing = readFileSync(readmePath, 'utf8');
+const newline = existing.includes('\r\n') ? '\r\n' : '\n';
+const original = existing.replace(/\r\n/g, '\n');
 const before = original.indexOf(start);
 const after = original.indexOf(end);
 let updated;
 if (before >= 0 || after >= 0) {
-  if (before < 0 || after < before) {
-    throw new Error('Invalid sample gallery markers');
-  }
+  if (before < 0 || after < before) throw new Error('Invalid sample gallery markers');
   updated = original.slice(0, before) + section + original.slice(after + end.length);
 } else {
   const anchor = '<!-- framework-roadmap:end -->';
@@ -76,9 +188,10 @@ if (before >= 0 || after >= 0) {
   const position = offset + anchor.length;
   updated = original.slice(0, position) + '\n\n' + section + original.slice(position);
 }
-if (updated !== original) {
+updated = updated.replace(/\n/g, newline);
+if (updated !== existing) {
   writeFileSync(readmePath, updated, 'utf8');
-  console.log('Updated actual-source Kids RPG sample gallery.');
+  console.log('Updated the source-rendered sample game gallery.');
 } else {
-  console.log('Sample gallery already up to date.');
+  console.log('Sample game gallery already up to date.');
 }

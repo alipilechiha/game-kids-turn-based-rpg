@@ -12,10 +12,19 @@ const fixtureRoot = fileURLToPath(new URL('../packages/core-consumer/', import.m
 const narrativeRuntimeProbe = fileURLToPath(
   new URL('../packages/narrative/runtime-smoke.mjs', import.meta.url),
 );
+const gameplayRuntimeProbe = fileURLToPath(
+  new URL('../packages/gameplay/runtime-smoke.mjs', import.meta.url),
+);
 
-export async function prepareRuntimeConsumer(coreTarballPath, projectRoot, narrativeTarballPath) {
+export async function prepareRuntimeConsumer(
+  coreTarballPath,
+  projectRoot,
+  narrativeTarballPath,
+  gameplayTarballPath,
+) {
   const resolvedCore = path.resolve(coreTarballPath);
   const resolvedNarrative = narrativeTarballPath ? path.resolve(narrativeTarballPath) : null;
+  const resolvedGameplay = gameplayTarballPath ? path.resolve(gameplayTarballPath) : null;
   const root = path.resolve(projectRoot);
   const emptyCache = path.join(root, '.empty-cache');
   await mkdir(emptyCache, { recursive: true });
@@ -32,6 +41,10 @@ export async function prepareRuntimeConsumer(coreTarballPath, projectRoot, narra
   if (resolvedNarrative) {
     await copyFile(narrativeRuntimeProbe, path.join(root, 'narrative-runtime-smoke.mjs'));
     archives.push(resolvedNarrative);
+  }
+  if (resolvedGameplay) {
+    await copyFile(gameplayRuntimeProbe, path.join(root, 'gameplay-runtime-smoke.mjs'));
+    archives.push(resolvedGameplay);
   }
   runNpm(
     [
@@ -81,7 +94,13 @@ export function probeRuntimeConsumer(projectRoot, expectedNodeVersion) {
   }
   const narrativeOutput = runNode(['narrative-runtime-smoke.mjs'], { cwd: root });
   assert.match(narrativeOutput, /narrative package native ESM runtime passed/);
-  log('framework runtime: native core+narrative ESM and core source maps passed');
+  if (!existsSync(path.join(root, 'gameplay-runtime-smoke.mjs'))) {
+    log('framework runtime: native core+narrative ESM and core source maps passed');
+    return;
+  }
+  const gameplayOutput = runNode(['gameplay-runtime-smoke.mjs'], { cwd: root });
+  assert.match(gameplayOutput, /gameplay package native ESM runtime and snapshot codec passed/);
+  log('framework runtime: native core+narrative+gameplay ESM and core source maps passed');
 }
 
 export async function checkRuntimeFromTarball(tarballPath) {
@@ -99,12 +118,14 @@ export async function checkRuntimeFromTarball(tarballPath) {
 }
 
 async function main() {
-  const [mode, first, second, third] = process.argv.slice(2);
+  const [mode, first, second, third, fourth] = process.argv.slice(2);
   if (mode === '--prepare') {
-    if (!first || !second || !third)
-      throw new Error('Usage: --prepare <core.tgz> <narrative.tgz> <consumer-directory>');
-    await Promise.all([readFile(path.resolve(first)), readFile(path.resolve(second))]);
-    await prepareRuntimeConsumer(first, third, second);
+    if (!first || !second || !third || !fourth)
+      throw new Error(
+        'Usage: --prepare <core.tgz> <narrative.tgz> <gameplay.tgz> <consumer-directory>',
+      );
+    await Promise.all([first, second, third].map((archive) => readFile(path.resolve(archive))));
+    await prepareRuntimeConsumer(first, fourth, second, third);
     log('framework runtime: offline Node 22.22.2 consumer prepared');
     return;
   }

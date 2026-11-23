@@ -156,6 +156,29 @@ Pages workflows were green when checked. This unpushed feature branch has not
 run its own GitHub Actions workflow; other browsers and physical devices remain
 unverified.
 
+## Phase 4 implementation status — gameplay modules
+
+PR #116 merged the optional `waypoint-rpg-gameplay` package at
+`693aae689065d108e84b85a16c5651d625c29ab2`. The package provides validated
+gameplay definitions, progression and experience, inventory and equipment,
+derived attributes, abilities, status effects, tactical grid combat,
+deterministic enemy turns, bounded idempotent rewards, terminal outcome
+markers, and snapshot encoding/decoding. It imports neither core nor narrative;
+the narrative package remains consumable without gameplay. The package
+boundary/build checks pass and its prepared Node test suite passes 29/29.
+
+Garden of Stories is the independent integration consumer: it composes the
+three package roots, plays both a non-combat gardening path and a real 5×5
+guardian encounter, commits combat consequences transactionally into its
+authored story, and restores gameplay and world consequences from a versioned
+save. Its isolated tarball gate installs each package archive alone and checks
+native ESM, NodeNext and Bundler declarations; it then builds and runs the
+sample in Chromium. That gate passed locally on Node 22.23.5. The gameplay
+package declares Node >=22.0.0; the existing runtime-only CI job now packs the
+gameplay archive and includes its ESM/snapshot probe when it switches to Node
+22.0.0. This branch's updated GitHub Actions run has not yet supplied remote
+CI evidence. Other browsers and physical devices remain unverified.
+
 ## Selected architecture
 
 Use one workspace package at packages/core/ while keeping the game at the repository root. Name it waypoint-rpg-core. This is a private, unscoped identity and assumes no registry ownership. Package output is ESM, TypeScript declarations and JS source maps with embedded sources. Export only the package root. Runtime and peer dependencies are empty. Public registry publication is deferred.
@@ -199,17 +222,15 @@ Dependency direction:
 
 ### Roadmap and gates
 
-| Phase                               | Status      | Deliverable                                                                                                                                                                                        | Prerequisite and exit evidence                                                                                                                                                                                                     | Evidence                                                               |
-| ----------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| 1. Reusable core                    | Complete    | Independent, dependency-free core ESM package, adopted by the Kids RPG after tarball verification.                                                                                                 | Extraction, API compatibility, offline installation, and rollback criteria recorded in the Phase 1 plan pass.                                                                                                                      | [PR #110](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/110) |
-| 2. 3D scene consumer                | Complete    | Example-owned Three.js/R3F scene host, registration, transitions, cameras, loading, runtime projection, and lifecycle validation. No renderer package was extracted.                               | Independent core tarball consumer, two scenes, cancellation/failure, settled demand rendering, context recovery, and disposal checks pass.                                                                                         | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111) |
-| 3. Narrative and quests             | Complete    | Optional pure narrative package and Persian branching-story proof in the independent scene consumer.                                                                                               | Deterministic runtime, independent tarball, distinct outcomes, persisted world consequence, reset/recovery, and Kids RPG compatibility criteria pass.                                                                              | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113) |
-| 4. Gameplay modules                 | In progress | Optional gameplay package with definitions, progression, inventory, equipment, abilities, statuses, tactical combat, enemy decisions, rewards, and state codec. Merged implementation is retained. | Close the recorded exit-evidence gaps: standalone gameplay tarball/runtime gate, combined scene consumer proof, real combat-to-narrative transaction rollback, and gameplay save/resume. Do not repeat the merged implementation.  | [PR #116](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/116) |
-| 5. Model, animation, and cinematics | In progress | Offline local model intake, rig-preserving Three.js adapter, independent animated instances, and optional cancellable presentation timelines.                                                      | Static and rigged licensed GLBs import reproducibly; independent instances, animation state projection, timeline controls, scene cancellation/disposal, reduced motion, reload, and WebGL recovery pass in the reference consumer. | [Phase 5 plan](../.plans/phase-5-model-animation-cinematics.md)        |
-| 6. Asset and game creation tools    | Planned     | Offline import CLI, shared licensed asset catalog, preview/inspection, and a versioned small-game template.                                                                                        | Narrative and structurally different tactical consumers build independently from the template and round-trip owned content without copying private runtime code.                                                                   | [Product release roadmap](PRODUCT-RELEASE-ROADMAP.md)                  |
-| 7. Five playable games              | Planned     | Five independently buildable, single-map games with complete interaction loops, separate saves, audience/accessibility review, and source-rendered previews.                                       | Each game meets its specification and exercises a justified subset of reusable packages; tactical and real-time combat claims pass their own gates.                                                                                | [Product release roadmap](PRODUCT-RELEASE-ROADMAP.md)                  |
-| 8. Individual releases              | Planned     | Per-game build, deployment, preview, version, and release gates plus a portfolio index.                                                                                                            | Complete playthrough, persistence/restart, approved rights, performance/lifecycle/accessibility checks, rendered screenshots, deployment smoke, and release notes pass per game.                                                   | [Product release roadmap](PRODUCT-RELEASE-ROADMAP.md)                  |
-| 9. Player evaluation                | Planned     | Voluntary, privacy-conscious feedback and a documented Continue, Revise, or Stop decision for each release.                                                                                        | Review actual player feedback after a defined release trial; add no telemetry without audience, consent, and policy review.                                                                                                        | [Product release roadmap](PRODUCT-RELEASE-ROADMAP.md)                  |
+| Phase                         | Status   | Deliverable                                                                                                                                                                                                                   | Prerequisite and exit evidence                                                                                                                                                                                    | Evidence                                                                                                                |
+| ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1. Reusable core              | Complete | Build, test, version, pack and document the independent package. Migrate the app only after installed-tarball gate.                                                                                                           | All criteria in .plans/phase-1-library-extraction.md pass.                                                                                                                                                        | [PR #110](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/110)                                                  |
+| 2. World/renderer             | Complete | Validate scene registration, map transitions, cameras, loading, runtime projection and resource lifecycle in `examples/scene-demo/`, a second 3D consumer that installs the core tarball. Renderer contracts remain deferred. | Pass isolated tarball install, type/unit/build checks and Chromium lifecycle smoke; prove two scenes, same-canvas transitions, load cancellation/failure, settled demand rendering, context recovery and cleanup. | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111)                                                  |
+| 3. Narrative/quests           | Complete | Implement the optional `waypoint-rpg-narrative` package and a Persian branching-story proof in the independent 3D consumer. Keep storage, scenes, movement, UI, and authored content consumer-owned.                          | P3.1–P3.6 gates pass: pure deterministic runtime, independent tarball, two endings, persisted scene consequence, reset/recovery safety, and application compatibility. This is not combat or a general renderer.  | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113)                                                  |
+| 4. Gameplay modules           | Complete | Add optional progression, inventory, equipment, abilities, status effects, tactical combat and enemy behavior from consumer needs. Keep real-time action combat independent.                                                  | Module tests pass; narrative remains independently consumable without a gameplay dependency.                                                                                                                      | [PR #116](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/116); [29 gameplay tests](../packages/gameplay/test/) |
+| 5. Animation/cinematics       | Next     | Add a rig-preserving load path, per-instance skeleton/mixer, clips, blending, timelines, camera/dialogue staging, synchronized audio, effects and resource ownership.                                                         | 3D consumer proves cancellation, cleanup, reduced motion and idle behavior. Preserve the Kids RPG static GLB flow.                                                                                                | —                                                                                                                       |
+| 6. Developer tools            | Planned  | Add portable world, dialogue, quest, NPC, asset and timeline authoring after two consumers use relevant contracts.                                                                                                            | Both games can round-trip, validate and preview their own content. Keep Builder v1 compatible through transition.                                                                                                 | —                                                                                                                       |
+| 7. Shahnameh proof of concept | Planned  | Build خون سیاوش — فصل نخست: برگ خون with two environments, NPCs, branching dialogue, one meaningful moral choice, one battle, conditional world change, two outcomes and save/resume.                                         | Begin after the second 3D consumer validates rendering, narrative persistence and selected combat. Record packages used and omitted. Full editor tooling is optional.                                             | —                                                                                                                       |
 
 This table is the source of truth for the generated README roadmap. Change a phase's status only when its exit criteria are met; after editing, run `npm run roadmap:sync`. Merging alone does not complete a phase.
 
@@ -226,15 +247,14 @@ Phase 1 preserves child UX, nonviolent rules, content validation, parental gates
 Distinguish these compatibility claims:
 
 - Core runtime: Node >=22.0.0, tested by executing emitted native ESM on Node 22.0.0.
-- Narrative runtime: package manifest declares Node >=22.0.0 and the pure
-  browser-neutral TypeScript ESM runtime uses no Node-specific APIs. Phase 3
-  local package checks ran on Node 22.23.5; the declared 22.0.0 narrative
-  minimum was not separately exercised. Phase 4 P4.0f adds a CI gate that
-  prepares both installed archives under Node 22.22.2, then probes their native
-  ESM runtime under Node 22.0.0 without invoking npm or build tools; that new
-  branch configuration still requires its GitHub Actions run for execution
-  evidence. Root and demo build tooling still require the root engine versions
-  below.
+- Narrative and gameplay runtimes: both manifests declare Node >=22.0.0 and
+  their pure TypeScript ESM runtimes use no Node-specific APIs. Local installed-
+  archive ESM checks ran on Node 22.23.5. The existing runtime-only CI job now
+  prepares core, narrative, and gameplay tarballs under Node 22.22.2, then
+  probes native ESM and gameplay snapshot encoding/decoding under Node 22.0.0
+  without invoking npm or build tools. This worktree has not run GitHub Actions;
+  the 22.0.0 gameplay probe still needs remote CI execution evidence. Root and
+  demo build tooling still require the root engine versions below.
 - Root project and build tools: `engines` requires Node >=22.22.2 <23 and npm >=10 <11. CI pins Node 22.22.2 for the workspace, application build and development tools.
 - Offline package installation: install the zero-runtime-dependency local tarball from disk with npm offline, separately from development-tool installation. Phase 1 additionally tests native Node installation with an empty npm cache.
 - Development-tool installation: install the consumer's locked Vite/TypeScript/React/Three.js/Playwright toolchain with `npm ci`; network/cache availability for tools is distinct from offline package installation.

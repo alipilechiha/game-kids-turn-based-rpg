@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --root .",
     "build": "vite build",
-    "test:e2e": "node scripts/browser-smoke.mjs"
+    "test:e2e": "node scripts/browser-smoke.mjs",
+    "previews": "node scripts/capture-previews.mjs"
   },
   "dependencies": {
     "@react-three/fiber": "9.7.0",

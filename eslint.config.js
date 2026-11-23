@@ -130,6 +130,14 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
+    files: ['examples/scene-demo/scripts/capture-previews.mjs'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+  {
+    files: ['examples/garden-adventure/public/garden-sw.js'],
+    languageOptions: { globals: globals.serviceworker },
+  },
+  {
     files: ['packages/*/scripts/**/*.mjs'],
     languageOptions: { globals: globals.node },
   },

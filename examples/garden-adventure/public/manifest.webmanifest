@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "باغ قصه‌ها",
+  "short_name": "باغ قصه‌ها",
+  "description": "یک ماجرای سه‌بعدی فارسی در روستایی آرام و باغی جادویی",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f0df",
+  "theme_color": "#f7f0df",
+  "icons": [
+    {
+      "src": "./icons/garden.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
