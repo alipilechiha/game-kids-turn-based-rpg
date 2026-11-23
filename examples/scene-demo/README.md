@@ -86,6 +86,12 @@ license records and upstream links are stored beside the source GLBs in
 runtime records are in `src/animation/asset-records.json`. These local-only
 fixtures do not enter the Kids RPG registry or PWA precache.
 
+After committing scene-demo runtime changes, run `npm run sample:phase5:previews`
+from the repository root to build the production app and capture real Chromium
+screenshots of the external models and guardian cinematic. The capture manifest
+records the source commit, viewport, browser, asset hashes, and screenshot
+hashes under `docs/previews/phase5/`.
+
 To regenerate the source fixtures and import them into the demo, run from the
 repository root:
 
