@@ -92,6 +92,10 @@ screenshots of the external models and guardian cinematic. The capture manifest
 records the source commit, viewport, browser, asset hashes, and screenshot
 hashes under `docs/previews/phase5/`.
 
+![Production Chromium preview of the external Box and two Rigged Figure instances](../../docs/previews/phase5/01-external-models.png)
+
+![Production Chromium preview of the Persian guardian cinematic](../../docs/previews/phase5/02-guardian-cinematic.png)
+
 To regenerate the source fixtures and import them into the demo, run from the
 repository root:
 
