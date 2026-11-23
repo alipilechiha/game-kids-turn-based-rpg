@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "bfb3d8a892f0fc4dc4c4ff3318486dea43cd381f",
+  "sourceCommit": "0e3d2b9eca45d0a00eca64874863949f0795b4a2",
   "images": [
     {
       "file": "01-title.png",
@@ -12,79 +12,79 @@
     {
       "file": "02-village.png",
       "width": 1440,
-      "height": 1115,
-      "bytes": 81292,
-      "sha256": "7fd726ebbb09f0787635436d02f3b641263b336b46fb7a896cdad47c8de67406"
+      "height": 1094,
+      "bytes": 79919,
+      "sha256": "6525aadafd451c2a7a1a32958f3b102d36c77fd60a16f3a67a22fc21c2190b43"
     },
     {
       "file": "03-dialogue.png",
       "width": 1440,
-      "height": 1115,
-      "bytes": 92339,
-      "sha256": "a227368584abd0470dad3408ef7f9ee75497b00028dab877d1e1e941f7279f99"
+      "height": 1094,
+      "bytes": 93952,
+      "sha256": "cb92e12a105c65f94373b4dec71710633116e87e910c6df802a516a418b7af8d"
     },
     {
       "file": "04-inventory.png",
       "width": 1440,
-      "height": 1381,
-      "bytes": 109321,
-      "sha256": "95a0ec13d072149183ee8066e063119e2075c103ee623d15c9996c1116d5b999"
+      "height": 1360,
+      "bytes": 107693,
+      "sha256": "185128616aa88d73e59f4dd46d5da8eccbaba36161e388d7a98c26a2171a976a"
     },
     {
       "file": "05-garden-before.png",
       "width": 1440,
-      "height": 1115,
-      "bytes": 78877,
-      "sha256": "28eba795ba896b2f66a19a6f0c8210315855fb124236d91c3bcd461bdfde885c"
+      "height": 1094,
+      "bytes": 77336,
+      "sha256": "4b6a416eec22cfdecc3a284aab2b510d6fdd1a3f9832141976030f395197f0f4"
     },
     {
       "file": "06-garden-restored.png",
       "width": 1440,
-      "height": 1179,
-      "bytes": 88577,
-      "sha256": "98666fb8491d7caadfbdc27fce4f518000966fae14fa241bbd3c68446ab54b61"
+      "height": 1158,
+      "bytes": 86968,
+      "sha256": "570eba67c7f3161cecd534900a17370e93ea929f726778d30872e0a146fe5414"
     },
     {
       "file": "07-tactical-battle.png",
       "width": 1440,
-      "height": 1115,
-      "bytes": 93254,
-      "sha256": "857ff924d4115c6006e84db95eb0f6d2ba4ee8de9e417a5a4b48c97620e28ac0"
+      "height": 1094,
+      "bytes": 89206,
+      "sha256": "3f77b64dab22a40e9a2906bdc4b8206a63b1d5640be6fdb0fc1b50fcbfbf8350"
     },
     {
       "file": "08-ability-effect.png",
       "width": 1440,
-      "height": 1115,
-      "bytes": 101140,
-      "sha256": "4209b19399047336b63d438ffcac3f0f401c1b62f50bfb47b1604307f10e7367"
+      "height": 1094,
+      "bytes": 97327,
+      "sha256": "3b5ff5e00db7e66b7a25aae43771a6f55c9895bf0d7f31a391ce5c6e559fb1cd"
     },
     {
       "file": "09-guardian-outcome.png",
       "width": 1440,
-      "height": 1179,
-      "bytes": 95570,
-      "sha256": "43327904c1e9fceeff85f7d09c192016ab876cb9aef515dc278a806c6d58fffe"
+      "height": 1158,
+      "bytes": 93961,
+      "sha256": "d11c78269d5cfd43e2d70bc0d557ac7680e27efd185f1c5eca9a7bc692974828"
     },
     {
       "file": "10-ending.png",
       "width": 1440,
-      "height": 1179,
-      "bytes": 102300,
-      "sha256": "757edd1b2ba68e11085dad9d2e260e161c4f4937087716d5fce4fcbc4b5f2d7a"
+      "height": 1158,
+      "bytes": 101050,
+      "sha256": "ed869fc1b47df22594530fa0868ce6a3598c02adddb0bca229f60ad004136f9f"
     },
     {
       "file": "11-mobile.png",
       "width": 390,
-      "height": 1402,
-      "bytes": 77892,
-      "sha256": "9a201bacf5f15c88baf994a9f277b54af655c71d5c373437bd6dee9207762a64"
+      "height": 1381,
+      "bytes": 76489,
+      "sha256": "8ad2716f3d7b5be56d6a85d127c92970579e07d1f1608b4399e381c91ac125de"
     },
     {
       "file": "12-restored.png",
       "width": 1440,
-      "height": 1115,
-      "bytes": 97696,
-      "sha256": "796555662c7b509769cc7cd116596c864fb4bf673a888e790c99b1ef41b769be"
+      "height": 1094,
+      "bytes": 93834,
+      "sha256": "00831d766c4cbf937b35df5b632fc9007e0dc6d6d258646f938e89bf49ee4f74"
     }
   ]
 }

@@ -88,7 +88,7 @@ try {
     caret: 'hide',
   });
   await page.getByTestId('dialogue-choice-seek-truth').click();
-  await page.getByTestId('dialogue-leave').click();
+  await page.getByTestId('dialogue-close').click();
   await page.getByTestId('scene-transition').click();
   await page.waitForFunction(
     () =>
@@ -96,29 +96,19 @@ try {
       window.__sceneProbe?.cameraIsOrthographic === true &&
       window.__sceneProbe?.lampLit === false,
   );
-  // The courtyard conversation remains suspended while the player is away.
-  // Return to its owning scene and close it before investigating the clue.
-  await page.getByTestId('scene-transition').click();
-  await page.waitForFunction(
-    () => document.querySelector('[data-testid="active-map"]')?.textContent === 'map-courtyard',
-  );
-  await page.getByTestId('dialogue-open').click();
-  await page.getByTestId('dialogue-close').waitFor({ state: 'visible' });
-  await page.getByTestId('dialogue-close').click();
-  await page.getByTestId('scene-transition').click();
+  await page.getByTestId('clue-interaction').click();
+  await page.getByTestId('dialogue-advance').click();
+  const investigateClue = page.getByTestId('dialogue-choice-investigate-clue');
+  await investigateClue.waitFor({ state: 'visible' });
+  assert.equal(await investigateClue.isEnabled(), true);
+  await investigateClue.click();
+  await page.getByTestId('clue-status').waitFor({ state: 'visible' });
+  assert.equal(await page.getByTestId('clue-status').getAttribute('data-resolved'), 'true');
   await page.waitForFunction(
     () =>
       document.querySelector('[data-testid="active-map"]')?.textContent === 'map-workshop' &&
-      document.querySelector('[data-testid="clue-interaction"]') !== null,
+      window.__sceneProbe?.lampLit === true,
   );
-  await page.getByTestId('clue-interaction').click();
-  await page.getByTestId('dialogue-advance').click();
-  await page.getByTestId('dialogue-choice-investigate-clue').click();
-  await page.getByTestId('dialogue-close').click();
-  await page.waitForFunction(
-    () => document.querySelector('[data-testid="clue-status"]')?.dataset.resolved === 'true',
-  );
-  await page.waitForFunction(() => window.__sceneProbe?.lampLit === true);
   await page.screenshot({
     path: resolve(output, fileNames[2]),
     fullPage: true,
