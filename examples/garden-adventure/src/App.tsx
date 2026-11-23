@@ -160,10 +160,11 @@ export function App() {
         runtime.compiledGameplay,
       );
       lastSavedFingerprint.current = fingerprint;
-      setSaveFeedback(faUi.saveComplete);
     } catch {
-      setStorageMode('session-only');
-      setSaveFeedback(faUi.saveFailed);
+      queueMicrotask(() => {
+        setStorageMode('session-only');
+        setSaveFeedback(faUi.saveFailed);
+      });
     }
   }, [rendererReady, runtime, sceneReadiness, setStorageMode, state, storageMode]);
 
@@ -716,13 +717,7 @@ function GardenModal({
   readonly onDismiss: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
   const onDismissRef = useRef(onDismiss);
-
-  if (returnFocusRef.current === null && typeof document !== 'undefined') {
-    const activeElement = document.activeElement;
-    if (activeElement instanceof HTMLElement) returnFocusRef.current = activeElement;
-  }
 
   useEffect(() => {
     onDismissRef.current = onDismiss;
@@ -731,11 +726,12 @@ function GardenModal({
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
+    const activeElement = document.activeElement;
+    const opener = activeElement instanceof HTMLElement ? activeElement : null;
     if (!dialog.open) dialog.showModal();
     dialog.querySelector<HTMLElement>('[autofocus]')?.focus();
     return () => {
       if (dialog.open) dialog.close();
-      const opener = returnFocusRef.current;
       if (opener?.isConnected) {
         window.requestAnimationFrame(() => opener.focus({ preventScroll: true }));
       }

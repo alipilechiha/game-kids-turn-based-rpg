@@ -1,5 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
+declare global {
+  interface Window {
+    __gardenSaveWrites?: Array<{
+      readonly mapId: string | null;
+      readonly anchorId: string | null;
+      readonly playerAtAnchor: boolean;
+    }>;
+  }
+}
+
 const saveKey = 'waypoint-rpg:garden-adventure:save';
 
 async function startFresh(page: Page) {
