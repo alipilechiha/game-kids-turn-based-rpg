@@ -88,7 +88,7 @@ try {
     caret: 'hide',
   });
   await page.getByTestId('dialogue-choice-seek-truth').click();
-  await page.getByTestId('dialogue-leave').click();
+  await page.getByTestId('dialogue-close').click();
   await page.getByTestId('scene-transition').click();
   await page.waitForFunction(
     () =>
@@ -96,8 +96,19 @@ try {
       window.__sceneProbe?.cameraIsOrthographic === true &&
       window.__sceneProbe?.lampLit === false,
   );
-  await page.getByTestId('lantern-interaction').click();
-  await page.waitForFunction(() => window.__sceneProbe?.lampLit === true);
+  await page.getByTestId('clue-interaction').click();
+  await page.getByTestId('dialogue-advance').click();
+  const investigateClue = page.getByTestId('dialogue-choice-investigate-clue');
+  await investigateClue.waitFor({ state: 'visible' });
+  assert.equal(await investigateClue.isEnabled(), true);
+  await investigateClue.click();
+  await page.getByTestId('clue-status').waitFor({ state: 'visible' });
+  assert.equal(await page.getByTestId('clue-status').getAttribute('data-resolved'), 'true');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="active-map"]')?.textContent === 'map-workshop' &&
+      window.__sceneProbe?.lampLit === true,
+  );
   await page.screenshot({
     path: resolve(output, fileNames[2]),
     fullPage: true,
