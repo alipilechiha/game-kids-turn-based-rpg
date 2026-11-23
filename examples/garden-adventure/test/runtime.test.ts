@@ -53,6 +53,24 @@ describe('Garden game runtime', () => {
     const resetState = runtime.getState();
     expect(commitRenderedArrival(runtime, arrival)).toBe(false);
     expect(runtime.getState()).toBe(resetState);
+
+    runtime.dispatch({ type: 'MOVE_TO', targetId: 'garden-gate' });
+    const gateState = runtime.getState();
+    const gateWalk = gateState.walk!;
+    const gateArrival = {
+      mapId: gateState.mapId,
+      committedAnchor: gateState.anchorId,
+      playthroughId: gateState.narrative.playthroughId,
+      routeId: gateWalk.routeId,
+      nextIndex: gateWalk.nextIndex,
+      targetAnchor: gateWalk.path[gateWalk.nextIndex]!,
+    } as const;
+    expect(commitRenderedArrival(runtime, gateArrival)).toBe(true);
+    runtime.dispatch({ type: 'INTERACT', targetId: 'garden-gate' });
+    const gardenState = runtime.getState();
+    expect(gardenState.mapId).toBe('garden');
+    expect(commitRenderedArrival(runtime, gateArrival)).toBe(false);
+    expect(runtime.getState()).toBe(gardenState);
     runtime.dispose();
   });
 });
