@@ -248,6 +248,16 @@ only after the license is reviewed. The repository-generated sample sidecars
 and original fixtures are under
 `examples/scene-demo/fixtures/model-source/`.
 
+The reference consumer additionally includes local source files for **Box**
+and **Rigged Figure** from Khronos glTF Sample Assets at pinned commit
+`e124e8d8d7330a5372bc2b4d00d39a4a9d7997ea`. Both are © 2017 Cesium under CC BY
+4.0 with “Cesium for Everything” attribution. See the paired metadata sidecars
+and their upstream `README.md` sources in
+`examples/scene-demo/fixtures/model-source/khronos/`. The importer assigns a
+stable `clip-N` name to an unnamed source animation before writing runtime GLB;
+that keeps its authored semantic mapping consistent with the actual clip name
+Three.js loads.
+
 GLB is both the release format and the Phase 5 runtime loading boundary. The
 loader accepts only self-contained GLB 2.0 files and rejects every JSON/BIN
 buffer or image URI before passing bytes to Three.js. This deliberately avoids

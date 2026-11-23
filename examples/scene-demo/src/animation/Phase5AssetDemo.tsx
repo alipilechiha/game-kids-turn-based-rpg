@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Scene, WebGLRenderer } from 'three';
+import type { Camera, Scene, WebGLRenderer } from 'three';
 import { transitionGameplay } from 'waypoint-rpg-gameplay';
 import type { SemanticAction } from './contracts.js';
 import {
@@ -11,15 +11,25 @@ import {
 import { ModelInstance, type ModelLoadStatus } from './ModelInstance.js';
 import { phase5AssetRecords } from './asset-records.js';
 import { createModelAssetLoader } from './model-loader.js';
+import { CinematicStage } from '../presentation/CinematicStage.js';
+import { guardianGreetingCinematic } from '../presentation/blood-leaf-cinematic.js';
+import { createTimelinePlayer } from '../presentation/timeline.js';
+import type { TimelineCue, TimelinePlayer, TimelineStatus } from '../presentation/timeline.js';
 
 const STATIC_ID = 'phase5-textured-static';
 const RIGGED_ID = 'phase5-animated-guardian';
+const EXTERNAL_STATIC_ID = 'phase5-khronos-box';
+const EXTERNAL_RIGGED_ID = 'phase5-khronos-rigged-figure';
 const TRAVELER_INSTANCE_ID = 'traveler';
 const GUARDIAN_INSTANCE_ID = 'guardian';
 
 declare global {
   interface Window {
-    __phase5ModelProbe?: { readonly scene: Scene; readonly renderer: WebGLRenderer };
+    __phase5ModelProbe?: {
+      readonly scene: Scene;
+      readonly renderer: WebGLRenderer;
+      readonly camera: Camera;
+    };
   }
 }
 
@@ -58,16 +68,25 @@ export function Phase5AssetDemo() {
   const [statuses, setStatuses] = useState<Readonly<Record<string, ModelLoadStatus>>>({});
   const [viewVersion, setViewVersion] = useState(0);
   const [previewAssetId, setPreviewAssetId] = useState(STATIC_ID);
+  const [riggedAssetId, setRiggedAssetId] = useState(RIGGED_ID);
   const [gameplay, setGameplay] = useState(() => createAnimationGameplayDemo());
   const [actions, setActions] = useState<Readonly<Record<string, SemanticAction>>>(() => ({
     [TRAVELER_INSTANCE_ID]: 'idle',
     [GUARDIAN_INSTANCE_ID]: 'idle',
   }));
   const [gameplayFeedback, setGameplayFeedback] = useState('');
+  const [contextLost, setContextLost] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
   const sceneProbeRef = useRef<Window['__phase5ModelProbe']>(undefined);
+  const timelinePlayer = useMemo(() => createTimelinePlayer(guardianGreetingCinematic), []);
+  const timelineRef = useRef<TimelinePlayer | null>(timelinePlayer);
+  timelineRef.current = timelinePlayer;
+  const pendingCuesRef = useRef<TimelineCue[]>([]);
+  const invalidateRef = useRef<() => void>(() => {});
+  const [cinematicStatus, setCinematicStatus] = useState<TimelineStatus>('idle');
+  const [cinematicCaption, setCinematicCaption] = useState('');
   useEffect(
     () => () => {
       loader.dispose();
@@ -75,12 +94,34 @@ export function Phase5AssetDemo() {
     },
     [loader],
   );
-  const onCanvasCreated = useCallback(({ gl, scene }: { gl: WebGLRenderer; scene: Scene }) => {
-    const probe = { scene, renderer: gl };
-    sceneProbeRef.current = probe;
-    window.__phase5ModelProbe = probe;
-    gl.domElement.dataset.testid = 'phase5-model-canvas';
-  }, []);
+  const onCanvasCreated = useCallback(
+    ({
+      gl,
+      scene,
+      camera,
+      invalidate,
+    }: {
+      gl: WebGLRenderer;
+      scene: Scene;
+      camera: Camera;
+      invalidate: () => void;
+    }) => {
+      const probe = { scene, renderer: gl, camera };
+      sceneProbeRef.current = probe;
+      window.__phase5ModelProbe = probe;
+      invalidateRef.current = invalidate;
+      gl.domElement.dataset.testid = 'phase5-model-canvas';
+      gl.domElement.addEventListener(
+        'webglcontextlost',
+        (event) => {
+          event.preventDefault();
+          setContextLost(true);
+        },
+        { once: true },
+      );
+    },
+    [],
+  );
   const onStatus = useCallback((instanceId: string, status: ModelLoadStatus) => {
     setStatuses((current) => ({ ...current, [instanceId]: status }));
   }, []);
@@ -108,6 +149,41 @@ export function Phase5AssetDemo() {
     setActions({ [TRAVELER_INSTANCE_ID]: 'idle', [GUARDIAN_INSTANCE_ID]: 'idle' });
     setGameplayFeedback('A new encounter is ready.');
   }, []);
+  const onCinematicCue = useCallback((cue: TimelineCue) => {
+    if (cue.kind === 'dialogue') setCinematicCaption(cue.text);
+    if (cue.kind === 'animation') {
+      if (cue.instanceId === TRAVELER_INSTANCE_ID || cue.instanceId === GUARDIAN_INSTANCE_ID)
+        setActions((current) => ({ ...current, [cue.instanceId]: cue.action }));
+    }
+  }, []);
+  const playCinematic = useCallback(() => {
+    setActions({ [TRAVELER_INSTANCE_ID]: 'idle', [GUARDIAN_INSTANCE_ID]: 'idle' });
+    setCinematicCaption('');
+    timelinePlayer.play({ reducedMotion });
+    setCinematicStatus(timelinePlayer.snapshot().status);
+    invalidateRef.current();
+  }, [reducedMotion, timelinePlayer]);
+  const pauseCinematic = useCallback(() => {
+    timelinePlayer.pause();
+    setCinematicStatus(timelinePlayer.snapshot().status);
+  }, [timelinePlayer]);
+  const resumeCinematic = useCallback(() => {
+    timelinePlayer.resume();
+    setCinematicStatus(timelinePlayer.snapshot().status);
+    invalidateRef.current();
+  }, [timelinePlayer]);
+  const skipCinematic = useCallback(() => {
+    pendingCuesRef.current.push(...timelinePlayer.skip());
+    setCinematicStatus(timelinePlayer.snapshot().status);
+    invalidateRef.current();
+  }, [timelinePlayer]);
+  const cancelCinematic = useCallback(() => {
+    timelinePlayer.cancel();
+    setCinematicStatus(timelinePlayer.snapshot().status);
+    setActions({ [TRAVELER_INSTANCE_ID]: 'idle', [GUARDIAN_INSTANCE_ID]: 'idle' });
+    setCinematicCaption('');
+    invalidateRef.current();
+  }, [timelinePlayer]);
   const traveler = gameplay.state.encounter?.combatants.find((item) => item.id === 'traveler');
   const guardian = gameplay.state.encounter?.combatants.find((item) => item.id === 'guardian');
 
@@ -163,9 +239,21 @@ export function Phase5AssetDemo() {
           onChange={(event) => setPreviewAssetId(event.currentTarget.value)}
         >
           <option value={STATIC_ID}>Textured static GLB</option>
+          <option value={EXTERNAL_STATIC_ID}>Khronos Box · CC BY 4.0</option>
+          <option value={EXTERNAL_RIGGED_ID}>Khronos Rigged Figure · CC BY 4.0</option>
           <option value={RIGGED_ID}>Rigged animated GLB</option>
           {testMode && <option value="phase5-slow-static">Delayed static test load</option>}
           {testMode && <option value="phase5-error-static">Failing static test load</option>}
+        </select>
+        <label htmlFor="phase5-rigged-asset">Character instances</label>
+        <select
+          id="phase5-rigged-asset"
+          data-testid="rigged-asset-select"
+          value={riggedAssetId}
+          onChange={(event) => setRiggedAssetId(event.currentTarget.value)}
+        >
+          <option value={RIGGED_ID}>Procedural rigged fixture</option>
+          <option value={EXTERNAL_RIGGED_ID}>Khronos Rigged Figure · CC BY 4.0</option>
         </select>
         <button
           data-testid="model-reload"
@@ -185,6 +273,35 @@ export function Phase5AssetDemo() {
         <button data-testid="gameplay-reset" type="button" onClick={restartEncounter}>
           Restart encounter
         </button>
+        <fieldset className="cinematic-controls" aria-label="Cinematic controls">
+          <legend>Optional staged interaction</legend>
+          <button data-testid="cinematic-play" type="button" onClick={playCinematic}>
+            Play or replay
+          </button>
+          {cinematicStatus === 'playing' && (
+            <button data-testid="cinematic-pause" type="button" onClick={pauseCinematic}>
+              Pause
+            </button>
+          )}
+          {cinematicStatus === 'paused' && (
+            <button data-testid="cinematic-resume" type="button" onClick={resumeCinematic}>
+              Resume
+            </button>
+          )}
+          {(cinematicStatus === 'playing' || cinematicStatus === 'paused') && (
+            <>
+              <button data-testid="cinematic-skip" type="button" onClick={skipCinematic}>
+                Skip
+              </button>
+              <button data-testid="cinematic-cancel" type="button" onClick={cancelCinematic}>
+                Cancel
+              </button>
+            </>
+          )}
+          <output data-testid="cinematic-status" aria-live="polite">
+            Cinematic {cinematicStatus}
+          </output>
+        </fieldset>
         <button
           data-testid="return-to-story"
           type="button"
@@ -227,12 +344,33 @@ export function Phase5AssetDemo() {
         className="scene-stage phase5-model-stage"
         aria-label="Imported 3D model and animation preview"
       >
+        {contextLost && (
+          <section className="phase5-context-recovery" role="alert">
+            <p>3D preview paused. Reload the local models to continue.</p>
+            <button
+              data-testid="phase5-context-recover"
+              type="button"
+              onClick={() => {
+                setContextLost(false);
+                setViewVersion((version) => version + 1);
+              }}
+            >
+              Recover 3D preview
+            </button>
+          </section>
+        )}
         <Canvas
           key={viewVersion}
           frameloop="demand"
           camera={{ position: [0, 3.1, 7], fov: 42 }}
           onCreated={onCanvasCreated}
         >
+          <CinematicStage
+            playerRef={timelineRef}
+            pendingCuesRef={pendingCuesRef}
+            onCue={onCinematicCue}
+            onStatus={setCinematicStatus}
+          />
           <color attach="background" args={['#d9e9ec']} />
           <ambientLight intensity={1.3} />
           <directionalLight position={[3, 5, 4]} intensity={2} />
@@ -253,8 +391,8 @@ export function Phase5AssetDemo() {
             />
             <ModelInstance
               instanceId={TRAVELER_INSTANCE_ID}
-              key={`${RIGGED_ID}:${TRAVELER_INSTANCE_ID}:${viewVersion}`}
-              assetId={RIGGED_ID}
+              key={`${TRAVELER_INSTANCE_ID}:${viewVersion}`}
+              assetId={riggedAssetId}
               loader={loader}
               position={participantPosition(gameplay.state, 'traveler')}
               action={actions[TRAVELER_INSTANCE_ID] ?? 'idle'}
@@ -264,8 +402,8 @@ export function Phase5AssetDemo() {
             />
             <ModelInstance
               instanceId={GUARDIAN_INSTANCE_ID}
-              key={`${RIGGED_ID}:${GUARDIAN_INSTANCE_ID}:${viewVersion}`}
-              assetId={RIGGED_ID}
+              key={`${GUARDIAN_INSTANCE_ID}:${viewVersion}`}
+              assetId={riggedAssetId}
               loader={loader}
               position={participantPosition(gameplay.state, 'guardian')}
               action={actions[GUARDIAN_INSTANCE_ID] ?? 'idle'}
@@ -276,11 +414,25 @@ export function Phase5AssetDemo() {
           </Suspense>
         </Canvas>
       </section>
+      {cinematicCaption && (
+        <section
+          className="cinematic-caption"
+          data-testid="cinematic-caption"
+          role="status"
+          aria-live="polite"
+          dir="rtl"
+          lang="fa"
+          aria-label="گفتار نگهبان"
+        >
+          <p>{cinematicCaption}</p>
+        </section>
+      )}
       <p className="phase5-model-provenance">
-        Both model fixtures are synthetic and covered by this repository’s MIT license. The two
-        rigged instances own separate skeletons and mixers; the move control commits a Phase 4
-        gameplay transition before selecting their movement clips. Import records include hashes,
-        provenance, budgets, and animation inventory.
+        The procedural fixtures are covered by this repository’s MIT license. The optional Box and
+        Rigged Figure samples are © 2017 Cesium under CC BY 4.0; see the attribution and pinned
+        source revision in the scene-demo README. The two character instances own separate skeletons
+        and mixers; the move control commits a Phase 4 gameplay transition before selecting their
+        movement clips. Import records include hashes, provenance, budgets, and animation inventory.
       </p>
     </main>
   );

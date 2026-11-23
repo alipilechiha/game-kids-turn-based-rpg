@@ -77,6 +77,15 @@ synthetic fixtures under the root MIT license and load from this example's
 own `public/models/` directory. The preview is isolated from the Blood Leaf
 story and the Kids RPG; it makes no network requests for model data.
 
+The runtime preview also loads two pinned, third-party source models from the
+Khronos glTF Sample Assets repository: **Box** and **Rigged Figure** at commit
+`e124e8d8d7330a5372bc2b4d00d39a4a9d7997ea`. Both are © 2017 Cesium and licensed
+CC BY 4.0, with “Cesium for Everything” attribution. The model-specific
+license records and upstream links are stored beside the source GLBs in
+`fixtures/model-source/khronos/`; generated source/output hashes and normalized
+runtime records are in `src/animation/asset-records.json`. These local-only
+fixtures do not enter the Kids RPG registry or PWA precache.
+
 To regenerate the source fixtures and import them into the demo, run from the
 repository root:
 
@@ -107,3 +116,12 @@ combat are one-shots that settle back to idle, while defeat may hold its final
 pose. Reduced motion applies a static final pose and stops frame invalidation.
 Changing an instance's asset ID removes the old model immediately while the new
 lease loads, so released resources are never rendered.
+
+The same preview route offers an optional staged guardian greeting. Its
+example-owned timeline emits validated camera, imported-animation, Persian
+dialogue, and audio-cue records in stable order. Play/replay, pause/resume,
+skip, and cancel are keyboard-operable; cancel restores the camera and idle
+pose, and unmount cancels the active sequence. Reduced motion applies the same
+story cue immediately without an animation loop. This demo has no approved
+sound asset, so it authors no audio playback cue. The timeline changes no
+durable narrative or gameplay state.

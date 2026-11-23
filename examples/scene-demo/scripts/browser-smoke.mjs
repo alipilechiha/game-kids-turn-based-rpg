@@ -449,6 +449,75 @@ try {
     await page.getByTestId('model-status-guardian').getAttribute('data-skinned-meshes'),
     '1',
   );
+  await page.getByTestId('model-asset-select').selectOption('phase5-khronos-box');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+      'ready',
+  );
+  assert.equal(await page.getByTestId('model-status-static').getAttribute('data-meshes'), '1');
+  await page.getByTestId('model-asset-select').selectOption('phase5-khronos-rigged-figure');
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[data-testid="model-status-static"]')
+        ?.getAttribute('data-skinned-meshes') === '1',
+  );
+  assert.deepEqual(
+    (await page.getByTestId('model-status-static').getAttribute('data-clips'))?.split(','),
+    ['clip-1'],
+  );
+  await page.getByTestId('rigged-asset-select').selectOption('phase5-khronos-rigged-figure');
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[data-testid="model-status-traveler"]')
+        ?.getAttribute('data-status') === 'ready' &&
+      document
+        .querySelector('[data-testid="model-status-guardian"]')
+        ?.getAttribute('data-status') === 'ready',
+  );
+  assert.deepEqual(
+    (await page.getByTestId('model-status-traveler').getAttribute('data-clips'))?.split(','),
+    ['clip-1'],
+  );
+  const externalSkeletonsAreIndependent = await page.evaluate(() => {
+    const skeletonByInstance = new Map();
+    window.__phase5ModelProbe?.scene.traverse((object) => {
+      if (!object.isSkinnedMesh) return;
+      let root = object;
+      while (root.parent && !root.userData.phase5InstanceId) root = root.parent;
+      if (root.userData.phase5InstanceId)
+        skeletonByInstance.set(root.userData.phase5InstanceId, object.skeleton);
+    });
+    return (
+      skeletonByInstance.has('traveler') &&
+      skeletonByInstance.has('guardian') &&
+      skeletonByInstance.get('traveler') !== skeletonByInstance.get('guardian')
+    );
+  });
+  assert.equal(
+    externalSkeletonsAreIndependent,
+    true,
+    'external rigged clones must own separate skeletons',
+  );
+  await page.getByTestId('model-asset-select').selectOption('phase5-textured-static');
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[data-testid="model-status-static"]')
+        ?.getAttribute('data-skinned-meshes') === '0',
+  );
+  await page.getByTestId('rigged-asset-select').selectOption('phase5-animated-guardian');
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[data-testid="model-status-traveler"]')
+        ?.getAttribute('data-status') === 'ready' &&
+      document
+        .querySelector('[data-testid="model-status-guardian"]')
+        ?.getAttribute('data-status') === 'ready',
+  );
   assert.equal(
     await page.getByTestId('reduced-motion-state').getAttribute('data-reduced-motion'),
     'true',
@@ -530,6 +599,154 @@ try {
   );
   assert.match((await page.getByTestId('animation-action-traveler').textContent()) ?? '', /move/);
   assert.match((await page.getByTestId('animation-action-guardian').textContent()) ?? '', /move/);
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="reduced-motion-state"]')?.dataset.reducedMotion ===
+      'false',
+  );
+  const activateByKeyboard = async (testId) => {
+    const control = page.getByTestId(testId);
+    await control.focus();
+    await page.keyboard.press('Enter');
+  };
+  const initialCameraPosition = await page.evaluate(() =>
+    window.__phase5ModelProbe?.camera.position.toArray(),
+  );
+  await activateByKeyboard('cinematic-play');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic playing',
+  );
+  await activateByKeyboard('cinematic-pause');
+  assert.equal(await page.getByTestId('cinematic-status').textContent(), 'Cinematic paused');
+  await page.waitForTimeout(250);
+  assert.equal(await page.getByTestId('cinematic-status').textContent(), 'Cinematic paused');
+  await activateByKeyboard('cinematic-resume');
+  const caption = page.getByTestId('cinematic-caption');
+  await caption.waitFor({ state: 'visible' });
+  assert.equal(await caption.getAttribute('dir'), 'rtl');
+  assert.equal(await caption.getAttribute('lang'), 'fa');
+  assert.match((await caption.textContent()) ?? '', /نگهبان/);
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic completed',
+  );
+  const stagedCameraPosition = await page.evaluate(() =>
+    window.__phase5ModelProbe?.camera.position.toArray(),
+  );
+  assert.notDeepEqual(
+    stagedCameraPosition,
+    initialCameraPosition,
+    'camera cue must stage the shot',
+  );
+
+  await activateByKeyboard('cinematic-play');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic playing',
+  );
+  await activateByKeyboard('cinematic-skip');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic completed',
+  );
+  await page.getByTestId('cinematic-caption').waitFor({ state: 'visible' });
+
+  await activateByKeyboard('cinematic-play');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic playing',
+  );
+  await activateByKeyboard('cinematic-cancel');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic cancelled',
+  );
+  assert.equal(await page.getByTestId('cinematic-caption').count(), 0);
+  await page.waitForFunction((initial) => {
+    const current = window.__phase5ModelProbe?.camera.position.toArray();
+    return current?.every((value, index) => Math.abs(value - initial[index]) < 0.0001);
+  }, initialCameraPosition);
+  const restoredCameraPosition = await page.evaluate(() =>
+    window.__phase5ModelProbe?.camera.position.toArray(),
+  );
+  assert.deepEqual(
+    restoredCameraPosition,
+    initialCameraPosition,
+    'cancel restores camera ownership',
+  );
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="reduced-motion-state"]')?.dataset.reducedMotion ===
+      'true',
+  );
+  await activateByKeyboard('cinematic-play');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic completed',
+  );
+  assert.equal(await page.getByTestId('cinematic-caption').isVisible(), true);
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="reduced-motion-state"]')?.dataset.reducedMotion ===
+      'false',
+  );
+  const sceneBeforeInterruptedReload = await page.evaluate(
+    () => window.__phase5ModelProbe?.scene.uuid,
+  );
+  await activateByKeyboard('cinematic-play');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+      'Cinematic playing',
+  );
+  await activateByKeyboard('model-reload');
+  await page.waitForFunction(
+    (oldSceneId) =>
+      document.querySelector('[data-testid="cinematic-status"]')?.textContent ===
+        'Cinematic cancelled' &&
+      window.__phase5ModelProbe?.scene.uuid !== oldSceneId &&
+      document.querySelector('[data-testid="model-status-rigged"]')?.getAttribute('data-status') ===
+        'ready',
+    sceneBeforeInterruptedReload,
+  );
+
+  const sceneBeforeContextLoss = await page.evaluate(() => window.__phase5ModelProbe?.scene.uuid);
+  await page.evaluate(() => window.__phase5ModelProbe?.renderer.forceContextLoss());
+  await page.getByTestId('phase5-context-recover').waitFor({ state: 'visible' });
+  await activateByKeyboard('phase5-context-recover');
+  await page.waitForFunction(
+    (oldSceneId) =>
+      window.__phase5ModelProbe?.scene.uuid !== oldSceneId &&
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+        'ready' &&
+      document.querySelector('[data-testid="model-status-rigged"]')?.getAttribute('data-status') ===
+        'ready',
+    sceneBeforeContextLoss,
+  );
+
+  await page.waitForFunction(
+    () =>
+      (window.__phase5ModelProbe?.renderer.info.memory.geometries ?? 0) >= 4 &&
+      (window.__phase5ModelProbe?.renderer.info.memory.textures ?? 0) >= 5,
+  );
+  const initialRendererMemory = await page.evaluate(() => ({
+    geometries: window.__phase5ModelProbe?.renderer.info.memory.geometries ?? -1,
+    textures: window.__phase5ModelProbe?.renderer.info.memory.textures ?? -1,
+  }));
   assert.deepEqual(
     externalAssetRequests,
     [],
@@ -550,10 +767,37 @@ try {
       previousSceneId,
     );
   }
+  await page.waitForFunction(
+    (baseline) =>
+      (window.__phase5ModelProbe?.renderer.info.memory.geometries ?? 0) >= baseline.geometries &&
+      (window.__phase5ModelProbe?.renderer.info.memory.textures ?? 0) >= baseline.textures,
+    initialRendererMemory,
+  );
+  const finalRendererMemory = await page.evaluate(() => ({
+    geometries: window.__phase5ModelProbe?.renderer.info.memory.geometries ?? -1,
+    textures: window.__phase5ModelProbe?.renderer.info.memory.textures ?? -1,
+  }));
+  assert.ok(
+    finalRendererMemory.geometries <= initialRendererMemory.geometries + 1,
+    `repeated canvas reload geometry count grew: ${JSON.stringify({ initialRendererMemory, finalRendererMemory })}`,
+  );
+  assert.ok(
+    finalRendererMemory.textures <= initialRendererMemory.textures + 1,
+    `repeated canvas reload texture count grew: ${JSON.stringify({ initialRendererMemory, finalRendererMemory })}`,
+  );
+  await page.getByTestId('return-to-story').click();
+  await page.waitForFunction(() => new URLSearchParams(location.search).get('phase5') === null);
+  await page.waitForFunction(
+    () =>
+      document.querySelector('.demo-header h1')?.textContent === 'Three.js narrative integration' &&
+      ['ready', 'recovery-required'].includes(
+        document.querySelector('[data-testid="session-readiness"]')?.textContent ?? '',
+      ),
+  );
   assert.deepEqual(pageErrors, []);
 
   log(
-    'independent Three.js consumer passed narrative, persistence, lifecycle, local static/rigged models, gameplay-driven animation, and reduced-motion smoke',
+    `independent Three.js consumer passed narrative, persistence, local static/rigged models, gameplay animation, cinematic controls/cleanup, context recovery, RTL/reduced-motion, and bounded renderer memory ${JSON.stringify({ initialRendererMemory, finalRendererMemory })}`,
   );
 } finally {
   await browser?.close();

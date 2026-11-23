@@ -630,6 +630,9 @@ export async function importModel({
       `${absoluteSource}: glTF parser rejected the file (${error instanceof Error ? error.message : String(error)}).`,
     );
   }
+  for (const [index, animation] of document.getRoot().listAnimations().entries()) {
+    if (animation.getName().trim() === '') animation.setName(`clip-${index + 1}`);
+  }
   const outputBytes = await io.writeBinary(document);
   const outputDocument = await io.readBinary(outputBytes);
   const record = inspectDocument(

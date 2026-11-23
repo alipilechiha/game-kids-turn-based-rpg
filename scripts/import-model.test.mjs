@@ -74,6 +74,25 @@ test('preserves skin weights and named animation clips in the release GLB', asyn
   });
 });
 
+test('assigns a stable runtime name to an unnamed external rigged-model clip', async () => {
+  await withTempDirectory(async (directory) => {
+    const result = await importModel({
+      sourcePath: join(fixtureDirectory, 'khronos/RiggedFigure.glb'),
+      metadataPath: join(fixtureDirectory, 'khronos/rigged-figure.asset.json'),
+      ...destinations(directory),
+    });
+    const output = await new NodeIO().read(result.outputPath);
+    assert.deepEqual(
+      result.record.clipInventory.map((clip) => clip.name),
+      ['clip-1'],
+    );
+    assert.equal(result.record.clips.idle, 'clip-1');
+    assert.equal(output.getRoot().listAnimations()[0]?.getName(), 'clip-1');
+    assert.equal(output.getRoot().listSkins().length, 1);
+    assert.equal(output.getRoot().listAnimations()[0]?.listChannels().length, 57);
+  });
+});
+
 test('repeated imports produce the same release hash and canonical manifest', async () => {
   await withTempDirectory(async (directory) => {
     const options = {
