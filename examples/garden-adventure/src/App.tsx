@@ -327,7 +327,7 @@ export function App() {
                 className="quiet-button"
                 data-testid="garden-start"
                 type="button"
-                onClick={() => startFresh('persistent')}
+                onClick={() => setResetOpen(true)}
               >
                 {faUi.start}
               </button>
@@ -376,6 +376,11 @@ export function App() {
             </>
           ) : null}
           {saveFeedback ? <p role="status">{saveFeedback}</p> : null}
+          <ResetConfirmation
+            open={resetOpen}
+            onCancel={() => setResetOpen(false)}
+            onConfirm={clearAndStartFresh}
+          />
         </section>
       ) : (
         <section className="game-shell" aria-label={mapLabel} data-active-scene={state.mapId}>
@@ -585,44 +590,11 @@ export function App() {
               </section>
             </div>
           ) : null}
-          {resetOpen ? (
-            <div className="dialogue-layer" data-testid="reset-layer">
-              <button
-                className="dialogue-backdrop"
-                type="button"
-                aria-label={faUi.cancel}
-                onClick={() => setResetOpen(false)}
-              />
-              <section
-                className="dialogue-panel"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="garden-reset-heading"
-                data-testid="reset-panel"
-              >
-                <h2 id="garden-reset-heading">{faUi.resetPrompt}</h2>
-                <div className="dialogue-choices">
-                  <button
-                    className="primary-button"
-                    data-testid="garden-confirm-reset"
-                    type="button"
-                    autoFocus
-                    onClick={clearAndStartFresh}
-                  >
-                    {faUi.confirmReset}
-                  </button>
-                  <button
-                    className="quiet-button"
-                    data-testid="garden-cancel-reset"
-                    type="button"
-                    onClick={() => setResetOpen(false)}
-                  >
-                    {faUi.cancel}
-                  </button>
-                </div>
-              </section>
-            </div>
-          ) : null}
+          <ResetConfirmation
+            open={resetOpen}
+            onCancel={() => setResetOpen(false)}
+            onConfirm={clearAndStartFresh}
+          />
         </section>
       )}
     </main>
@@ -633,6 +605,56 @@ type BattleIntent = Extract<
   GameplayPlayerIntent,
   { type: 'move' | 'use-ability' | 'wait' | 'withdraw' }
 >;
+
+function ResetConfirmation({
+  open,
+  onCancel,
+  onConfirm,
+}: {
+  readonly open: boolean;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="dialogue-layer" data-testid="reset-layer">
+      <button
+        className="dialogue-backdrop"
+        type="button"
+        aria-label={faUi.cancel}
+        onClick={onCancel}
+      />
+      <section
+        className="dialogue-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="garden-reset-heading"
+        data-testid="reset-panel"
+      >
+        <h2 id="garden-reset-heading">{faUi.resetPrompt}</h2>
+        <div className="dialogue-choices">
+          <button
+            className="primary-button"
+            data-testid="garden-confirm-reset"
+            type="button"
+            autoFocus
+            onClick={onConfirm}
+          >
+            {faUi.confirmReset}
+          </button>
+          <button
+            className="quiet-button"
+            data-testid="garden-cancel-reset"
+            type="button"
+            onClick={onCancel}
+          >
+            {faUi.cancel}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function BattlePanel({
   runtime,

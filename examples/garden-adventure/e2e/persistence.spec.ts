@@ -69,6 +69,38 @@ test('continues a saved ending on its map and restores its rendered tree', async
   await expect(page.getByTestId('ending-panel')).toBeVisible();
 });
 
+test('requires confirmation before title Start replaces a saved playthrough', async ({ page }) => {
+  await startFresh(page);
+  await completeGardenerEnding(page);
+  await page.getByTestId('ending-close').click();
+
+  const originalBytes = await page.evaluate((key) => localStorage.getItem(key), saveKey);
+  expect(originalBytes).toBeTruthy();
+  await page.reload();
+  await expect(page.getByTestId('garden-start')).toBeVisible();
+  await expect(page.getByTestId('garden-continue')).toBeVisible();
+
+  await page.getByTestId('garden-start').click();
+  await expect(page.getByTestId('reset-panel')).toBeVisible();
+  await page.getByTestId('garden-cancel-reset').click();
+  await expect(page.getByTestId('reset-panel')).toHaveCount(0);
+  await expect(page.getByTestId('garden-continue')).toBeVisible();
+  expect(await page.evaluate((key) => localStorage.getItem(key), saveKey)).toBe(originalBytes);
+
+  await page.getByTestId('garden-start').click();
+  await expect(page.getByTestId('reset-panel')).toBeVisible();
+  await page.getByTestId('garden-confirm-reset').click();
+  await expect(page.getByTestId('scene-village')).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? 'null')?.narrative.playthroughId,
+        saveKey,
+      ),
+    )
+    .not.toBe(JSON.parse(originalBytes ?? 'null').narrative.playthroughId);
+});
+
 test('keeps invalid save bytes during temporary recovery and resets to a new playthrough', async ({
   page,
 }) => {
