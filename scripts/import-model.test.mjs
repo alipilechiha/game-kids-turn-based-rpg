@@ -16,7 +16,10 @@ async function withTempDirectory(run) {
   try {
     await run(directory);
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    // Windows can report ENOTEMPTY while a just-written fixture is still
+    // being observed by the filesystem. Retry the recursive cleanup rather
+    // than making the importer suite intermittently fail after valid output.
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 
