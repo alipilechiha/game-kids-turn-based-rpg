@@ -134,6 +134,29 @@ button:disabled {
   touch-action: manipulation;
 }
 
+.phase5-model-status {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.4rem 0.8rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.phase5-model-status output {
+  font-family: ui-monospace, monospace;
+}
+
+.phase5-model-stage {
+  min-height: min(62vh, 34rem);
+}
+
+.phase5-model-provenance {
+  max-width: 56rem;
+  margin: 0 auto;
+  color: #52636d;
+  line-height: 1.6;
+}
+
 .loading {
   padding: 2rem;
   color: #52636d;

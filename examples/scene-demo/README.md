@@ -69,3 +69,31 @@ a destination only after the scene load commits. Scene registration,
 transitions, load cancellation, resource cleanup, two camera modes, and the
 demand-rendered canvas remain owned by this example; no renderer package is
 introduced.
+
+## Phase 5 local model preview
+
+Open `/?phase5=assets` in the scene-demo to load one repository-authored
+textured static GLB and one textured skinned GLB with four named clips. Both are
+synthetic fixtures under the root MIT license and load from this example's
+own `public/models/` directory. The preview is isolated from the Blood Leaf
+story and the Kids RPG; it makes no network requests for model data.
+
+To regenerate the source fixtures and import them into the demo, run from the
+repository root:
+
+```sh
+node examples/scene-demo/scripts/generate-phase5-fixtures.mjs --check
+npm run models:import -- --source examples/scene-demo/fixtures/model-source/static-textured.glb --metadata examples/scene-demo/fixtures/model-source/static-textured.asset.json
+npm run models:import -- --source examples/scene-demo/fixtures/model-source/rigged-animated.glb --metadata examples/scene-demo/fixtures/model-source/rigged-animated.asset.json
+npm run models:import:test
+npm run example:scene-build
+npm --prefix examples/scene-demo run test:e2e
+```
+
+The importer is a development tool, not a runtime dependency. It accepts local
+GLB or glTF 2.0; output is self-contained GLB. Local glTF sidecars must remain
+inside their source folder. The current allowlist supports core PBR material
+data, embedded PNG/JPEG textures, skinning, morph targets, and named clips; it
+rejects unconfigured compression and texture extensions with diagnostics.
+Blender/FBX/OBJ conversion, retargeting across different skeletons, and a
+general-purpose asset editor remain future work.

@@ -18,6 +18,12 @@ const validRecord: ModelAssetRecord = {
   outputSha256: 'b'.repeat(64),
   importer: 'phase5-fixture-builder',
   importerVersion: '1',
+  conversionOptions: {
+    outputFormat: 'glb',
+    preserveSkinning: true,
+    preserveMorphTargets: true,
+    preserveAnimations: true,
+  },
   rights: {
     licenseId: 'CC0-1.0',
     attribution: '',
@@ -25,13 +31,38 @@ const validRecord: ModelAssetRecord = {
     redistribution: true,
     approved: true,
   },
-  normalization: { metersPerUnit: 1, upAxis: 'Y', forwardAxis: '-Z' },
+  normalization: {
+    metersPerUnit: 1,
+    sourceUpAxis: 'Y',
+    sourceForwardAxis: '-Z',
+    upAxis: 'Y',
+    forwardAxis: '-Z',
+    rootRotation: [0, 0, 0, 1],
+  },
   bounds: { min: [-0.5, 0, -0.2], max: [0.5, 2, 0.2] },
-  triangles: 120,
-  textureBytes: 2048,
-  jointCount: 2,
+  metrics: {
+    sourceBytes: 4096,
+    outputBytes: 4096,
+    triangles: 120,
+    primitiveCount: 1,
+    textureCount: 1,
+    textureBytes: 2048,
+    maxTextureDimension: 8,
+    jointCount: 2,
+    skinCount: 1,
+    morphTargetNames: [],
+    estimatedDecodedBytes: 4096,
+  },
+  extensions: [],
+  materialNames: ['Fixture material'],
+  clipInventory: [
+    { name: 'Idle', durationSeconds: 1 },
+    { name: 'Walk', durationSeconds: 1 },
+    { name: 'Wave', durationSeconds: 0.8 },
+  ],
   clips: { idle: 'Idle', move: 'Walk', interact: 'Wave' },
   fallbackAction: 'idle',
+  warnings: [],
 };
 
 describe('model asset contracts', () => {
@@ -44,13 +75,13 @@ describe('model asset contracts', () => {
       ...validRecord,
       runtimePath: 'models/../private.glb',
       outputSha256: 'not-a-hash',
-      triangles: MODEL_IMPORT_BUDGET.maxTriangles + 1,
+      metrics: { ...validRecord.metrics, triangles: MODEL_IMPORT_BUDGET.maxTriangles + 1 },
       rights: { ...validRecord.rights, approved: false },
     };
     const paths = validateModelAssetRecord(invalid).map((diagnostic) => diagnostic.path);
     expect(paths).toContain('runtimePath');
     expect(paths).toContain('outputSha256');
-    expect(paths).toContain('triangles');
+    expect(paths).toContain('metrics.triangles');
     expect(paths).toContain('rights.approved');
   });
 
@@ -70,5 +101,20 @@ describe('model asset contracts', () => {
   it('uses an authored idle fallback for absent action clips', () => {
     expect(resolveSemanticClip(validRecord, 'combat')).toBe('Idle');
     expect(resolveSemanticClip({ clips: {}, fallbackAction: 'static' }, 'move')).toBeNull();
+  });
+
+  it('rejects records that would strip rig data, use invalid axis transforms, or map missing clips', () => {
+    const invalid = {
+      ...validRecord,
+      conversionOptions: { ...validRecord.conversionOptions, preserveAnimations: false },
+      normalization: { ...validRecord.normalization, rootRotation: [0, 0, 0, 0] },
+      clips: { ...validRecord.clips, combat: 'Missing' },
+      metrics: { ...validRecord.metrics, outputBytes: MODEL_IMPORT_BUDGET.maxFileBytes + 1 },
+    };
+    const paths = validateModelAssetRecord(invalid).map((diagnostic) => diagnostic.path);
+    expect(paths).toContain('conversionOptions.preserveAnimations');
+    expect(paths).toContain('normalization.rootRotation');
+    expect(paths).toContain('clips.combat');
+    expect(paths).toContain('metrics.outputBytes');
   });
 });

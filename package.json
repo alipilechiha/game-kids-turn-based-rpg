@@ -43,6 +43,8 @@
     "prevalidate:content:release": "npm run framework:build",
     "validate:content:release": "node --experimental-strip-types scripts/validate-content.ts --release",
     "validate:assets": "node --experimental-strip-types scripts/validate-assets.ts",
+    "models:import": "node scripts/import-model.mjs",
+    "models:import:test": "node --experimental-strip-types --test scripts/import-model.test.mjs",
     "gen:model": "gltfjsx",
     "validate:assets:release": "node --experimental-strip-types scripts/validate-assets.ts --release",
     "check:budgets": "node --experimental-strip-types scripts/check-budgets.ts",
@@ -73,7 +75,7 @@
     "example:scene-build": "vite build --config examples/scene-demo/vite.config.ts",
     "preexample:dev": "npm run framework:build",
     "example:dev": "vite --config examples/hello-world/vite.config.ts",
-    "verify": "npm run format:check && npm run roadmap:check && npm run lint && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run framework:narrative-consumer:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
+    "verify": "npm run format:check && npm run roadmap:check && npm run lint && npm run models:import:test && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run framework:narrative-consumer:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
@@ -88,6 +90,8 @@
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
+    "@gltf-transform/core": "4.1.0",
+    "@gltf-transform/extensions": "4.1.0",
     "@playwright/test": "1.63.0",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",

@@ -3,7 +3,7 @@ import { log } from 'node:console';
 import { chromium } from '@playwright/test';
 import { preview } from 'vite';
 
-/* global Storage, document, getComputedStyle, localStorage, window */
+/* global Storage, URL, document, getComputedStyle, localStorage, window */
 
 const server = await preview({
   preview: { host: '127.0.0.1', port: 0, strictPort: false },
@@ -372,8 +372,56 @@ try {
   );
   assert.deepEqual(pageErrors, []);
 
+  const externalAssetRequests = [];
+  await page.route('**/*', async (route) => {
+    const requestUrl = new URL(route.request().url());
+    if (requestUrl.origin !== `http://127.0.0.1:${address.port}`) {
+      externalAssetRequests.push(requestUrl.href);
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto(`http://127.0.0.1:${address.port}/?phase5=assets`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+        'ready' &&
+      document.querySelector('[data-testid="model-status-rigged"]')?.getAttribute('data-status') ===
+        'ready',
+  );
+  assert.equal(await page.getByTestId('phase5-model-canvas').count(), 1);
+  assert.equal(await page.getByTestId('model-status-static').getAttribute('data-meshes'), '1');
+  assert.equal(
+    await page.getByTestId('model-status-static').getAttribute('data-skinned-meshes'),
+    '0',
+  );
+  assert.equal(await page.getByTestId('model-status-rigged').getAttribute('data-meshes'), '1');
+  assert.equal(
+    await page.getByTestId('model-status-rigged').getAttribute('data-skinned-meshes'),
+    '1',
+  );
+  assert.deepEqual(
+    (await page.getByTestId('model-status-rigged').getAttribute('data-clips'))?.split(','),
+    ['idle', 'move', 'interact', 'combat'],
+  );
+  assert.deepEqual(
+    externalAssetRequests,
+    [],
+    'model loading must not contact a remote asset service',
+  );
+  await page.getByTestId('model-reload').click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+        'ready' &&
+      document.querySelector('[data-testid="model-status-rigged"]')?.getAttribute('data-status') ===
+        'ready',
+  );
+  assert.deepEqual(pageErrors, []);
+
   log(
-    'independent Three.js narrative consumer passed Chromium branches, modal, RTL, recovery, persistence, and lifecycle smoke',
+    'independent Three.js consumer passed narrative, persistence, lifecycle, and local static/rigged model smoke',
   );
 } finally {
   await browser?.close();

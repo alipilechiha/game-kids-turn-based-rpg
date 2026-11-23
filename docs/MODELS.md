@@ -225,3 +225,44 @@ We ship static GLBs; rigged sources need baking before they ship:
 - We never ship animations (`--no-anim`). Playback under demand rendering is
   a separate unsolved problem — AnimationMixer wants a persistent loop we
   deliberately do not run.
+
+## 10. Phase 5 local model intake for the independent scene consumer
+
+The Kids RPG pipeline above remains static and unchanged. Phase 5 uses a separate
+development-only importer and output directory for `examples/scene-demo`; none of
+its files are added to the Kids RPG asset registry or PWA precache.
+
+Run `npm run models:import -- --source <local.glb|local.gltf> --metadata <asset.json>`
+from the repository root. The command does not download source assets or contact
+an AI/model provider. It validates the source and license record, converts the
+model to a self-contained GLB, records source/output hashes and inspected model
+budgets, and writes the asset record to
+`examples/scene-demo/src/animation/asset-records.json`. It refuses to replace a
+different output unless `--replace` is supplied. Optional `--output-directory`
+and `--manifest` arguments support isolated local workflows.
+
+The metadata sidecar must include a stable ID, source origin, reviewed license
+ID, attribution text, commercial and redistribution rights, source units and
+axes, semantic clip mappings, and an explicit fallback. Mark `approved: true`
+only after the license is reviewed. The repository-generated sample sidecars
+and original fixtures are under
+`examples/scene-demo/fixtures/model-source/`.
+
+GLB is the release format. A glTF JSON source may use only data URIs or local
+dependencies contained inside its own source folder; traversal, symlink escape,
+absolute, and network references are rejected. Supported core inputs preserve
+PBR textures, skins, morph targets, and animation channels. PNG/JPEG textures
+are capped at 2048 pixels per side; import also caps source/output size, decoded
+texture memory, primitives, triangles, joints, clips, and clip duration. The
+locked glTF Transform SDK is a development-only MIT tool. Draco, Meshopt,
+BasisU, WebP/AVIF texture extensions, GPU instancing, and unknown extensions
+are rejected until a matching decoder and runtime path are verified. FBX, OBJ,
+and `.blend` are not parsed by the runtime or importer yet; a local Blender
+conversion step can produce glTF for this intake when separately installed.
+
+Use `node examples/scene-demo/scripts/generate-phase5-fixtures.mjs --check` to
+verify that the synthetic textured static and genuinely skinned animated input
+fixtures still reproduce byte-for-byte. Use `npm run models:import:test` to run
+the offline safety, provenance, structural, round-trip, budget, and
+determinism checks. The imported demo view is available at
+`?phase5=assets`; it is a technical reference view, not a new Kids RPG route.
