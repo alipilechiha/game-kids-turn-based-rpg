@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "5e55776fe77cff7dd5fc55925cf2ba6678c10920",
+  "sourceCommit": "0e89ee3fd3ca035da3b51c5fed1e8886abaffdb2",
   "browser": "Chromium via Playwright, headless SwiftShader",
   "viewport": {
     "width": 1365,
@@ -11,15 +11,15 @@
       "file": "01-external-models.png",
       "width": 1365,
       "height": 1071,
-      "bytes": 79156,
-      "sha256": "d6ace58c8aa73d09f56106ec05e160d5d2504d684ec1ae96d56b2739f57e2aac"
+      "bytes": 79212,
+      "sha256": "5ccb09012d4837f30836e16408f1a7e2b4c9b462d38d45fb4e693ec5109ea01d"
     },
     {
       "file": "02-guardian-cinematic.png",
       "width": 1365,
       "height": 1172,
-      "bytes": 112849,
-      "sha256": "bad3d2d8f92bacbc0a1842118f32723a51b7feb8a1425084615537b089c7c5f9"
+      "bytes": 112966,
+      "sha256": "74a1683ba9d1e1f09b4e707be4f48ededbfa67cfa53a8ac33a0dcf5c479a35ff"
     }
   ],
   "models": [
