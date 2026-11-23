@@ -4,6 +4,23 @@ import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MODEL_ASSET_SCHEMA_VERSION, type ModelAssetRecord } from './contracts.js';
 import { createModelAssetLoader } from './model-loader.js';
 
+function glbDocument(document: Record<string, unknown>): Uint8Array {
+  const json = new TextEncoder().encode(JSON.stringify(document));
+  const jsonLength = (json.byteLength + 3) & ~3;
+  const bytes = new Uint8Array(20 + jsonLength);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, 0x46546c67, true);
+  view.setUint32(4, 2, true);
+  view.setUint32(8, bytes.byteLength, true);
+  view.setUint32(12, jsonLength, true);
+  view.setUint32(16, 0x4e4f534a, true);
+  bytes.fill(0x20, 20);
+  bytes.set(json, 20);
+  return bytes;
+}
+
+const selfContainedGlb = glbDocument({ asset: { version: '2.0' }, scene: 0, scenes: [{}] });
+
 const record: ModelAssetRecord = {
   schemaVersion: MODEL_ASSET_SCHEMA_VERSION,
   id: 'fixture-model',
@@ -39,7 +56,7 @@ const record: ModelAssetRecord = {
   bounds: { min: [-1, 0, -1], max: [1, 2, 1] },
   metrics: {
     sourceBytes: 4,
-    outputBytes: 4,
+    outputBytes: selfContainedGlb.byteLength,
     triangles: 12,
     primitiveCount: 1,
     textureCount: 0,
@@ -71,8 +88,7 @@ function fakeGltf(): GLTF {
   } as unknown as GLTF;
 }
 
-function response() {
-  const bytes = new Uint8Array([1, 2, 3, 4]);
+function response(bytes = selfContainedGlb) {
   let consumed = false;
   return {
     ok: true,
@@ -137,10 +153,13 @@ describe('example model asset loader', () => {
   });
 
   it('rejects unregistered assets and content whose hash differs from the approved record', async () => {
+    let digestCalls = 0;
+    const fetcher = vi.fn(async () => response());
+    const parse = vi.fn(async () => fakeGltf());
     const loader = createModelAssetLoader([record], {
-      fetcher: async () => response(),
-      parse: async () => fakeGltf(),
-      digest: async () => 'c'.repeat(64),
+      fetcher,
+      parse,
+      digest: async () => (++digestCalls === 1 ? 'c'.repeat(64) : record.outputSha256),
       baseUrl: () => 'http://localhost/',
     });
     await expect(loader.load('not-registered', new AbortController().signal)).rejects.toThrow(
@@ -149,14 +168,47 @@ describe('example model asset loader', () => {
     await expect(loader.load(record.id, new AbortController().signal)).rejects.toThrow(
       'SHA-256 does not match',
     );
+    const retried = await loader.load(record.id, new AbortController().signal);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(parse).toHaveBeenCalledTimes(1);
+    retried.release();
     loader.dispose();
     await expect(loader.load(record.id, new AbortController().signal)).rejects.toThrow('disposed');
   });
 
+  it('rejects runtime GLBs with external resources before invoking the parser', async () => {
+    const externalGlb = glbDocument({
+      asset: { version: '2.0' },
+      scene: 0,
+      scenes: [{}],
+      buffers: [{ uri: 'textures/remote.bin', byteLength: 4 }],
+    });
+    const externalRecord = {
+      ...record,
+      metrics: { ...record.metrics, outputBytes: externalGlb.byteLength },
+    };
+    const parse = vi.fn(async () => fakeGltf());
+    const loader = createModelAssetLoader([externalRecord], {
+      fetcher: async () => response(externalGlb),
+      parse,
+      digest: async () => externalRecord.outputSha256,
+      baseUrl: () => 'http://localhost/',
+    });
+
+    await expect(loader.load(record.id, new AbortController().signal)).rejects.toThrow(
+      'Runtime GLB must be self-contained',
+    );
+    expect(parse).not.toHaveBeenCalled();
+    loader.dispose();
+  });
+
   it('cancels an abandoned pending request and permits a clean retry', async () => {
     let fetchSignal: AbortSignal | undefined;
+    let requests = 0;
     const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      requests += 1;
       fetchSignal = init?.signal as AbortSignal;
+      if (requests > 1) return Promise.resolve(response());
       return new Promise<Response>((_resolve, reject) => {
         fetchSignal?.addEventListener('abort', () =>
           reject(new DOMException('aborted', 'AbortError')),
@@ -176,6 +228,9 @@ describe('example model asset loader', () => {
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     await vi.waitFor(() => expect(fetchSignal?.aborted).toBe(true));
     expect(fetcher).toHaveBeenCalledTimes(1);
+    const retried = await loader.load(record.id, new AbortController().signal);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    retried.release();
     loader.dispose();
   });
 

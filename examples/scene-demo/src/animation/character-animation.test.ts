@@ -72,7 +72,24 @@ describe('character animation controller', () => {
     controller.setAction('combat');
     controller.advance(0.2);
     expect(actor.joint.position.z).toBeCloseTo(0.2, 2);
-    expect(controller.advance(1.1)).toBe(false);
+    expect(controller.advance(1.1)).toBe(true);
+    expect(controller.advance(2.1)).toBe(false);
+    controller.dispose();
+  });
+
+  it('crossfades the outgoing action and then releases it', () => {
+    const actor = character();
+    const controller = createCharacterAnimationController(actor.root, clips(), assetRecord, {
+      crossFadeSeconds: 0.25,
+    });
+
+    controller.setAction('move');
+    controller.advance(0.2);
+    controller.setAction('combat');
+    expect(controller.advance(0.1)).toBe(true);
+    expect(actor.joint.position.x).toBeGreaterThan(0);
+    expect(controller.advance(0.2)).toBe(true);
+    expect(actor.joint.position.x).toBeCloseTo(0, 2);
     controller.dispose();
   });
 
@@ -105,6 +122,51 @@ describe('character animation controller', () => {
     controller.dispose();
   });
 
+  it('repeats idle for a bounded period and then settles for demand rendering', () => {
+    const actor = character();
+    const controller = createCharacterAnimationController(actor.root, clips(), assetRecord, {
+      crossFadeSeconds: 0,
+    });
+
+    controller.setAction('idle');
+    expect(controller.advance(1.1)).toBe(true);
+    expect(controller.advance(0.8)).toBe(true);
+    expect(controller.advance(0.2)).toBe(false);
+    controller.dispose();
+  });
+
+  it.each(['move', 'interact', 'combat'] as const)(
+    'returns from %s to idle after the one-shot completes',
+    (action) => {
+      const actor = character();
+      const controller = createCharacterAnimationController(actor.root, clips(), assetRecord, {
+        crossFadeSeconds: 0,
+      });
+
+      controller.setAction(action);
+      expect(controller.advance(1.1)).toBe(true);
+      expect(controller.advance(0.1)).toBe(true);
+      expect(actor.joint.position.toArray()).toEqual([0, 0, 0]);
+      expect(controller.advance(1.95)).toBe(false);
+      controller.dispose();
+    },
+  );
+
+  it('interrupts a crossfade immediately when reduced motion is enabled', () => {
+    const actor = character();
+    const controller = createCharacterAnimationController(actor.root, clips(), assetRecord, {
+      crossFadeSeconds: 0.25,
+    });
+
+    controller.setAction('move');
+    controller.advance(0.2);
+    controller.setAction('combat', { reducedMotion: true });
+
+    expect(controller.advance(0.1)).toBe(false);
+    expect(actor.joint.position.toArray()).toEqual([0, 0, 1]);
+    controller.dispose();
+  });
+
   it('settles one-shot clips, skips unknown mappings, and disposes idempotently', () => {
     const actor = character();
     const invalidate = vi.fn();
@@ -114,11 +176,13 @@ describe('character animation controller', () => {
     });
 
     controller.setAction('move' satisfies SemanticAction);
-    expect(controller.advance(1.1)).toBe(false);
+    expect(controller.advance(1.1)).toBe(true);
+    expect(controller.advance(2.1)).toBe(false);
     expect(controller.advance(0.1)).toBe(false);
     controller.dispose();
     controller.dispose();
+    const invalidationsAfterDisposal = invalidate.mock.calls.length;
     expect(controller.advance(1)).toBe(false);
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledTimes(invalidationsAfterDisposal);
   });
 });

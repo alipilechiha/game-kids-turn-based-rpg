@@ -4,6 +4,8 @@ import type { CharacterAnimationController } from './character-animation.js';
 import { createCharacterAnimationController } from './character-animation.js';
 import type { SemanticAction } from './contracts.js';
 import type { ModelAssetLoader, ModelLease } from './model-loader.js';
+import type { LoadedModelLease } from './model-instance-lease.js';
+import { modelLeaseForRequest } from './model-instance-lease.js';
 
 export type ModelLoadStatus =
   | { readonly status: 'loading' }
@@ -36,23 +38,38 @@ export function ModelInstance({
   reducedMotion,
   onStatus,
 }: ModelInstanceProps) {
-  const [lease, setLease] = useState<ModelLease | null>(null);
-  const animationRef = useRef<CharacterAnimationController | null>(null);
+  const [loaded, setLoaded] = useState<LoadedModelLease | null>(null);
+  const animationRef = useRef<{
+    readonly assetId: string;
+    readonly instanceId: string;
+    readonly loader: ModelAssetLoader;
+    readonly controller: CharacterAnimationController;
+  } | null>(null);
   const invalidate = useThree((state) => state.invalidate);
   const invalidateRef = useRef(invalidate);
   const presentationRef = useRef({ action, reducedMotion });
+  const onStatusRef = useRef(onStatus);
+  const lease = modelLeaseForRequest(loaded, { assetId, instanceId, loader });
 
   useEffect(() => {
     invalidateRef.current = invalidate;
   }, [invalidate]);
 
   useEffect(() => {
+    onStatusRef.current = onStatus;
+  }, [onStatus]);
+
+  useEffect(() => {
     presentationRef.current = { action, reducedMotion };
-    animationRef.current?.setAction(action, { reducedMotion });
-  }, [action, actionRevision, reducedMotion]);
+    const active = animationRef.current;
+    if (active?.assetId === assetId && active.instanceId === instanceId && active.loader === loader)
+      active.controller.setAction(action, { reducedMotion });
+  }, [action, actionRevision, reducedMotion, assetId, instanceId, loader]);
 
   useFrame((_, deltaSeconds) => {
-    animationRef.current?.advance(deltaSeconds);
+    const active = animationRef.current;
+    if (active?.assetId === assetId && active.instanceId === instanceId && active.loader === loader)
+      active.controller.advance(deltaSeconds);
   });
 
   useEffect(() => {
@@ -60,7 +77,8 @@ export function ModelInstance({
     let mounted = true;
     let ownedLease: ModelLease | null = null;
     let animation: CharacterAnimationController | null = null;
-    onStatus(instanceId, { status: 'loading' });
+    setLoaded(null);
+    onStatusRef.current(instanceId, { status: 'loading' });
     void loader
       .load(assetId, controller.signal)
       .then((loaded) => {
@@ -74,18 +92,18 @@ export function ModelInstance({
         animation = createCharacterAnimationController(loaded.root, loaded.clips, loaded.record, {
           invalidate: () => invalidateRef.current(),
         });
-        animationRef.current = animation;
+        animationRef.current = { assetId, instanceId, loader, controller: animation };
         animation.setAction(presentationRef.current.action, {
           reducedMotion: presentationRef.current.reducedMotion,
         });
-        setLease(loaded);
+        setLoaded({ assetId, instanceId, loader, lease: loaded });
         let meshes = 0;
         let skinnedMeshes = 0;
         loaded.root.traverse((object) => {
           if ((object as { isMesh?: boolean }).isMesh) meshes += 1;
           if ((object as { isSkinnedMesh?: boolean }).isSkinnedMesh) skinnedMeshes += 1;
         });
-        onStatus(instanceId, {
+        onStatusRef.current(instanceId, {
           status: 'ready',
           meshes,
           skinnedMeshes,
@@ -94,7 +112,7 @@ export function ModelInstance({
       })
       .catch((error: unknown) => {
         if (!mounted || controller.signal.aborted) return;
-        onStatus(instanceId, {
+        onStatusRef.current(instanceId, {
           status: 'error',
           message: error instanceof Error ? error.message : String(error),
         });
@@ -103,11 +121,11 @@ export function ModelInstance({
     return () => {
       mounted = false;
       controller.abort();
-      if (animationRef.current === animation) animationRef.current = null;
+      if (animationRef.current?.controller === animation) animationRef.current = null;
       animation?.dispose();
       ownedLease?.release();
     };
-  }, [assetId, instanceId, loader, onStatus]);
+  }, [assetId, instanceId, loader]);
 
   if (!lease) return null;
   return <primitive object={lease.root} position={position} dispose={null} />;

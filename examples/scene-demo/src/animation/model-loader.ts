@@ -111,6 +111,88 @@ async function readLimited(
   return bytes.buffer;
 }
 
+function throwInvalidGlb(assetId: string): never {
+  throw new Error(`Runtime GLB must be self-contained and valid (${assetId}).`);
+}
+
+function assertSelfContainedGlb(bytes: ArrayBuffer, assetId: string): void {
+  if (bytes.byteLength < 20) throwInvalidGlb(assetId);
+  const view = new DataView(bytes);
+  if (
+    view.getUint32(0, true) !== 0x46546c67 ||
+    view.getUint32(4, true) !== 2 ||
+    view.getUint32(8, true) !== bytes.byteLength
+  )
+    throwInvalidGlb(assetId);
+
+  let offset = 12;
+  let jsonBytes: Uint8Array | null = null;
+  let binaryByteLength: number | null = null;
+  while (offset < bytes.byteLength) {
+    if (offset + 8 > bytes.byteLength) throwInvalidGlb(assetId);
+    const chunkByteLength = view.getUint32(offset, true);
+    const chunkType = view.getUint32(offset + 4, true);
+    const chunkStart = offset + 8;
+    const chunkEnd = chunkStart + chunkByteLength;
+    if (chunkByteLength % 4 !== 0 || chunkEnd > bytes.byteLength) throwInvalidGlb(assetId);
+    if (chunkType === 0x4e4f534a) {
+      if (offset !== 12 || jsonBytes !== null) throwInvalidGlb(assetId);
+      jsonBytes = new Uint8Array(bytes, chunkStart, chunkByteLength);
+    } else if (chunkType === 0x004e4942) {
+      if (jsonBytes === null || binaryByteLength !== null) throwInvalidGlb(assetId);
+      binaryByteLength = chunkByteLength;
+    } else {
+      throwInvalidGlb(assetId);
+    }
+    offset = chunkEnd;
+  }
+  if (offset !== bytes.byteLength || jsonBytes === null) throwInvalidGlb(assetId);
+
+  let document: Record<string, unknown> | null = null;
+  try {
+    const parsed: unknown = JSON.parse(
+      new TextDecoder('utf-8', { fatal: true }).decode(jsonBytes ?? throwInvalidGlb(assetId)),
+    );
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throwInvalidGlb(assetId);
+    document = parsed as Record<string, unknown>;
+  } catch {
+    throwInvalidGlb(assetId);
+  }
+  if (document === null) throwInvalidGlb(assetId);
+  const asset = document.asset;
+  if (!asset || typeof asset !== 'object' || (asset as Record<string, unknown>).version !== '2.0')
+    throwInvalidGlb(assetId);
+
+  const buffers = document.buffers;
+  let bufferList: unknown[] = [];
+  if (buffers !== undefined) {
+    if (!Array.isArray(buffers) || buffers.length > 1) throwInvalidGlb(assetId);
+    bufferList = buffers;
+    for (const buffer of bufferList) {
+      if (!buffer || typeof buffer !== 'object' || Object.hasOwn(buffer, 'uri'))
+        throwInvalidGlb(assetId);
+      const declaredLength = (buffer as Record<string, unknown>).byteLength;
+      if (!Number.isSafeInteger(declaredLength) || (declaredLength as number) < 0)
+        throwInvalidGlb(assetId);
+      if ((declaredLength as number) > (binaryByteLength ?? 0)) throwInvalidGlb(assetId);
+      if (binaryByteLength !== null && binaryByteLength - (declaredLength as number) > 3)
+        throwInvalidGlb(assetId);
+    }
+  }
+  if (bufferList.length === 0 && binaryByteLength !== null) throwInvalidGlb(assetId);
+
+  const images = document.images;
+  let imageList: unknown[] = [];
+  if (images !== undefined) {
+    if (!Array.isArray(images)) throwInvalidGlb(assetId);
+    imageList = images;
+    for (const image of imageList) {
+      if (!image || typeof image !== 'object' || Object.hasOwn(image, 'uri'))
+        throwInvalidGlb(assetId);
+    }
+  }
+}
+
 async function digestSha256(bytes: ArrayBuffer): Promise<string> {
   if (!globalThis.crypto?.subtle)
     throw new Error('This browser does not provide Web Crypto SHA-256.');
@@ -328,6 +410,7 @@ export function createModelAssetLoader(
       if (hash !== record.outputSha256)
         throw new Error(`Asset ${record.id} SHA-256 does not match its approved record.`);
       throwIfAborted(controller.signal);
+      assertSelfContainedGlb(bytes, record.id);
       const gltf = await parse(bytes, sourceBase);
       if (controller.signal.aborted) {
         disposeSource(gltf);

@@ -96,3 +96,14 @@ data, embedded PNG/JPEG textures, skinning, morph targets, and named clips; it
 rejects unconfigured compression and texture extensions with diagnostics.
 Blender/FBX/OBJ conversion, retargeting across different skeletons, and a
 general-purpose asset editor remain future work.
+
+At runtime the example loader accepts only self-contained GLB 2.0. It inspects
+the container before Three.js parsing and rejects external buffer or image
+references; the importer packages an approved glTF source and its local
+dependencies into that single runtime file. Each `ModelInstance` owns a
+skeleton clone, animation mixer, and resource lease. Semantic `idle` actions
+play a bounded two-cycle loop for demand rendering; movement, interaction, and
+combat are one-shots that settle back to idle, while defeat may hold its final
+pose. Reduced motion applies a static final pose and stops frame invalidation.
+Changing an instance's asset ID removes the old model immediately while the new
+lease loads, so released resources are never rendered.

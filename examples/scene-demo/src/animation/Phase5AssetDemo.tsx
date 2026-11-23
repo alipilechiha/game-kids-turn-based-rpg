@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Scene, WebGLRenderer } from 'three';
 import { transitionGameplay } from 'waypoint-rpg-gameplay';
 import type { SemanticAction } from './contracts.js';
 import {
@@ -15,6 +16,12 @@ const STATIC_ID = 'phase5-textured-static';
 const RIGGED_ID = 'phase5-animated-guardian';
 const TRAVELER_INSTANCE_ID = 'traveler';
 const GUARDIAN_INSTANCE_ID = 'guardian';
+
+declare global {
+  interface Window {
+    __phase5ModelProbe?: { readonly scene: Scene; readonly renderer: WebGLRenderer };
+  }
+}
 
 function participantPosition(
   state: ReturnType<typeof createAnimationGameplayDemo>['state'],
@@ -37,9 +44,20 @@ function statusAttributes(status: ModelLoadStatus | undefined) {
 }
 
 export function Phase5AssetDemo() {
-  const loader = useMemo(() => createModelAssetLoader(phase5AssetRecords), []);
+  const testMode = new URLSearchParams(window.location.search).get('phase5-test') === '1';
+  const loader = useMemo(() => {
+    if (!testMode) return createModelAssetLoader(phase5AssetRecords);
+    const staticRecord = phase5AssetRecords.find((record) => record.id === STATIC_ID);
+    if (!staticRecord) throw new Error('The Phase 5 static fixture is missing.');
+    return createModelAssetLoader([
+      ...phase5AssetRecords,
+      { ...staticRecord, id: 'phase5-slow-static' },
+      { ...staticRecord, id: 'phase5-error-static' },
+    ]);
+  }, [testMode]);
   const [statuses, setStatuses] = useState<Readonly<Record<string, ModelLoadStatus>>>({});
   const [viewVersion, setViewVersion] = useState(0);
+  const [previewAssetId, setPreviewAssetId] = useState(STATIC_ID);
   const [gameplay, setGameplay] = useState(() => createAnimationGameplayDemo());
   const [actions, setActions] = useState<Readonly<Record<string, SemanticAction>>>(() => ({
     [TRAVELER_INSTANCE_ID]: 'idle',
@@ -49,7 +67,20 @@ export function Phase5AssetDemo() {
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
-  useEffect(() => () => loader.dispose(), [loader]);
+  const sceneProbeRef = useRef<Window['__phase5ModelProbe']>(undefined);
+  useEffect(
+    () => () => {
+      loader.dispose();
+      if (window.__phase5ModelProbe === sceneProbeRef.current) delete window.__phase5ModelProbe;
+    },
+    [loader],
+  );
+  const onCanvasCreated = useCallback(({ gl, scene }: { gl: WebGLRenderer; scene: Scene }) => {
+    const probe = { scene, renderer: gl };
+    sceneProbeRef.current = probe;
+    window.__phase5ModelProbe = probe;
+    gl.domElement.dataset.testid = 'phase5-model-canvas';
+  }, []);
   const onStatus = useCallback((instanceId: string, status: ModelLoadStatus) => {
     setStatuses((current) => ({ ...current, [instanceId]: status }));
   }, []);
@@ -124,6 +155,18 @@ export function Phase5AssetDemo() {
       </header>
 
       <section className="controls" aria-label="Model and gameplay controls">
+        <label htmlFor="phase5-preview-asset">Preview asset</label>
+        <select
+          id="phase5-preview-asset"
+          data-testid="model-asset-select"
+          value={previewAssetId}
+          onChange={(event) => setPreviewAssetId(event.currentTarget.value)}
+        >
+          <option value={STATIC_ID}>Textured static GLB</option>
+          <option value={RIGGED_ID}>Rigged animated GLB</option>
+          {testMode && <option value="phase5-slow-static">Delayed static test load</option>}
+          {testMode && <option value="phase5-error-static">Failing static test load</option>}
+        </select>
         <button
           data-testid="model-reload"
           type="button"
@@ -188,9 +231,7 @@ export function Phase5AssetDemo() {
           key={viewVersion}
           frameloop="demand"
           camera={{ position: [0, 3.1, 7], fov: 42 }}
-          onCreated={({ gl }) => {
-            gl.domElement.dataset.testid = 'phase5-model-canvas';
-          }}
+          onCreated={onCanvasCreated}
         >
           <color attach="background" args={['#d9e9ec']} />
           <ambientLight intensity={1.3} />
@@ -202,8 +243,7 @@ export function Phase5AssetDemo() {
           <Suspense fallback={null}>
             <ModelInstance
               instanceId="static-preview"
-              key={`${STATIC_ID}:${viewVersion}`}
-              assetId={STATIC_ID}
+              assetId={previewAssetId}
               loader={loader}
               position={[0, 0.02, 1.1]}
               action="idle"

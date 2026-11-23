@@ -70,6 +70,17 @@ describe('model asset contracts', () => {
     expect(validateModelAssetRecord(validRecord)).toEqual([]);
   });
 
+  it('rejects JSON glTF as a runtime asset because referenced files cannot be lease-verified', () => {
+    const invalid = {
+      ...validRecord,
+      runtimePath: 'models/phase5-rig-fixture.gltf',
+      runtimeFormat: 'gltf',
+    };
+    const paths = validateModelAssetRecord(invalid).map((diagnostic) => diagnostic.path);
+    expect(paths).toContain('runtimePath');
+    expect(paths).toContain('runtimeFormat');
+  });
+
   it('rejects traversal, malformed hashes, unapproved rights, and out-of-budget records', () => {
     const invalid = {
       ...validRecord,

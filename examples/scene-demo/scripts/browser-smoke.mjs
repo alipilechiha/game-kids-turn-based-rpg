@@ -382,8 +382,36 @@ try {
     }
     await route.continue();
   });
+  let staticAssetRequests = 0;
+  let releaseSlowAsset;
+  let notifySlowAssetStarted;
+  const slowAssetStarted = new Promise((resolve) => {
+    notifySlowAssetStarted = resolve;
+  });
+  await page.route('**/models/phase5-textured-static.glb', async (route) => {
+    staticAssetRequests += 1;
+    if (staticAssetRequests === 2) {
+      notifySlowAssetStarted?.();
+      await new Promise((resolve) => {
+        releaseSlowAsset = resolve;
+      });
+      try {
+        await route.continue();
+      } catch {
+        // The component cancels this request when its selected asset changes.
+      }
+      return;
+    }
+    if (staticAssetRequests === 3) {
+      await route.fulfill({ status: 503, body: 'fixture load failure' });
+      return;
+    }
+    await route.continue();
+  });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(`http://127.0.0.1:${address.port}/?phase5=assets`, { waitUntil: 'networkidle' });
+  await page.goto(`http://127.0.0.1:${address.port}/?phase5=assets&phase5-test=1`, {
+    waitUntil: 'networkidle',
+  });
   await page.waitForTimeout(1500);
   const modelReadiness = await page.evaluate(() =>
     Object.fromEntries(
@@ -425,6 +453,56 @@ try {
     await page.getByTestId('reduced-motion-state').getAttribute('data-reduced-motion'),
     'true',
   );
+  await page.getByTestId('model-asset-select').selectOption('phase5-slow-static');
+  await slowAssetStarted;
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+      'loading',
+  );
+  const rootsWhileAssetLoadIsPending = await page.evaluate(() => {
+    let count = 0;
+    window.__phase5ModelProbe?.scene.traverse((object) => {
+      if (object.userData.phase5InstanceId === 'static-preview') count += 1;
+    });
+    return count;
+  });
+  assert.equal(
+    rootsWhileAssetLoadIsPending,
+    0,
+    'a changed asset ID must remove the old root before the new asset finishes loading',
+  );
+  await page.getByTestId('model-asset-select').selectOption('phase5-textured-static');
+  releaseSlowAsset?.();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+      'ready',
+  );
+  await page.getByTestId('model-asset-select').selectOption('phase5-error-static');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+      'error',
+  );
+  await page.getByTestId('model-asset-select').selectOption('phase5-textured-static');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+      'ready',
+  );
+  await page.getByTestId('model-asset-select').selectOption('phase5-error-static');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+      'ready',
+  );
+  await page.getByTestId('model-asset-select').selectOption('phase5-textured-static');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
+      'ready',
+  );
   const initialRevision = await page.getByTestId('gameplay-revision').textContent();
   await page.getByTestId('gameplay-move').click();
   await page.waitForFunction(() =>
@@ -457,14 +535,21 @@ try {
     [],
     'model loading must not contact a remote asset service',
   );
-  await page.getByTestId('model-reload').click();
-  await page.waitForFunction(
-    () =>
-      document.querySelector('[data-testid="model-status-static"]')?.getAttribute('data-status') ===
-        'ready' &&
-      document.querySelector('[data-testid="model-status-rigged"]')?.getAttribute('data-status') ===
-        'ready',
-  );
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    const previousSceneId = await page.evaluate(() => window.__phase5ModelProbe?.scene.uuid);
+    await page.getByTestId('model-reload').click();
+    await page.waitForFunction(
+      (oldSceneId) =>
+        window.__phase5ModelProbe?.scene.uuid !== oldSceneId &&
+        document
+          .querySelector('[data-testid="model-status-static"]')
+          ?.getAttribute('data-status') === 'ready' &&
+        document
+          .querySelector('[data-testid="model-status-rigged"]')
+          ?.getAttribute('data-status') === 'ready',
+      previousSceneId,
+    );
+  }
   assert.deepEqual(pageErrors, []);
 
   log(
