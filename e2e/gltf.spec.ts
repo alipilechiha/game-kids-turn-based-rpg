@@ -177,6 +177,29 @@ test.describe('gltf landmarks', () => {
       .toBeGreaterThan(0);
   });
 
+  test('a cold very-high-tier cache holds Canvas until its slowest GLB settles', async ({
+    page,
+  }) => {
+    await enableWorldProbe(page);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/models/butterfly.glb', async (route) => {
+      await held;
+      await route.continue();
+    });
+
+    await seedCompletedQuests(page, [], 'very-high');
+    const world = page.getByTestId('world-canvas');
+    await expect(world).toHaveAttribute('data-assets', 'loading');
+    release();
+    await expect(canvas(page)).toBeVisible({ timeout: 15000 });
+    await expect
+      .poll(async () => (await glbMeshNames(page)).length, { timeout: 15000 })
+      .toBeGreaterThan(0);
+  });
+
   test('a missing GLB settles warmup and leaves the model fallback available', async ({ page }) => {
     await enableWorldProbe(page);
     await page.route('**/models/tree-a.glb', (route) =>
