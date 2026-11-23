@@ -405,6 +405,7 @@ h1 {
   display: grid;
   width: min(100%, 340px);
   aspect-ratio: 1;
+  direction: ltr;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   margin: 0 auto;

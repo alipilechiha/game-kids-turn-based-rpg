@@ -15,7 +15,7 @@ export function SceneCamera({ mapId, anchorId }: SceneCameraProps) {
 
   useEffect(() => {
     const aspect = size.width / Math.max(1, size.height);
-    const halfHeight = 8;
+    const halfHeight = aspect < 1 ? 10 : 8;
     const camera = new OrthographicCamera(
       -halfHeight * aspect,
       halfHeight * aspect,
