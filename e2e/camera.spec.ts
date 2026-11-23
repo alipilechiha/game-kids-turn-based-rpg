@@ -25,7 +25,7 @@ interface WorldProbe {
   __worldAt?: string;
   __worldDiscoveries?: string[];
   __worldToScreen?: (x: number, z: number) => { x: number; y: number };
-  __worldCamera?: { position: { x: number; y?: number; z: number } };
+  __worldCamera?: { position: { x: number; y?: number; z: number }; zoom?: number };
   __worldCameraLook?: { x: number; z: number };
   __worldCameraOrbit?: { yaw: number; pitch: number };
 }
@@ -216,7 +216,20 @@ test.describe('follow camera', () => {
   }) => {
     await startGame(page);
     await waitForMap(page, 'map-town');
+    const spawn = getAnchor(
+      STATIC_WORLD_SOURCE,
+      getMap(STATIC_WORLD_SOURCE, 'map-town').spawnAnchorId,
+    );
+    // A stable default camera position can precede CameraRig's first demand
+    // frame; wait for the actual spawn focus before sampling its orbit probe.
+    await waitForCamera(page, spawn.x, spawn.z);
     await waitForCameraSettle(page);
+    await expect
+      .poll(
+        () => page.evaluate(() => (window as unknown as WorldProbe).__worldCameraOrbit ?? null),
+        { timeout: 10000 },
+      )
+      .not.toBeNull();
     const before = await cameraTarget(page);
     const orbitBefore = await page.evaluate(() => {
       return (window as unknown as WorldProbe).__worldCameraOrbit ?? null;
@@ -243,5 +256,77 @@ test.describe('follow camera', () => {
 
     const after = await cameraTarget(page);
     expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeLessThan(1.5);
+  });
+
+  test('touch drag pans and a two-finger gesture zooms the map', async ({ page }) => {
+    await startGame(page);
+    await waitForMap(page, 'map-town');
+    await waitForCameraSettle(page);
+    const before = await cameraTarget(page);
+    const canvas = page.locator('canvas');
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+
+    // Dispatch native pointer events with touch semantics on the actual
+    // rendered canvas, exercising the same listeners used by touch browsers.
+    await canvas.evaluate((element, bounds) => {
+      const send = (type: string, pointerId: number, x: number, y: number) =>
+        element.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId,
+            pointerType: 'touch',
+            isPrimary: pointerId === 1,
+            clientX: x,
+            clientY: y,
+            button: 0,
+            buttons: type === 'pointerup' ? 0 : 1,
+          }),
+        );
+      const x = bounds.x + bounds.width * 0.5;
+      const y = bounds.y + bounds.height * 0.5;
+      send('pointerdown', 1, x, y);
+      send('pointermove', 1, x - 90, y - 50);
+      send('pointerup', 1, x - 90, y - 50);
+    }, box);
+    await expect
+      .poll(async () => {
+        const after = await cameraTarget(page);
+        return Math.hypot(after.x - before.x, after.z - before.z);
+      })
+      .toBeGreaterThan(0.5);
+
+    const zoomBefore = await page.evaluate(
+      () => (window as unknown as WorldProbe).__worldCamera?.zoom ?? Number.NaN,
+    );
+    await canvas.evaluate((element, bounds) => {
+      const send = (type: string, pointerId: number, x: number, y: number) =>
+        element.dispatchEvent(
+          new PointerEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId,
+            pointerType: 'touch',
+            isPrimary: pointerId === 1,
+            clientX: x,
+            clientY: y,
+            button: 0,
+            buttons: type === 'pointerup' ? 0 : 1,
+          }),
+        );
+      const midX = bounds.x + bounds.width * 0.5;
+      const midY = bounds.y + bounds.height * 0.5;
+      send('pointerdown', 2, midX - 40, midY);
+      send('pointerdown', 3, midX + 40, midY);
+      send('pointermove', 2, midX - 70, midY);
+      send('pointermove', 3, midX + 70, midY);
+      send('pointerup', 2, midX - 70, midY);
+      send('pointerup', 3, midX + 70, midY);
+    }, box);
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as WorldProbe).__worldCamera?.zoom ?? 0))
+      .toBeGreaterThan(zoomBefore);
   });
 });
