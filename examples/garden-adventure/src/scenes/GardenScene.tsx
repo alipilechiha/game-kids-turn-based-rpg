@@ -12,15 +12,19 @@ import {
 } from '../world/world.js';
 import { SceneCamera } from './SceneCamera.js';
 import { sceneForMap } from './registry.js';
-import { currentGardenProbe } from './probe.js';
+import {
+  currentGardenProbe,
+  type GardenSceneReadiness,
+} from './probe.js';
 
 interface GardenSceneProps {
   readonly runtime: GardenRuntime;
   readonly state: GardenState;
   readonly onTargetPress: (targetId: GardenTarget['id']) => void;
+  readonly onSceneReady: (readiness: GardenSceneReadiness) => void;
 }
 
-export function GardenScene({ runtime, state, onTargetPress }: GardenSceneProps) {
+export function GardenScene({ runtime, state, onTargetPress, onSceneReady }: GardenSceneProps) {
   const definition = sceneForMap(state.mapId);
   const entry = getAnchor(definition.graph, state.anchorId);
   const targets = gardenTargets.filter((target) => target.mapId === state.mapId);
@@ -31,7 +35,14 @@ export function GardenScene({ runtime, state, onTargetPress }: GardenSceneProps)
     <group name={`garden-scene-${state.mapId}`}>
       <SceneCamera mapId={state.mapId} anchorId={state.anchorId} />
       <ContextRecovery />
-      <SceneProbe mapId={state.mapId} treeGrown={treeGrown} lanternLit={lanternLit} />
+      <SceneProbe
+        mapId={state.mapId}
+        anchorId={state.anchorId}
+        playthroughId={state.narrative.playthroughId}
+        treeGrown={treeGrown}
+        lanternLit={lanternLit}
+        onSceneReady={onSceneReady}
+      />
       <ArrivalDriver runtime={runtime} state={state} />
       <color attach="background" args={[state.mapId === 'village' ? '#c7e2cf' : '#a9c8aa']} />
       <ambientLight intensity={1.7} />
@@ -85,14 +96,23 @@ function ArrivalDriver({ runtime, state }: Pick<GardenSceneProps, 'runtime' | 's
 
 function SceneProbe({
   mapId,
+  anchorId,
+  playthroughId,
   treeGrown,
   lanternLit,
+  onSceneReady,
 }: {
   readonly mapId: GardenMapId;
+  readonly anchorId: string;
+  readonly playthroughId: string;
   readonly treeGrown: boolean;
   readonly lanternLit: boolean;
+  readonly onSceneReady: GardenSceneProps['onSceneReady'];
 }) {
   const { camera, scene, gl, invalidate, size } = useThree();
+  const firstRenderedFrameKey = useRef('');
+  const reportedReadyKey = useRef('');
+  const readinessKey = `${mapId}:${anchorId}:${playthroughId}`;
 
   useEffect(() => {
     let visibleMeshCount = 0;
@@ -114,11 +134,15 @@ function SceneProbe({
     );
     const probe = {
       activeMap: mapId,
+      activeAnchor: anchorId,
+      playthroughId,
       cameraKind:
         camera instanceof OrthographicCamera ? ('orthographic' as const) : ('unknown' as const),
       visibleMeshCount,
       frameCount: 0,
       cleanupCount,
+      playerPosition: { x: Number.NaN, z: Number.NaN },
+      playerAtAnchor: false,
       targetPoints,
       renderedConsequences: [
         ...(treeGrown && scene.getObjectByName('garden-grown-tree')?.visible
@@ -138,12 +162,74 @@ function SceneProbe({
         window.__gardenProbe = { ...probe, cleanupCount: probe.cleanupCount + 1 };
       }
     };
-  }, [camera, gl, invalidate, lanternLit, mapId, scene, size.height, size.width, treeGrown]);
+  }, [
+    anchorId,
+    camera,
+    gl,
+    invalidate,
+    lanternLit,
+    mapId,
+    playthroughId,
+    scene,
+    size.height,
+    size.width,
+    treeGrown,
+  ]);
+
+  useEffect(() => {
+    firstRenderedFrameKey.current = '';
+    reportedReadyKey.current = '';
+    invalidate();
+  }, [invalidate, readinessKey]);
 
   useFrame(() => {
     const probe = currentGardenProbe();
-    if (probe?.activeMap === mapId) {
-      window.__gardenProbe = { ...probe, frameCount: probe.frameCount + 1 };
+    if (
+      probe?.activeMap !== mapId ||
+      probe.activeAnchor !== anchorId ||
+      probe.playthroughId !== playthroughId
+    )
+      return;
+
+    const player = scene.getObjectByName('garden-player');
+    if (!player) return;
+    scene.updateMatrixWorld(true);
+    const playerPosition = player.getWorldPosition(new Vector3());
+    const anchor = getAnchor(gardenGraphs[mapId], anchorId as AnchorId);
+    const playerAtAnchor = Math.hypot(playerPosition.x - anchor.x, playerPosition.z - anchor.z) < 0.02;
+    const frameCount = probe.frameCount + 1;
+    window.__gardenProbe = {
+      ...probe,
+      frameCount,
+      playerPosition: { x: playerPosition.x, z: playerPosition.z },
+      playerAtAnchor,
+    };
+
+    if (firstRenderedFrameKey.current !== readinessKey) {
+      firstRenderedFrameKey.current = readinessKey;
+      invalidate();
+      return;
+    }
+    if (
+      !playerAtAnchor ||
+      !(camera instanceof OrthographicCamera) ||
+      probe.visibleMeshCount === 0 ||
+      gl.getContext().isContextLost()
+    ) {
+      invalidate();
+      return;
+    }
+    if (reportedReadyKey.current !== readinessKey) {
+      reportedReadyKey.current = readinessKey;
+      onSceneReady({
+        mapId,
+        anchorId,
+        playthroughId,
+        cameraKind: 'orthographic',
+        frameCount,
+        visibleMeshCount: probe.visibleMeshCount,
+        playerAtAnchor,
+      });
     }
   });
 

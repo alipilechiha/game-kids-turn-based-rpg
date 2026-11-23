@@ -20,14 +20,23 @@ import {
   writeGardenSave,
   type GardenSaveInspection,
 } from './persistence/garden-save.js';
+import {
+  gardenSnapshotFingerprint,
+  isGardenSceneReadyForState,
+  shouldAutosaveGardenSnapshot,
+} from './persistence/garden-autosave.js';
 import { registerGardenServiceWorker } from './pwa.js';
 import { GardenScene } from './scenes/GardenScene.js';
+import type { GardenSceneReadiness } from './scenes/probe.js';
 import { gardenTargets, getGardenTarget, type GardenTargetId } from './world/world.js';
 
 export function App() {
   const runtime = useMemo(() => createGardenRuntime(), []);
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
   const [rendererReady, setRendererReady] = useState(false);
+  const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
+  const [sceneGeneration, setSceneGeneration] = useState(0);
+  const [sceneReadiness, setSceneReadiness] = useState<GardenSceneReadiness | null>(null);
   const [manualRecapOpen, setManualRecapOpen] = useState(false);
   const [dismissedEndingId, setDismissedEndingId] = useState<string | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -45,7 +54,7 @@ export function App() {
   const [saveInspection, setSaveInspection] = useState(initialInspection);
   const initialStorageMode =
     initialInspection.status === 'unavailable' ? 'session-only' : 'persistent';
-  const storageModeRef = useRef<'persistent' | 'session-only'>(initialStorageMode);
+  const lastSavedFingerprint = useRef<string | null>(null);
   const [storageMode, setStorageModeState] = useState<'persistent' | 'session-only'>(
     initialStorageMode,
   );
@@ -79,9 +88,23 @@ export function App() {
   useEffect(() => () => runtime.dispose(), [runtime]);
 
   const setStorageMode = useCallback((mode: 'persistent' | 'session-only') => {
-    storageModeRef.current = mode;
     setStorageModeState(mode);
   }, []);
+
+  const onSceneReady = useCallback(
+    (readiness: GardenSceneReadiness) => {
+      const current = runtime.getState();
+      if (
+        current.phase !== 'playing' ||
+        current.mapId !== readiness.mapId ||
+        current.anchorId !== readiness.anchorId ||
+        current.narrative.playthroughId !== readiness.playthroughId
+      )
+        return;
+      setSceneReadiness(readiness);
+    },
+    [runtime],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -94,30 +117,75 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = runtime.subscribe(() => {
-      if (storageModeRef.current !== 'persistent') return;
-      const current = runtime.getState();
-      if (current.phase !== 'playing' || current.walk) return;
-      try {
-        writeGardenSave(
-          window.localStorage,
-          {
-            mapId: current.mapId,
-            anchorId: current.anchorId,
-            narrative: current.narrative,
-            gameplay: current.gameplay,
-          },
-          runtime.compiledNarrative,
-          runtime.compiledGameplay,
-        );
-        setSaveFeedback(faUi.saveComplete);
-      } catch {
-        setStorageMode('session-only');
-        setSaveFeedback(faUi.saveFailed);
-      }
-    });
-    return unsubscribe;
-  }, [runtime, setStorageMode]);
+    if (
+      !rendererReady ||
+      storageMode !== 'persistent' ||
+      state.phase !== 'playing' ||
+      state.walk ||
+      !isGardenSceneReadyForState(state, sceneReadiness)
+    )
+      return;
+    try {
+      const fingerprint = gardenSnapshotFingerprint(
+        state,
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
+      if (
+        !shouldAutosaveGardenSnapshot({
+          state,
+          readiness: sceneReadiness,
+          storageMode,
+          fingerprint,
+          lastSavedFingerprint: lastSavedFingerprint.current,
+        })
+      )
+        return;
+      writeGardenSave(
+        window.localStorage,
+        {
+          mapId: state.mapId,
+          anchorId: state.anchorId,
+          narrative: state.narrative,
+          gameplay: state.gameplay,
+        },
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
+      lastSavedFingerprint.current = fingerprint;
+      setSaveFeedback(faUi.saveComplete);
+    } catch {
+      setStorageMode('session-only');
+      setSaveFeedback(faUi.saveFailed);
+    }
+  }, [
+    rendererReady,
+    runtime,
+    sceneReadiness,
+    setStorageMode,
+    state,
+    storageMode,
+  ]);
+
+  useEffect(() => {
+    if (!canvasElement) return;
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      setSceneReadiness(null);
+      setRendererReady(false);
+    };
+    const onContextRestored = () => {
+      setSceneReadiness(null);
+      setRendererReady(true);
+      setSceneGeneration((generation) => generation + 1);
+    };
+    canvasElement.addEventListener('webglcontextlost', onContextLost);
+    canvasElement.addEventListener('webglcontextrestored', onContextRestored);
+    return () => {
+      canvasElement.removeEventListener('webglcontextlost', onContextLost);
+      canvasElement.removeEventListener('webglcontextrestored', onContextRestored);
+    };
+  }, [canvasElement]);
 
   const closeRecap = useCallback(() => {
     setManualRecapOpen(false);
@@ -163,6 +231,7 @@ export function App() {
       setSaveFeedback(mode === 'session-only' ? faUi.sessionOnly : '');
       setManualRecapOpen(false);
       setDismissedEndingId(null);
+      lastSavedFingerprint.current = null;
       runtime.dispatch({ type: 'NEW_GAME' });
       setBattleNotice('');
     },
@@ -173,6 +242,13 @@ export function App() {
     if (saveInspection.status !== 'ready') return;
     setStorageMode('persistent');
     setSaveFeedback('');
+    lastSavedFingerprint.current = saveInspection.migratedFrom
+      ? null
+      : gardenSnapshotFingerprint(
+          saveInspection.snapshot,
+          runtime.compiledNarrative,
+          runtime.compiledGameplay,
+        );
     runtime.dispatch({ type: 'RESTORE_GAME', ...saveInspection.snapshot });
   }, [runtime, saveInspection, setStorageMode]);
 
@@ -192,7 +268,20 @@ export function App() {
     if (storageMode !== 'persistent') return;
     const current = runtime.getState();
     if (current.phase !== 'playing') return;
+    if (
+      current.walk ||
+      !rendererReady ||
+      !isGardenSceneReadyForState(current, sceneReadiness)
+    ) {
+      setSaveFeedback(faUi.saveSceneUnavailable);
+      return;
+    }
     try {
+      const fingerprint = gardenSnapshotFingerprint(
+        current,
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
       writeGardenSave(
         window.localStorage,
         {
@@ -204,13 +293,14 @@ export function App() {
         runtime.compiledNarrative,
         runtime.compiledGameplay,
       );
+      lastSavedFingerprint.current = fingerprint;
       setStorageMode('persistent');
       setSaveFeedback(faUi.saveComplete);
     } catch {
       setStorageMode('session-only');
       setSaveFeedback(faUi.saveFailed);
     }
-  }, [runtime, setStorageMode, storageMode]);
+  }, [rendererReady, runtime, sceneReadiness, setStorageMode, storageMode]);
 
   const onBattleIntent = useCallback(
     (intent: GameplayPlayerIntent) => {
@@ -392,14 +482,16 @@ export function App() {
               onCreated={({ gl }) => {
                 gl.domElement.dataset.testid = 'garden-canvas';
                 gl.domElement.dataset.cameraKind = 'loading';
+                setCanvasElement(gl.domElement);
                 setRendererReady(true);
               }}
             >
               <GardenScene
-                key={state.mapId}
+                key={`${state.mapId}:${sceneGeneration}`}
                 runtime={runtime}
                 state={state}
                 onTargetPress={onTargetPress}
+                onSceneReady={onSceneReady}
               />
             </Canvas>
             {!rendererReady ? (
