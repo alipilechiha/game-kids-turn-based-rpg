@@ -18,13 +18,16 @@ export function detectWebgl(): boolean {
   }
 }
 
-/** Conservative first guess; the runtime frame monitor may lower it further. */
+/** Conservative first guess; the child pause menu can raise or lower it. */
 export function detectQualityTier(): QualityTier {
   if (typeof navigator === 'undefined') return 'low';
   const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
   const cores = navigator.hardwareConcurrency ?? 4;
   const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio;
   if (memory <= 2 || cores <= 4) return 'very-low';
+  // Strong laptops/desktops: enable GLB landmarks (high) so the hub does not
+  // stay on the cubic stand-in until the child finds the quality picker.
+  if (memory >= 8 && cores >= 8 && dpr >= 1.5) return 'high';
   if (memory >= 6 && cores >= 8 && dpr >= 2) return 'normal';
   return 'low';
 }

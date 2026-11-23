@@ -94,8 +94,8 @@ export const GROUND_DECORATIONS: readonly GroundDecoration[] = [
   // rock formation instead of a pebble — same slot, same budget, taller read
   { x: -2.4, z: -3.8, kind: 'rocks', minDetail: 1, scale: 1.0 },
   { x: 3.6, z: 3.8, kind: 'stone', minDetail: 1 },
-  // lamp post at the square's south edge — the arm leans toward the path
-  { x: 1.8, z: -5.2, kind: 'streetlight', minDetail: 1, rotationY: Math.PI / 2 },
+  // lamp post at the square's south edge — taller than figures (~1.8 world)
+  { x: 1.8, z: -5.2, kind: 'streetlight', minDetail: 1, scale: 1.8, rotationY: Math.PI / 2 },
   { x: -4.2, z: 3.4, kind: 'flower', minDetail: 1 },
   { x: -4.8, z: -3.0, kind: 'rocks', minDetail: 1, scale: 0.85 },
   { x: -3.8, z: -3.4, kind: 'patch', minDetail: 1, scale: 2.4 },
@@ -113,13 +113,13 @@ export const GROUND_DECORATIONS: readonly GroundDecoration[] = [
   // new areas — each slot belongs to an area via its position; the trees
   // replace the flower/plant/stone pieces that used to sit in these slots,
   // so the decoration budget stays flat while the far corners gain depth
-  { x: -10.5, z: 4.3, kind: 'tree-b', minDetail: 1, scale: 1.5 },
-  { x: -9.7, z: -4.2, kind: 'tree-a', minDetail: 1, scale: 1.6 },
+  { x: -10.5, z: 4.3, kind: 'tree-b', minDetail: 1, scale: 2.3 },
+  { x: -9.7, z: -4.2, kind: 'tree-a', minDetail: 1, scale: 2.4 },
   { x: -9.2, z: 4.2, kind: 'rock', minDetail: 2 },
-  { x: 9, z: 7.6, kind: 'tree-c', minDetail: 1, scale: 1.5 },
+  { x: 9, z: 7.6, kind: 'tree-c', minDetail: 1, scale: 2.3 },
   { x: 12.8, z: 6.8, kind: 'flower', minDetail: 2 },
-  { x: 8.2, z: -9.6, kind: 'tree-a', minDetail: 1, scale: 1.4 },
-  { x: 10, z: -5.6, kind: 'tree-c', minDetail: 2, scale: 1.3 },
+  { x: 8.2, z: -9.6, kind: 'tree-a', minDetail: 1, scale: 2.2 },
+  { x: 10, z: -5.6, kind: 'tree-c', minDetail: 2, scale: 2.0 },
   // fence runs edge the park's north boundary, the garden's north edge and
   // the river bank's west end — top-tier embellishment only (minDetail 5):
   // they appear where the gltf ModelSet lives, cubic at high and the
@@ -140,19 +140,18 @@ const KIND_FOOTPRINT: Record<GroundDecoration['kind'], number> = {
   flower: 0.55,
   plant: 0.55,
   stone: 0.5,
-  // scenery kinds carry a wider berth: the GLB silhouettes have trunks,
-  // branches and fence rails beyond their footprint centre
-  'tree-a': 0.45,
-  'tree-b': 0.45,
-  'tree-c': 0.45,
+  // trees are tall-thin: berth tracks canopy radius, not height (scale≈height)
+  'tree-a': 0.3,
+  'tree-b': 0.3,
+  'tree-c': 0.3,
   rocks: 0.95,
   farm: 1.0,
   fence: 0.55,
   bush: 0.55,
   rock: 0.5,
   bench: 0.55,
-  // pole is thin; the lamp arm's reach is inside the berth
-  streetlight: 0.4,
+  // pole is thin; berth stays ~0.4 even when scale≈1.8 for headroom
+  streetlight: 0.22,
 };
 
 export function decorationFootprint(slot: GroundDecoration): number {
@@ -182,7 +181,9 @@ const POINT_ZONES: readonly ExclusionZone[] = [
     z: a.z - 0.4,
     radius: 0.9,
   })),
-  // quest landmark footprints (anchor.x, anchor.z - 1.2, ~1.4 wide + details)
+  // quest landmark footprints (anchor.x, anchor.z - 1.2). Radius stays 1.5 so
+  // authored ground slots keep clearance; taller/wider house meshes may
+  // visually overhang this circle at the rear corners.
   ...ANCHORS.filter(
     (a) => a.landmarkId !== null && a.landmarkId !== 'landmark-fountain' && a.mapId === 'map-town',
   ).map((a) => ({ x: a.x, z: a.z - 1.2, radius: 1.5 })),

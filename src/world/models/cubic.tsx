@@ -1233,8 +1233,8 @@ interface VariantDetailProps {
 export function CubicLandmark({
   position,
   palette,
-  height = 1.6,
-  width = 1.4,
+  height = 2.5,
+  width = 2.0,
   detailLevel = 1,
   variant,
 }: LandmarkProps) {

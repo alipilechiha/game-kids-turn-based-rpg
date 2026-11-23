@@ -2,13 +2,20 @@ import { describe, expect, it } from 'vitest';
 import type { QualityTier } from '../../domain/game/types.ts';
 import { CUBIC_MODELS } from './cubicModels.ts';
 import { LANDMARK_MAX_DETAIL_Z } from './cubic.tsx';
-import { GLTF_MODELS, modelsForTier } from './gltfModels.tsx';
+import {
+  GLTF_MODELS,
+  hubNeedsGltfWarmup,
+  modelsForTier,
+  preloadHubGltfModels,
+} from './gltfModels.tsx';
 import {
   FOUNTAIN_BOUNDS,
   FOUNTAIN_FIT,
+  FOUNTAIN_HEIGHT,
   fitLandmark,
   HOME_GATE_BOUNDS,
   HOME_GATE_FIT,
+  HOME_GATE_HEIGHT,
   SHOP_BOUNDS,
   SHOP_FIT,
 } from './gltf/placement.ts';
@@ -36,10 +43,25 @@ describe('GLTF_MODELS', () => {
   });
 });
 
+describe('hub GLB warmup', () => {
+  it('only warms high and very-high tiers', () => {
+    expect(hubNeedsGltfWarmup('normal')).toBe(false);
+    expect(hubNeedsGltfWarmup('high')).toBe(true);
+    expect(hubNeedsGltfWarmup('very-high')).toBe(true);
+  });
+
+  it('resolves immediately on cubic tiers without fetching', async () => {
+    await expect(preloadHubGltfModels('low')).resolves.toBeUndefined();
+  });
+});
+
 describe('fitLandmark', () => {
   it('scales to the target height and grounds the base on y=0', () => {
-    const fit = fitLandmark(HOME_GATE_BOUNDS, 1.4);
-    expect(fit.scale).toBeCloseTo(1.4 / (HOME_GATE_BOUNDS.maxY - HOME_GATE_BOUNDS.minY), 5);
+    const fit = fitLandmark(HOME_GATE_BOUNDS, HOME_GATE_HEIGHT);
+    expect(fit.scale).toBeCloseTo(
+      HOME_GATE_HEIGHT / (HOME_GATE_BOUNDS.maxY - HOME_GATE_BOUNDS.minY),
+      5,
+    );
     // The scaled base vertex lands exactly on the ground plane.
     expect(HOME_GATE_BOUNDS.minY * fit.scale + fit.position[1]).toBeCloseTo(0, 6);
   });
@@ -66,9 +88,17 @@ describe('fitLandmark', () => {
   });
 
   it('centres radially symmetric models on the landmark origin', () => {
-    const fit = fitLandmark(FOUNTAIN_BOUNDS, 1.0, { center: true });
+    const fit = fitLandmark(FOUNTAIN_BOUNDS, FOUNTAIN_HEIGHT, { center: true });
     const frontWorld = FOUNTAIN_BOUNDS.frontZ * fit.scale + fit.position[2];
     const backWorld = FOUNTAIN_BOUNDS.backZ * fit.scale + fit.position[2];
     expect(frontWorld).toBeCloseTo(-backWorld, 6);
+  });
+
+  it('keeps houses clearly taller than a ~1.33 figure', () => {
+    expect(HOME_GATE_HEIGHT).toBeGreaterThan(2);
+    expect(HOME_GATE_FIT.scale).toBeCloseTo(
+      HOME_GATE_HEIGHT / (HOME_GATE_BOUNDS.maxY - HOME_GATE_BOUNDS.minY),
+      5,
+    );
   });
 });

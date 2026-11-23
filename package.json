@@ -70,6 +70,8 @@
     "framework:test": "npm run framework:check && npm run framework:build && npm run framework:test:prepared",
     "framework:narrative-consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-narrative-consumer.mjs",
     "framework:narrative-consumer:prepared": "node scripts/check-framework-narrative-consumer.mjs",
+    "framework:gameplay-consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-gameplay-consumer.mjs",
+    "framework:gameplay-consumer:prepared": "node scripts/check-framework-gameplay-consumer.mjs",
     "framework:pack": "npm run framework:check && npm run framework:build && npm pack --ignore-scripts --workspace=packages/core",
     "framework:consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-consumer.mjs",
     "framework:scene-consumer": "npm run framework:check && npm run framework:build && node scripts/check-framework-scene-consumer.mjs",
@@ -82,6 +84,7 @@
     "example:scene-build": "vite build --config examples/scene-demo/vite.config.ts",
     "preexample:dev": "npm run framework:build",
     "example:dev": "vite --config examples/hello-world/vite.config.ts",
+    "test:e2e:chrome": "node scripts/run-e2e-system-chrome.mjs",
     "verify": "npm run format:check && npm run roadmap:check && npm run lint && npm run models:import:test && npm run framework:check && npm run framework:build && npm --ignore-scripts run framework:test:prepared && npm --ignore-scripts run framework:narrative-consumer:prepared && npm --ignore-scripts run typecheck && npm --ignore-scripts run test && npm --ignore-scripts run build && npm --ignore-scripts run example:build && npm --ignore-scripts run example:scene-build"
   },
   "dependencies": {
@@ -91,6 +94,7 @@
     "react-dom": "19.2.8",
     "three": "0.186.0",
     "waypoint-rpg-core": "file:packages/core",
+    "waypoint-rpg-gameplay": "file:packages/gameplay",
     "waypoint-rpg-narrative": "file:packages/narrative",
     "workbox-window": "7.4.1"
   },

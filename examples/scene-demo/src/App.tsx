@@ -3,7 +3,10 @@ import { Canvas } from '@react-three/fiber';
 import { getAnchor } from 'waypoint-rpg-core';
 import { getDialogueView, getQuestStatus, getFact } from 'waypoint-rpg-narrative';
 import { DialogueDialog } from './DialogueDialog.js';
+import { bloodLeafGameplay } from './content/blood-leaf-gameplay.js';
 import { bloodLeafCopy, bloodLeafNarrative } from './content/blood-leaf.js';
+import { EncounterPanel } from './EncounterPanel.js';
+import { getEncounterView } from './encounter-view.js';
 import { SceneCamera } from './SceneCamera.js';
 import { SceneFrameProbe } from './SceneFrameProbe.js';
 import { browserDemoStorage } from './persistence.js';
@@ -75,14 +78,30 @@ function NarrativeDemo() {
     },
     [runtime],
   );
+  const onGameplayCommand = useCallback(
+    (action: Parameters<typeof runtime.dispatch>[0]) => {
+      runtime.dispatch(action);
+    },
+    [runtime],
+  );
   const dialogue = getDialogueView(bloodLeafNarrative, narrative, 'fa-IR');
   const questStatus = getQuestStatus(bloodLeafNarrative, narrative, 'leaf-inquiry');
   const factTruth = getFact(narrative, 'seeking-truth') === true;
   const factVengeance = getFact(narrative, 'seeking-vengeance') === true;
   const lanternLit = getFact(narrative, 'lantern-lit') === true;
   const clueResolved = getFact(narrative, 'clue-resolved') === true;
-  const routeUnlocked = factTruth || factVengeance;
+  const trialComplete = getFact(narrative, 'guardian-trial-complete') === true;
   const currentMapId = active?.definition.map.id ?? null;
+  const routeUnlocked = factTruth || factVengeance;
+  const encounterView = getEncounterView(bloodLeafGameplay, durable.gameplay);
+  const encounterInProgress = encounterView.active && encounterView.outcome === null;
+  const canStartTrial =
+    durable.ready &&
+    currentMapId === 'map-courtyard' &&
+    factVengeance &&
+    !trialComplete &&
+    !dialogue &&
+    !encounterInProgress;
   const suspendedDialogueId = narrative.suspendedDialogue?.dialogueId ?? null;
   const suspendedOwnerMap = suspendedDialogueId ? getDialogueOwnerMap(suspendedDialogueId) : null;
   const dialogueToOpen = narrative.activeDialogue
@@ -162,6 +181,16 @@ function NarrativeDemo() {
                   : bloodLeafCopy.startDialogue}
             </button>
           )}
+          {canStartTrial && (
+            <button
+              data-testid="start-guardian-trial"
+              type="button"
+              disabled={!durable.ready || narrative.endingId !== null}
+              onClick={() => runtime.dispatch({ type: 'START_ENCOUNTER' })}
+            >
+              {bloodLeafCopy.startTrial}
+            </button>
+          )}
           {dialogueToOpen === 'workshop-clue-dialogue' && (
             <button
               ref={dialogueOpenerRef}
@@ -186,6 +215,7 @@ function NarrativeDemo() {
               !durable.ready ||
               snapshot.pendingMapId !== null ||
               Boolean(dialogue) ||
+              encounterInProgress ||
               (toWorkshop && !routeUnlocked)
             }
             onClick={() => void runtime.transitionTo(transitionId)}
@@ -259,6 +289,14 @@ function NarrativeDemo() {
           <p className="save-warning" role="status" data-testid="save-warning">
             {bloodLeafCopy.sessionOnly}
           </p>
+        )}
+
+        {encounterView.active && (
+          <EncounterPanel
+            view={encounterView}
+            onAction={onGameplayCommand}
+            disabled={!durable.ready}
+          />
         )}
 
         <section className="scene-stage" aria-label="3D game scene">

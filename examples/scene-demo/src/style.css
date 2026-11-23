@@ -238,6 +238,89 @@ button:disabled {
   box-shadow: 0 0.4rem 1.5rem rgb(20 40 50 / 25%);
 }
 
+.encounter-panel {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 0.4rem 1.5rem rgb(20 40 50 / 8%);
+  direction: rtl;
+  text-align: right;
+}
+
+.encounter-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.encounter-header h2 {
+  margin: 0;
+  color: #285f75;
+  font-size: 1.15rem;
+}
+
+.encounter-board {
+  display: grid;
+  gap: 0.35rem;
+  justify-content: start;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.encounter-cell {
+  min-width: var(--touch-min, 44px);
+  min-height: var(--touch-min, 44px);
+  padding: 0;
+  border-radius: 0.5rem;
+  color: #1b2630;
+  background: #e7f0f3;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.encounter-cell.team-player {
+  background: #cce3ec;
+}
+
+.encounter-cell.team-enemy {
+  background: #f0d4c8;
+}
+
+.encounter-cell.legal-move {
+  color: #285f75;
+  background: #fff7df;
+}
+
+.encounter-roster {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.encounter-roster li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.encounter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.encounter-actions button {
+  min-width: var(--touch-min, 44px);
+}
+
 @media (max-width: 600px) {
   .demo-header {
     align-items: flex-start;

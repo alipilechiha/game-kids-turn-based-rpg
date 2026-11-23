@@ -12,6 +12,8 @@ export const bloodLeafDefinition: NarrativeDefinition = {
     { key: 'seeking-vengeance', type: 'boolean', default: false },
     { key: 'lantern-lit', type: 'boolean', default: false },
     { key: 'clue-resolved', type: 'boolean', default: false },
+    { key: 'guardian-trial-complete', type: 'boolean', default: false },
+    { key: 'guardian-trial-won', type: 'boolean', default: false },
   ],
   entryDialogueId: 'guardian-dialogue',
   quests: [{ id: 'leaf-inquiry' }],
@@ -213,6 +215,34 @@ export const bloodLeafDefinition: NarrativeDefinition = {
       when: { op: 'flag', key: 'seeking-truth', equals: true },
       effects: [{ op: 'set-flag', key: 'lantern-lit', value: true }],
     },
+    {
+      id: 'guardian-trial-won',
+      when: {
+        op: 'all',
+        conditions: [
+          { op: 'flag', key: 'seeking-vengeance', equals: true },
+          { op: 'flag', key: 'guardian-trial-complete', equals: false },
+        ],
+      },
+      effects: [
+        { op: 'set-flag', key: 'guardian-trial-complete', value: true },
+        { op: 'set-flag', key: 'guardian-trial-won', value: true },
+      ],
+    },
+    {
+      id: 'guardian-trial-lost',
+      when: {
+        op: 'all',
+        conditions: [
+          { op: 'flag', key: 'seeking-vengeance', equals: true },
+          { op: 'flag', key: 'guardian-trial-complete', equals: false },
+        ],
+      },
+      effects: [
+        { op: 'set-flag', key: 'guardian-trial-complete', value: true },
+        { op: 'set-flag', key: 'guardian-trial-won', value: false },
+      ],
+    },
   ],
 };
 
@@ -228,6 +258,8 @@ export const bloodLeafCopy = {
   clueWaiting: 'سرنخ هنوز بررسی نشده است',
   clueResolved: 'سرنخ بررسی شد',
   lanternLit: 'چراغ روشن است',
+  startTrial: 'آغاز آزمایش نگهبان',
+  trialComplete: 'آزمایش نگهبان پایان یافت',
   close: 'بستن گفت‌وگو',
   suspendedGuidance: {
     courtyard: 'گفت‌وگوی نگهبان ناتمام است. برای ادامه به حیاط برگرد.',

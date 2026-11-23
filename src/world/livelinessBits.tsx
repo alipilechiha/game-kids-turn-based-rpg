@@ -298,7 +298,7 @@ export function NpcTransit({
       }
     }
     group.position.set(x + offset.current.x, 0, z + offset.current.z);
-  });
+  }, [x, z, facing, reduced, invalidate]);
 
   useFrame((_, dt) => {
     const group = groupRef.current;

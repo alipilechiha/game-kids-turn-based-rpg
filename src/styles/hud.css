@@ -10,6 +10,16 @@
   z-index: 0;
 }
 
+.world--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--color-sand, #e8dcc8);
+  pointer-events: none;
+}
+
 .world canvas {
   display: block;
   touch-action: none;

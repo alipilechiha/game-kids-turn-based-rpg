@@ -71,11 +71,16 @@ excluded.
 ## 4. CSP
 
 `index.html` meta policy is intentionally tight (`default-src 'self'`,
-`object-src 'none'`, `frame-src 'none'`, `frame-ancestors 'none'`,
-`upgrade-insecure-requests`). Two known allowances:
+`object-src 'none'`, `frame-src 'none'`, `upgrade-insecure-requests`). Known
+allowances:
 
 - `style-src 'unsafe-inline'` — inline critical CSS + runtime style attrs.
 - `img-src data:` — generated icon/avatar data URLs.
+- `script-src 'wasm-unsafe-eval'` — MeshoptDecoder WASM for shipped
+  `EXT_meshopt_compression` GLBs. Does **not** allow JavaScript `eval`.
+
+`frame-ancestors` must be set by the hosting HTTP header (meta CSP ignores
+it). Production should send `Content-Security-Policy: frame-ancestors 'none'`.
 
 Anything new requiring a CSP relaxation must be justified in review; do not
 add remote origins.

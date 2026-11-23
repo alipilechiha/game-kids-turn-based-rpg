@@ -7,10 +7,15 @@ import { prefersReducedMotion } from '../services/device/capabilities.ts';
 import { getMap } from './maps.ts';
 import { getAnchor } from './navigation/graph.ts';
 import {
-  clampCameraTarget,
-  clampUserZoom,
+  CAMERA_ORBIT_SENSITIVITY,
+  cameraOffsetFromAngles,
   cameraPaddingForMap,
-  ISO_OFFSET,
+  clampCameraPitch,
+  clampCameraTarget,
+  clampCameraYaw,
+  clampUserZoom,
+  DEFAULT_CAMERA_PITCH,
+  DEFAULT_CAMERA_YAW,
   resolveCameraSource,
   shouldApplyPan,
   shouldCancelGestureOnOverrideTransition,
@@ -109,8 +114,13 @@ export function getCameraFocusOverride(): CameraFocusOverride | null {
 
 /**
  * Follow-camera controller: an orthographic camera at
- * `target + ISO_OFFSET` looking at the target, where the target is the
+ * `target + orbitOffset` looking at the target, where the target is the
  * player's position clamped inside the current map's padded bounds.
+ *
+ * Angle control (presentation only — never game logic):
+ * - Mouse: right-button or middle-button drag, or Alt+left drag, orbits yaw/pitch.
+ * - Touch: two-finger twist orbits yaw; shared vertical drag tilts pitch.
+ *   Pinch scale still zooms. One-finger drag remains ground pan / tap.
  *
  * Lifecycle is map-local: `WorldCanvas` mounts one rig per map (`key` =
  * mapId), and on mount the rig snaps to that map's spawn anchor — a map
@@ -135,6 +145,15 @@ interface DragGesture {
   downX?: number;
   downZ?: number;
   panning: boolean;
+  /** Right/middle/Alt-left mouse orbit — never walks or pans. */
+  orbiting: boolean;
+  yaw0: number;
+  pitch0: number;
+}
+
+interface OrbitAngles {
+  yaw: number;
+  pitch: number;
 }
 
 export function CameraRig({
@@ -168,6 +187,15 @@ export function CameraRig({
   // Drag-to-look-around: the child can pull the map under their finger to
   // peek farther. The offset decays to zero the moment they walk again.
   const pan = useRef<PanOffset>({ x: 0, z: 0 });
+  // Constrained orbit angles — presentation only; reset on map remount.
+  const angles = useRef<OrbitAngles>({
+    yaw: DEFAULT_CAMERA_YAW,
+    pitch: DEFAULT_CAMERA_PITCH,
+  });
+  const anglesGoal = useRef<OrbitAngles>({
+    yaw: DEFAULT_CAMERA_YAW,
+    pitch: DEFAULT_CAMERA_PITCH,
+  });
   const prevFocus = useRef<MutableTarget>({ x: 0, z: 0 });
   // Override activation AND deactivation are both gesture boundaries: a
   // drag held across either edge cannot resume with a stale baseline.
@@ -184,6 +212,31 @@ export function CameraRig({
     zoomFactorRef.current = zoomFactor;
     onZoomFactorRef.current = onZoomFactor;
   }, [zoomFactor, onZoomFactor]);
+
+  const publishOrbitProbe = useCallback((lookX?: number, lookZ?: number) => {
+    if (typeof window === 'undefined') return;
+    const probe = window as unknown as Record<string, unknown>;
+    if (import.meta.env.DEV || probe['__WORLD_PROBE']) {
+      probe['__worldCameraOrbit'] = {
+        yaw: anglesGoal.current.yaw,
+        pitch: anglesGoal.current.pitch,
+      };
+      if (lookX !== undefined && lookZ !== undefined) {
+        probe['__worldCameraLook'] = { x: lookX, z: lookZ };
+      }
+    }
+  }, []);
+
+  const applyCameraPose = useCallback(
+    (lookX: number, lookZ: number, yaw: number, pitch: number) => {
+      const offset = cameraOffsetFromAngles(yaw, pitch);
+      camera.position.set(lookX + offset.x, offset.y, lookZ + offset.z);
+      look.current.set(lookX, 0, lookZ);
+      camera.lookAt(look.current);
+      publishOrbitProbe(lookX, lookZ);
+    },
+    [camera, publishOrbitProbe],
+  );
 
   const desired = useCallback(
     (x: number, z: number, goalZoom: number = zoom, pad: number = padding): CameraTarget =>
@@ -214,9 +267,9 @@ export function CameraRig({
     invalidate();
   }, [zoom, invalidate]);
 
-  // Drag-to-pan: holding and pulling slides the camera's look target along
-  // the ground under the finger (grab-the-map feel), still inside the map
-  // bounds. Taps stay taps — under ~8px of movement nothing pans.
+  // Drag-to-pan / orbit / pinch: one finger or left mouse pans; right/middle
+  // or Alt+left orbits; two fingers pinch-zoom and twist-orbit. Taps stay
+  // taps — under ~8px of movement nothing pans.
   useEffect(() => {
     const el = gl.domElement;
     const raycaster = new THREE.Raycaster();
@@ -232,30 +285,61 @@ export function CameraRig({
       raycaster.setFromCamera(ndc, camera);
       return raycaster.ray.intersectPlane(ground, hit) !== null ? { x: hit.x, z: hit.z } : null;
     };
-    // Two pointers = pinch zoom: the second finger cancels any pan gesture
-    // and scales the child zoom factor by relative finger distance.
     const pointers = new Map<number, { x: number; y: number }>();
-    const pinch = { active: false, d0: 0, f0: 1 };
+    const pinch = {
+      active: false,
+      d0: 0,
+      f0: 1,
+      angle0: 0,
+      yaw0: DEFAULT_CAMERA_YAW,
+      pitch0: DEFAULT_CAMERA_PITCH,
+      midY0: 0,
+    };
     const pinchDistance = (): number => {
       const [a, b] = [...pointers.values()];
       return a === undefined || b === undefined ? 0 : Math.hypot(a.x - b.x, a.y - b.y);
     };
+    const pinchAngle = (): number => {
+      const [a, b] = [...pointers.values()];
+      return a === undefined || b === undefined ? 0 : Math.atan2(b.y - a.y, b.x - a.x);
+    };
+    const pinchMidY = (): number => {
+      const [a, b] = [...pointers.values()];
+      return a === undefined || b === undefined ? 0 : (a.y + b.y) / 2;
+    };
+    const isOrbitMouse = (event: PointerEvent): boolean =>
+      event.pointerType === 'mouse' &&
+      (event.button === 1 || event.button === 2 || (event.button === 0 && event.altKey));
+    const onContextMenu = (event: Event) => {
+      event.preventDefault();
+    };
     const onDown = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (
+        event.pointerType === 'mouse' &&
+        event.button !== 0 &&
+        event.button !== 1 &&
+        event.button !== 2
+      ) {
+        return;
+      }
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      if (pointers.size === 2 && onZoomFactorRef.current !== undefined) {
+      if (pointers.size === 2) {
         gesture.current = null;
         pinch.active = true;
         pinch.d0 = pinchDistance();
         pinch.f0 = zoomFactorRef.current;
+        pinch.angle0 = pinchAngle();
+        pinch.yaw0 = anglesGoal.current.yaw;
+        pinch.pitch0 = anglesGoal.current.pitch;
+        pinch.midY0 = pinchMidY();
         return;
       }
+      const orbiting = isOrbitMouse(event);
+      if (orbiting) event.preventDefault();
       const probe = window as unknown as Record<string, unknown>;
       if (import.meta.env.DEV || probe['__WORLD_PROBE']) probe['__worldPanDown'] = true;
-      const at = groundAt(event.clientX, event.clientY);
-      // Under a focus override a pointerdown may not establish a pannable
-      // baseline — no pan state accrues while the override owns the camera.
-      const pannable = shouldApplyPan(cameraFocusOverride);
+      const at = !orbiting ? groundAt(event.clientX, event.clientY) : null;
+      const pannable = !orbiting && shouldApplyPan(cameraFocusOverride);
       gesture.current = {
         id: event.pointerId,
         startX: event.clientX,
@@ -264,6 +348,9 @@ export function CameraRig({
         panZ: pan.current.z,
         ...(pannable && at ? { downX: at.x, downZ: at.z } : {}),
         panning: false,
+        orbiting,
+        yaw0: anglesGoal.current.yaw,
+        pitch0: anglesGoal.current.pitch,
       };
     };
     const onMove = (event: PointerEvent) => {
@@ -272,30 +359,59 @@ export function CameraRig({
       }
       if (pinch.active) {
         const d = pinchDistance();
-        if (pinch.d0 > 0 && d > 0) {
-          onZoomFactorRef.current?.(clampUserZoom((d / pinch.d0) * pinch.f0));
+        if (onZoomFactorRef.current !== undefined && pinch.d0 > 0 && d > 0) {
+          onZoomFactorRef.current(clampUserZoom((d / pinch.d0) * pinch.f0));
         }
+        // Two-finger twist = yaw; shared vertical drag = pitch.
+        let deltaAngle = pinchAngle() - pinch.angle0;
+        if (deltaAngle > Math.PI) deltaAngle -= Math.PI * 2;
+        if (deltaAngle < -Math.PI) deltaAngle += Math.PI * 2;
+        anglesGoal.current.yaw = clampCameraYaw(pinch.yaw0 - deltaAngle);
+        anglesGoal.current.pitch = clampCameraPitch(
+          pinch.pitch0 + (pinchMidY() - pinch.midY0) * CAMERA_ORBIT_SENSITIVITY,
+        );
+        // Snap while the gesture is live — easing after release only.
+        angles.current.yaw = anglesGoal.current.yaw;
+        angles.current.pitch = anglesGoal.current.pitch;
+        const lookX = target.current.x;
+        const lookZ = target.current.z;
+        applyCameraPose(lookX, lookZ, angles.current.yaw, angles.current.pitch);
+        publishOrbitProbe(lookX, lookZ);
+        settled.current = false;
+        invalidate();
         return;
       }
       const g = gesture.current;
-      if (
-        g === null ||
-        event.pointerId !== g.id ||
-        g.downX === undefined ||
-        g.downZ === undefined
-      ) {
+      if (g === null || event.pointerId !== g.id) return;
+      if (g.orbiting) {
+        if (!g.panning && Math.hypot(event.clientX - g.startX, event.clientY - g.startY) < 4) {
+          return;
+        }
+        g.panning = true;
+        anglesGoal.current.yaw = clampCameraYaw(
+          g.yaw0 - (event.clientX - g.startX) * CAMERA_ORBIT_SENSITIVITY,
+        );
+        anglesGoal.current.pitch = clampCameraPitch(
+          g.pitch0 + (event.clientY - g.startY) * CAMERA_ORBIT_SENSITIVITY,
+        );
+        angles.current.yaw = anglesGoal.current.yaw;
+        angles.current.pitch = anglesGoal.current.pitch;
+        const lookX = target.current.x;
+        const lookZ = target.current.z;
+        applyCameraPose(lookX, lookZ, angles.current.yaw, angles.current.pitch);
+        publishOrbitProbe(lookX, lookZ);
+        settled.current = false;
+        invalidate();
         return;
       }
+      if (g.downX === undefined || g.downZ === undefined) return;
       if (!g.panning && Math.hypot(event.clientX - g.startX, event.clientY - g.startY) < 8) {
         return;
       }
       g.panning = true;
-      // An override owns the camera: drag-driven pan writes are suspended.
       if (!shouldApplyPan(cameraFocusOverride)) return;
       const at = groundAt(event.clientX, event.clientY);
       if (!at) return;
-      // Ground under the finger stays put: shift the look target by how far
-      // the touched ground point moved, then clamp inside the map.
       pan.current.x = g.panX + (g.downX - at.x);
       pan.current.z = g.panZ + (g.downZ - at.z);
       const probe = window as unknown as Record<string, unknown>;
@@ -305,9 +421,7 @@ export function CameraRig({
       const want = desired(cameraFocus.x + pan.current.x, cameraFocus.z + pan.current.z);
       target.current.x = want.x;
       target.current.z = want.z;
-      camera.position.set(want.x + ISO_OFFSET.x, ISO_OFFSET.y, want.z + ISO_OFFSET.z);
-      look.current.set(want.x, 0, want.z);
-      camera.lookAt(look.current);
+      applyCameraPose(want.x, want.z, angles.current.yaw, angles.current.pitch);
       settled.current = false;
       invalidate();
     };
@@ -326,36 +440,40 @@ export function CameraRig({
     el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerup', onUp);
     el.addEventListener('pointercancel', onUp);
+    el.addEventListener('contextmenu', onContextMenu);
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => {
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointermove', onMove);
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('pointercancel', onUp);
+      el.removeEventListener('contextmenu', onContextMenu);
       el.removeEventListener('wheel', onWheel);
     };
-  }, [gl, camera, invalidate, desired]);
+  }, [gl, camera, invalidate, desired, applyCameraPose, publishOrbitProbe]);
 
   useFrame((frameState, delta) => {
-    const camera = frameState.camera;
+    const frameCamera = frameState.camera;
     if (!booted.current) {
       booted.current = true;
       // The mount target is derived from this map's spawn anchor: on a fresh
       // load cameraFocus already holds the spawn (the walker spawns there),
       // and on a map transition it holds the arrival anchor — either way the
-      // rig never inherits a stale target from the previous map.
+      // rig never inherits a stale target from the previous map. Orbit resets
+      // to the default isometric angles on every map entry.
       const spawn = getAnchor(world, map.spawnAnchorId);
       const start = desired(
         cameraFocus.x === 0 && cameraFocus.z === 0 ? spawn.x : cameraFocus.x,
         cameraFocus.x === 0 && cameraFocus.z === 0 ? spawn.z : cameraFocus.z,
       );
       target.current = start;
+      angles.current = { yaw: DEFAULT_CAMERA_YAW, pitch: DEFAULT_CAMERA_PITCH };
+      anglesGoal.current = { yaw: DEFAULT_CAMERA_YAW, pitch: DEFAULT_CAMERA_PITCH };
+      publishOrbitProbe();
       zoomCurrent.current = zoom;
-      camera.zoom = zoom;
-      camera.position.set(start.x + ISO_OFFSET.x, ISO_OFFSET.y, start.z + ISO_OFFSET.z);
-      look.current.set(start.x, 0, start.z);
-      camera.lookAt(look.current);
-      camera.updateProjectionMatrix();
+      frameCamera.zoom = zoom;
+      applyCameraPose(start.x, start.z, angles.current.yaw, angles.current.pitch);
+      frameCamera.updateProjectionMatrix();
       settled.current = false;
     }
     // The single camera-source decision: live base focus, or the active
@@ -402,8 +520,24 @@ export function CameraRig({
       const k = reduced ? 1 : Math.min(1, delta * 5.2);
       zoomCurrent.current += zd * k;
       if (Math.abs(src.zoom - zoomCurrent.current) <= 0.0005) zoomCurrent.current = src.zoom;
-      camera.zoom = zoomCurrent.current;
-      camera.updateProjectionMatrix();
+      frameCamera.zoom = zoomCurrent.current;
+      frameCamera.updateProjectionMatrix();
+      settled.current = false;
+      invalidate();
+    }
+    // Orbit angles ease toward the gesture goal; reduced motion snaps.
+    const yawDelta = anglesGoal.current.yaw - angles.current.yaw;
+    const pitchDelta = anglesGoal.current.pitch - angles.current.pitch;
+    if (Math.abs(yawDelta) > 0.0005 || Math.abs(pitchDelta) > 0.0005) {
+      const k = reduced ? 1 : Math.min(1, delta * 8);
+      angles.current.yaw += yawDelta * k;
+      angles.current.pitch += pitchDelta * k;
+      if (Math.abs(anglesGoal.current.yaw - angles.current.yaw) <= 0.0005) {
+        angles.current.yaw = anglesGoal.current.yaw;
+      }
+      if (Math.abs(anglesGoal.current.pitch - angles.current.pitch) <= 0.0005) {
+        angles.current.pitch = anglesGoal.current.pitch;
+      }
       settled.current = false;
       invalidate();
     }
@@ -411,7 +545,10 @@ export function CameraRig({
     const t = target.current;
     const dx = want.x - t.x;
     const dz = want.z - t.z;
-    if (Math.abs(dx) < 0.002 && Math.abs(dz) < 0.002) {
+    const anglesSettled =
+      Math.abs(anglesGoal.current.yaw - angles.current.yaw) <= 0.0005 &&
+      Math.abs(anglesGoal.current.pitch - angles.current.pitch) <= 0.0005;
+    if (Math.abs(dx) < 0.002 && Math.abs(dz) < 0.002 && anglesSettled) {
       if (settled.current) return;
       t.x = want.x;
       t.z = want.z;
@@ -423,9 +560,7 @@ export function CameraRig({
       t.z += dz * k;
       settled.current = false;
     }
-    camera.position.set(t.x + ISO_OFFSET.x, ISO_OFFSET.y, t.z + ISO_OFFSET.z);
-    look.current.set(t.x, 0, t.z);
-    camera.lookAt(look.current);
+    applyCameraPose(t.x, t.z, angles.current.yaw, angles.current.pitch);
   });
 
   return null;

@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
-  clampCameraTarget,
+  CAMERA_RADIUS,
+  cameraOffsetFromAngles,
   cameraPaddingForMap,
-  zoomForMap,
+  clampCameraPitch,
+  clampCameraTarget,
+  clampCameraYaw,
+  DEFAULT_CAMERA_PITCH,
+  DEFAULT_CAMERA_YAW,
   DEFAULT_ZOOM,
-  MIN_ZOOM,
+  ISO_OFFSET,
   MAX_ZOOM,
+  MIN_ZOOM,
+  zoomForMap,
 } from './camera.ts';
 import { WORLD_MAPS, getMap } from './maps.ts';
 import { getAnchor } from './navigation/graph.ts';
@@ -123,5 +130,32 @@ describe('map camera presentation', () => {
     expect(zoomForMap(STATIC_WORLD_SOURCE, 'map-cave')).toBeGreaterThan(
       zoomForMap(STATIC_WORLD_SOURCE, 'map-town'),
     );
+  });
+});
+
+describe('camera orbit angles', () => {
+  it('default angles reproduce the classic ISO_OFFSET', () => {
+    const offset = cameraOffsetFromAngles(DEFAULT_CAMERA_YAW, DEFAULT_CAMERA_PITCH);
+    expect(offset.x).toBeCloseTo(ISO_OFFSET.x, 10);
+    expect(offset.y).toBeCloseTo(ISO_OFFSET.y, 10);
+    expect(offset.z).toBeCloseTo(ISO_OFFSET.z, 10);
+    expect(Math.hypot(offset.x, offset.y, offset.z)).toBeCloseTo(CAMERA_RADIUS, 10);
+  });
+
+  it('clamps yaw and pitch into the child-safe band', () => {
+    expect(clampCameraYaw(DEFAULT_CAMERA_YAW + 10)).toBeLessThan(DEFAULT_CAMERA_YAW + 2);
+    expect(clampCameraYaw(DEFAULT_CAMERA_YAW - 10)).toBeGreaterThan(DEFAULT_CAMERA_YAW - 2);
+    expect(clampCameraPitch(Math.PI)).toBeLessThan(Math.PI / 2);
+    expect(clampCameraPitch(-1)).toBeGreaterThan(0);
+  });
+
+  it('orbiting yaw keeps the look radius and never goes underground', () => {
+    const left = cameraOffsetFromAngles(DEFAULT_CAMERA_YAW - 0.4, DEFAULT_CAMERA_PITCH);
+    const right = cameraOffsetFromAngles(DEFAULT_CAMERA_YAW + 0.4, DEFAULT_CAMERA_PITCH);
+    expect(Math.hypot(left.x, left.y, left.z)).toBeCloseTo(CAMERA_RADIUS, 8);
+    expect(Math.hypot(right.x, right.y, right.z)).toBeCloseTo(CAMERA_RADIUS, 8);
+    expect(left.y).toBeGreaterThan(0);
+    expect(right.y).toBeGreaterThan(0);
+    expect(left.x).not.toBeCloseTo(right.x, 2);
   });
 });

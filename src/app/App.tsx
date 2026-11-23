@@ -71,6 +71,7 @@ import {
 } from '../world/CameraRig.tsx';
 import { getMap, transitionForAnchor } from '../world/maps.ts';
 import { nearbyNpcs } from '../world/nearby.ts';
+import { preloadHubGltfModels } from '../world/models/gltfModels.tsx';
 import { useGame } from './gameContext.ts';
 import { musicForState } from './musicRouting.ts';
 
@@ -230,6 +231,12 @@ export function App() {
   useEffect(() => {
     if (celebrationActive) playMusic('music-celebration');
   }, [celebrationActive, playMusic]);
+
+  // Warm hub GLBs during menu/profile so the Canvas can mount with a full
+  // cache — no cubic→meshopt Suspense pop-in once the child reaches the hub.
+  useEffect(() => {
+    void preloadHubGltfModels(state.qualityTier);
+  }, [state.qualityTier]);
 
   // Presentation-only celebration: the reducer has already completed the quest
   // and granted the sticker before this fires; the overlay just reports it.
@@ -619,7 +626,11 @@ export function App() {
       return (
         <ProfileSelectScreen
           profiles={profiles}
-          onSelect={selectProfile}
+          onSelect={(id) => {
+            // Real user gesture — unlocks AudioContext so routed music can start.
+            playSfx('sfx-choice');
+            selectProfile(id);
+          }}
           onNew={() => {
             playSfx('sfx-choice');
             startNewPlayer();

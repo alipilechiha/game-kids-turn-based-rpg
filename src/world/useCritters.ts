@@ -50,8 +50,9 @@ const DOG_SPEED = 2.8;
 const ELEPHANT_SPEED = 1.2;
 const BIRD_SPEED = 4.5;
 const EAGLE_SPEED = 3.0;
-const EAGLE_SOAR_ANGULAR = 0.55; // rad/s — a lap ≈ 11.4 s
-const EAGLE_SOAR_LAPS = 2;
+const EAGLE_SOAR_ANGULAR = 0.85; // rad/s — a half-orbit ≈ 3.7 s
+/** Half-orbit keeps ambient sky motion short so demand-render can rest. */
+const EAGLE_SOAR_LAPS = 0.5;
 const FISH_SPEED = 0.9;
 const BUTTERFLY_SPEED = 1.6;
 /** A settled child within this radius of the basin earns the fish's attention. */

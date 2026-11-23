@@ -14,7 +14,7 @@ import type {
 import type { WorldSource } from '../domain/world/source.ts';
 import { maxPixelRatioFor } from '../services/device/capabilities.ts';
 import { Hub, type HubHandle } from './Hub.tsx';
-import { modelsForTier } from './models/gltfModels.tsx';
+import { hubNeedsGltfWarmup, modelsForTier, preloadHubGltfModels } from './models/gltfModels.tsx';
 import { ModelContext, detailLevelFor } from './models/modelProvider.ts';
 import { skyDomeResources } from './models/shared.ts';
 import { noRaycast } from './models/raycast.ts';
@@ -25,6 +25,7 @@ import { CameraRig } from './CameraRig.tsx';
 import { clampUserZoom, zoomForMap } from './camera.ts';
 import type { NpcAttention } from './sceneBits.tsx';
 import type { WorldDiag } from './diagnostics.ts';
+import { FA } from '../content/fa/strings.ts';
 
 /** Dev-only instance counter: QA asserts orientation changes never remount the Canvas. */
 let canvasInstanceCounter = 0;
@@ -265,6 +266,23 @@ export function WorldCanvas({
   const models = modelsForTier(qualityTier);
   const map = getMap(world, mapId);
   const env = map.environment;
+  const needsWarmup = hubNeedsGltfWarmup(qualityTier);
+  // Hold the Canvas until hub GLBs sit in the suspend cache — otherwise
+  // Suspense swaps cubic stand-ins for meshopt models mid-walk (pop-in).
+  // `warmedTier` tracks which high-tier cache is complete; cubic tiers skip.
+  const [warmedTier, setWarmedTier] = useState<QualityTier | null>(null);
+  const assetsReady = !needsWarmup || warmedTier === qualityTier;
+
+  useEffect(() => {
+    if (!needsWarmup) return;
+    let alive = true;
+    void preloadHubGltfModels(qualityTier).then(() => {
+      if (alive) setWarmedTier(qualityTier);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [qualityTier, needsWarmup]);
 
   // E2E/QA probe: which map is mounted (same Canvas — map switches don't
   // remount it, only the scene subtree does).
@@ -273,8 +291,24 @@ export function WorldCanvas({
     if (import.meta.env.DEV || w['__WORLD_PROBE']) w['__worldMapId'] = mapId;
   }, [mapId]);
 
+  if (!assetsReady) {
+    return (
+      <div
+        className="world world--loading"
+        ref={containerRef}
+        data-testid="world-canvas"
+        data-assets="loading"
+        role="status"
+        aria-live="polite"
+      >
+        <p className="text">{FA.loading}</p>
+        <p className="text text--soft">{FA.loadingHint}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="world" ref={containerRef} data-testid="world-canvas">
+    <div className="world" ref={containerRef} data-testid="world-canvas" data-assets="ready">
       <Canvas
         frameloop="demand"
         orthographic

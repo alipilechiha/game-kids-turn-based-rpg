@@ -111,23 +111,28 @@ describe('App', () => {
 
   it('routes menu and world music through the gesture-unlock path', async () => {
     const playSpy = vi.spyOn(audioService, 'play').mockResolvedValue(undefined);
-    const unlockSpy = vi.spyOn(audioService, 'unlock').mockResolvedValue(undefined);
+    const unlockSpy = vi.spyOn(audioService, 'unlock').mockImplementation(async () => {
+      Object.defineProperty(audioService, 'unlocked', {
+        configurable: true,
+        get: () => true,
+      });
+    });
 
     const { user } = renderApp();
-    // Menu modes route to the menu theme — play() itself gates on the real
-    // unlock; the spy observes the routed id regardless of jsdom's missing
-    // AudioContext.
+    // Effects never unlock — the title Start tap is the first real gesture.
+    await user.click(await screen.findByTestId('start-button'));
+    await waitFor(() => expect(unlockSpy).toHaveBeenCalled());
     await waitFor(() => expect(playSpy).toHaveBeenCalledWith('music-menu'));
 
-    await reachHub(user);
+    await user.click(await screen.findByTestId('avatar-aban'));
+    await user.click(await screen.findByTestId('headwear-next'));
+    await screen.findByTestId('hud');
     await waitFor(() => expect(playSpy).toHaveBeenCalledWith('music-hub'));
 
     // Back to a menu mode → menu theme again.
     await user.click(await screen.findByTestId('pause-button'));
     await user.click(await screen.findByTestId('switch-player'));
     await waitFor(() => expect(playSpy).toHaveBeenCalledWith('music-menu'));
-
-    expect(unlockSpy).toHaveBeenCalled();
   });
 
   it('persists a volume-slider change through save, not just the control', async () => {
