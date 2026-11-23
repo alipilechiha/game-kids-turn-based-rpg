@@ -1,5 +1,13 @@
 import { Canvas } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import {
   getEffectiveCharacterAttributes,
   getInventorySlotCount,
@@ -61,7 +69,6 @@ export function App() {
   const [saveFeedback, setSaveFeedback] = useState('');
   const [offlineStatus, setOfflineStatus] = useState<'checking' | 'ready' | 'failed'>('checking');
   const dialogue = getDialogueView(runtime.compiledNarrative, state.narrative, 'fa');
-  const dialogueOpen = dialogue !== null;
   const endingId = state.narrative.endingId;
   const recapVisible = manualRecapOpen || Boolean(endingId && endingId !== dismissedEndingId);
   const storyPath = getFact(state.narrative, 'story-path');
@@ -158,14 +165,7 @@ export function App() {
       setStorageMode('session-only');
       setSaveFeedback(faUi.saveFailed);
     }
-  }, [
-    rendererReady,
-    runtime,
-    sceneReadiness,
-    setStorageMode,
-    state,
-    storageMode,
-  ]);
+  }, [rendererReady, runtime, sceneReadiness, setStorageMode, state, storageMode]);
 
   useEffect(() => {
     if (!canvasElement) return;
@@ -193,37 +193,24 @@ export function App() {
   }, [endingId]);
 
   useEffect(() => {
-    if (!dialogueOpen && !recapVisible && !resetOpen && !activeEncounter) return;
+    if (!activeEncounter) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (dialogueOpen) runtime.dispatch({ type: 'DIALOGUE_EXIT' });
-      else if (resetOpen) setResetOpen(false);
-      else if (activeEncounter) {
-        const current = runtime.getState();
-        const encounter = current.gameplay.encounter;
-        if (encounter?.outcome === null) {
-          runtime.dispatch({
-            type: 'BATTLE_ACTION',
-            playthroughId: current.gameplay.playthroughId,
-            expectedRevision: current.gameplay.revision,
-            encounterInstanceId: encounter.instanceId,
-            intent: { type: 'withdraw' },
-          });
-        }
-      } else closeRecap();
+      if (event.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+      const current = runtime.getState();
+      const encounter = current.gameplay.encounter;
+      if (encounter?.outcome === null) {
+        runtime.dispatch({
+          type: 'BATTLE_ACTION',
+          playthroughId: current.gameplay.playthroughId,
+          expectedRevision: current.gameplay.revision,
+          encounterInstanceId: encounter.instanceId,
+          intent: { type: 'withdraw' },
+        });
+      }
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [
-    closeRecap,
-    dialogue?.dialogueId,
-    dialogue?.nodeId,
-    dialogueOpen,
-    activeEncounter,
-    recapVisible,
-    resetOpen,
-    runtime,
-  ]);
+  }, [activeEncounter, runtime]);
 
   const startFresh = useCallback(
     (mode: 'persistent' | 'session-only') => {
@@ -268,11 +255,7 @@ export function App() {
     if (storageMode !== 'persistent') return;
     const current = runtime.getState();
     if (current.phase !== 'playing') return;
-    if (
-      current.walk ||
-      !rendererReady ||
-      !isGardenSceneReadyForState(current, sceneReadiness)
-    ) {
+    if (current.walk || !rendererReady || !isGardenSceneReadyForState(current, sceneReadiness)) {
       setSaveFeedback(faUi.saveSceneUnavailable);
       return;
     }
@@ -603,20 +586,12 @@ export function App() {
             />
           ) : null}
           {dialogue ? (
-            <div className="dialogue-layer" data-testid="dialogue-layer">
-              <button
-                className="dialogue-backdrop"
-                type="button"
-                aria-label={faUi.dialogueBackdropLabel}
-                onClick={() => runtime.dispatch({ type: 'DIALOGUE_EXIT' })}
-              />
-              <section
-                className="dialogue-panel"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="garden-dialogue-heading"
-                data-testid="dialogue-panel"
-              >
+            <GardenModal
+              testId="dialogue-layer"
+              labelledBy="garden-dialogue-heading"
+              onDismiss={() => runtime.dispatch({ type: 'DIALOGUE_EXIT' })}
+            >
+              <section className="dialogue-panel" data-testid="dialogue-panel">
                 <p className="dialogue-speaker">
                   {faUi.speakers[dialogue.speakerId as keyof typeof faUi.speakers] ??
                     faUi.dialogueHeading}
@@ -648,23 +623,15 @@ export function App() {
                   {faUi.closeDialogue}
                 </button>
               </section>
-            </div>
+            </GardenModal>
           ) : null}
           {endingId && recapVisible ? (
-            <div className="dialogue-layer" data-testid="ending-layer">
-              <button
-                className="dialogue-backdrop"
-                type="button"
-                aria-label={faUi.closeRecap}
-                onClick={closeRecap}
-              />
-              <section
-                className="dialogue-panel ending-panel"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="garden-ending-heading"
-                data-testid="ending-panel"
-              >
+            <GardenModal
+              testId="ending-layer"
+              labelledBy="garden-ending-heading"
+              onDismiss={closeRecap}
+            >
+              <section className="dialogue-panel ending-panel" data-testid="ending-panel">
                 <p className="dialogue-speaker">{faUi.recapHeading}</p>
                 <h2 id="garden-ending-heading">
                   {endingId === 'ending-garden' ? faUi.gardenerEnding : faUi.lanternEnding}
@@ -680,7 +647,7 @@ export function App() {
                   {faUi.closeRecap}
                 </button>
               </section>
-            </div>
+            </GardenModal>
           ) : null}
           <ResetConfirmation
             open={resetOpen}
@@ -709,20 +676,8 @@ function ResetConfirmation({
 }) {
   if (!open) return null;
   return (
-    <div className="dialogue-layer" data-testid="reset-layer">
-      <button
-        className="dialogue-backdrop"
-        type="button"
-        aria-label={faUi.cancel}
-        onClick={onCancel}
-      />
-      <section
-        className="dialogue-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="garden-reset-heading"
-        data-testid="reset-panel"
-      >
+    <GardenModal testId="reset-layer" labelledBy="garden-reset-heading" onDismiss={onCancel}>
+      <section className="dialogue-panel" data-testid="reset-panel">
         <h2 id="garden-reset-heading">{faUi.resetPrompt}</h2>
         <div className="dialogue-choices">
           <button
@@ -744,7 +699,95 @@ function ResetConfirmation({
           </button>
         </div>
       </section>
-    </div>
+    </GardenModal>
+  );
+}
+
+function GardenModal({
+  children,
+  testId,
+  labelledBy,
+  onDismiss,
+}: {
+  readonly children: ReactNode;
+  readonly testId: string;
+  readonly labelledBy: string;
+  readonly onDismiss: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const onDismissRef = useRef(onDismiss);
+
+  if (returnFocusRef.current === null && typeof document !== 'undefined') {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement) returnFocusRef.current = activeElement;
+  }
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector<HTMLElement>('[autofocus]')?.focus();
+    return () => {
+      if (dialog.open) dialog.close();
+      const opener = returnFocusRef.current;
+      if (opener?.isConnected) {
+        window.requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+      }
+    };
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="garden-modal"
+      data-testid={testId}
+      aria-labelledby={labelledBy}
+      aria-modal="true"
+      onCancel={(event) => {
+        event.preventDefault();
+        onDismissRef.current();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Tab') return;
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const focusable = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter(
+          (element) => element.tabIndex >= 0 && element.getAttribute('aria-hidden') !== 'true',
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+        if (
+          event.shiftKey &&
+          (document.activeElement === first || document.activeElement === dialog)
+        ) {
+          event.preventDefault();
+          last.focus();
+        } else if (
+          !event.shiftKey &&
+          (document.activeElement === last || document.activeElement === dialog)
+        ) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+    >
+      <div
+        className="garden-modal-backdrop"
+        aria-hidden="true"
+        onClick={() => onDismissRef.current()}
+      />
+      {children}
+    </dialog>
   );
 }
 
