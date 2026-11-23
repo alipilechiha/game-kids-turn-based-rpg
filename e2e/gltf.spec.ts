@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { seedCompletedQuests } from './harness.ts';
+import { resumeFromPicker, seedCompletedQuests } from './harness.ts';
 import {
   enableWorldProbe,
   playerAt,
@@ -44,22 +44,35 @@ async function glbMeshNames(page: Page) {
 }
 
 /** Records every request whose URL ends in .glb for the spec's assertions. */
-function watchGlbRequests(page: Page): () => string[] {
+function watchGlbRequests(page: Page): { all: () => string[]; clear: () => void } {
   const urls: string[] = [];
   page.on('request', (req) => {
     if (/\.glb(?:\?|$)/.test(req.url())) urls.push(req.url());
   });
-  return () => urls;
+  return { all: () => urls, clear: () => (urls.length = 0) };
 }
 
 test.describe('gltf landmarks', () => {
+  // These cases deliberately intercept asset requests. PWA cache behavior is
+  // covered by the offline suite; allowing a service worker here would make
+  // cold-cache and failure injection depend on its cache contents.
+  test.use({ serviceWorkers: 'block' });
+
+  const canvas = (page: Page) => page.locator('[data-testid="world-canvas"] canvas');
+
   test('lower tiers never initiate a GLB fetch', async ({ page }) => {
     await enableWorldProbe(page);
     const requested = watchGlbRequests(page);
     await seedCompletedQuests(page, [], 'low');
+    // The helper's first visit has no profile, so capable devices may warm
+    // their detected default tier before the seeded low-tier profile exists.
+    // Reload the persisted profile and measure only its selected-tier path.
+    requested.clear();
+    await page.reload();
+    await resumeFromPicker(page);
     await waitForWalkerIdle(page);
     // Even after a little navigation the cubic set stays in charge.
-    expect(requested()).toEqual([]);
+    expect(requested.all()).toEqual([]);
     expect(await glbMeshNames(page)).toEqual([]);
   });
 
@@ -73,20 +86,29 @@ test.describe('gltf landmarks', () => {
     await expect
       .poll(async () => (await glbMeshNames(page)).length, { timeout: 15000 })
       .toBeGreaterThan(0);
-    const urls = requested().map((u) => new URL(u).pathname.split('/').pop());
-    // Landmarks + bakery crate + ambient duck/dog + the town/fountain rocks
-    // scenery slots mount eagerly at the town spawn; the farm plot is
-    // very-high only (triangle ceiling), Sara's ball and the park/river/
-    // school trees stay lazy until their areas are visible.
+    const urls = requested.all().map((u) => new URL(u).pathname.split('/').pop());
+    // High-tier warmup fetches the complete town model set to avoid a late
+    // network pop as the child explores. Very-high-only animals are excluded.
     expect(new Set(urls)).toEqual(
       new Set([
-        'home-gate.glb',
-        'shop.glb',
         'fountain.glb',
+        'shop.glb',
+        'home-gate.glb',
+        'tree-a.glb',
+        'tree-b.glb',
+        'tree-c.glb',
+        'bush.glb',
+        'rock.glb',
+        'rocks.glb',
+        'bench.glb',
+        'streetlight.glb',
         'crate.glb',
+        'ball.glb',
+        'fence.glb',
+        'farm-plot.glb',
         'duck.glb',
         'dog.glb',
-        'rocks.glb',
+        'cat.glb',
       ]),
     );
     const names = await glbMeshNames(page);
@@ -112,7 +134,7 @@ test.describe('gltf landmarks', () => {
     await expect
       .poll(async () => (await glbMeshNames(page)).length, { timeout: 15000 })
       .toBeGreaterThan(0);
-    const urls = requested().map((u) => new URL(u).pathname.split('/').pop());
+    const urls = requested.all().map((u) => new URL(u).pathname.split('/').pop());
     // both top-tier scenery GLBs in spawn-visible areas (garden), plus the
     // koi and elephant — both are very-high only (over high's headroom).
     // bush/rock/bench/streetlight also mount eagerly: their slots sit in the
@@ -132,6 +154,80 @@ test.describe('gltf landmarks', () => {
     expect(names.filter((n) => n === 'mesh_0').length).toBe(2);
     // the park elephant mounts its single Object_7 mesh — one fetch, one mount
     expect(names.filter((n) => n === 'Object_7').length).toBe(1);
+  });
+
+  test('a cold high-tier cache holds Canvas until its slowest GLB settles', async ({ page }) => {
+    await enableWorldProbe(page);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/models/tree-a.glb', async (route) => {
+      await held;
+      await route.continue();
+    });
+
+    await seedCompletedQuests(page, [], 'high');
+    const world = page.getByTestId('world-canvas');
+    await expect(world).toHaveAttribute('data-assets', 'loading');
+    release();
+    await expect(canvas(page)).toBeVisible({ timeout: 15000 });
+    await expect
+      .poll(async () => (await glbMeshNames(page)).length, { timeout: 15000 })
+      .toBeGreaterThan(0);
+  });
+
+  test('a missing GLB settles warmup and leaves the model fallback available', async ({ page }) => {
+    await enableWorldProbe(page);
+    await page.route('**/models/tree-a.glb', (route) =>
+      route.fulfill({ status: 404, contentType: 'text/plain', body: 'missing fixture' }),
+    );
+
+    await seedCompletedQuests(page, [], 'high');
+    await expect(canvas(page)).toBeVisible({ timeout: 10000 });
+    // Other models still mount, while the missing scenery is handled by its
+    // authored cubic fallback instead of trapping the whole scene at startup.
+    await expect
+      .poll(async () => (await glbMeshNames(page)).length, { timeout: 15000 })
+      .toBeGreaterThan(0);
+  });
+
+  test('offline model requests fail open to the built-in world models', async ({ page }) => {
+    await enableWorldProbe(page);
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await page.route('**/models/*.glb', (route) => route.abort('internetdisconnected'));
+
+    await seedCompletedQuests(page, [], 'very-high');
+    await expect(canvas(page)).toBeVisible({ timeout: 10000 });
+    expect(pageErrors).toEqual([]);
+    expect(await glbMeshNames(page)).toEqual([]);
+  });
+
+  test('changing quality tiers warms only the requested renderer and remains usable', async ({
+    page,
+  }) => {
+    await enableWorldProbe(page);
+    const requested = watchGlbRequests(page);
+    await seedCompletedQuests(page, [], 'high');
+    await expect(canvas(page)).toBeVisible({ timeout: 15000 });
+
+    await page.getByTestId('pause-button').click();
+    await page.getByTestId('child-quality-very-high').click();
+    await page.getByTestId('resume-button').click();
+    await expect(page.getByTestId('hud')).toBeVisible();
+    await expect(canvas(page)).toBeVisible({ timeout: 15000 });
+    const requestedNames = requested.all().map((url) => new URL(url).pathname.split('/').pop());
+    expect(requestedNames).toContain('butterfly.glb');
+    expect(requestedNames).toContain('koi.glb');
+    expect(requestedNames).toContain('elephant.glb');
+
+    await page.getByTestId('pause-button').click();
+    await page.getByTestId('child-quality-low').click();
+    await page.getByTestId('resume-button').click();
+    await expect(page.getByTestId('hud')).toBeVisible();
+    await expect(canvas(page)).toBeVisible();
+    await expect.poll(async () => glbMeshNames(page)).toEqual([]);
   });
 
   test('the glb home-gate door still answers a knock with door-swing', async ({ page }) => {
@@ -197,5 +293,40 @@ test.describe('gltf landmarks', () => {
     await expect
       .poll(async () => (await glbMeshNames(page)).length, { timeout: 15000 })
       .toBeGreaterThan(0);
+  });
+
+  test('WebGL loss uses the safe fallback and a reload restores the game canvas', async ({
+    page,
+  }) => {
+    await enableWorldProbe(page);
+    await seedCompletedQuests(page, [], 'high');
+    await expect(canvas(page)).toBeVisible({ timeout: 15000 });
+    await page.waitForFunction(() => {
+      const w = window as unknown as { __worldCanvasId?: number; __worldRenderer?: unknown };
+      return typeof w.__worldCanvasId === 'number' && w.__worldRenderer !== undefined;
+    });
+    // Let CanvasLiveness's passive effect mark the scene alive before
+    // exercising a real browser context-loss event.
+    await page.waitForTimeout(100);
+
+    const canLoseContext = await page.evaluate(() => {
+      const renderer = (
+        window as unknown as { __worldRenderer?: { getContext(): WebGLRenderingContext } }
+      ).__worldRenderer;
+      return renderer?.getContext().getExtension('WEBGL_lose_context') !== null;
+    });
+    expect(canLoseContext).toBe(true);
+    await page.evaluate(() => {
+      const renderer = (
+        window as unknown as { __worldRenderer?: { getContext(): WebGLRenderingContext } }
+      ).__worldRenderer;
+      renderer?.getContext().getExtension('WEBGL_lose_context')?.loseContext();
+    });
+    await expect(page.getByTestId('webgl-fallback')).toBeVisible();
+
+    await page.reload();
+    await page.locator('[data-testid^="profile-card-"]').first().click();
+    await expect(page.getByTestId('hud')).toBeVisible();
+    await expect(canvas(page)).toBeVisible({ timeout: 15000 });
   });
 });
