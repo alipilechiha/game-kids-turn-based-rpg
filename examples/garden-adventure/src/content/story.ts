@@ -54,7 +54,7 @@ export const gardenNarrativeDefinition: NarrativeDefinition = {
         {
           id: 'traveler-offer',
           speakerId: 'traveler',
-          text: { fa: 'نشانی روی سنگ پنهان است. با آن فانوس کهن را روشن می‌کنیم.' },
+          text: { fa: 'نشانی روی سنگ پنهان است. نگهبان باغ راه روشن کردن فانوس را می‌داند.' },
           choices: [
             {
               id: 'follow-light',
@@ -81,8 +81,56 @@ export const gardenNarrativeDefinition: NarrativeDefinition = {
         {
           id: 'traveler-wait',
           speakerId: 'traveler',
-          text: { fa: 'نشان را پیدا کن و به فانوس کهن برسان.' },
-          nextNodeId: 'lantern-ending',
+          text: { fa: 'نشانه را پیدا کن و با نگهبان مهربان باغ گفت‌وگو کن.' },
+          choices: [
+            {
+              id: 'visit-guardian',
+              label: { fa: 'گفت‌وگو با نگهبان' },
+              targetNodeId: 'guardian-ready',
+              when: {
+                op: 'all',
+                conditions: [
+                  { op: 'flag', key: 'clue-found', equals: true },
+                  { op: 'quest-status', questId: 'lantern-quest', status: 'active' },
+                ],
+              },
+              repeatable: true,
+            },
+            {
+              id: 'hear-guardian-ending',
+              label: { fa: 'دیدن پایان داستان' },
+              targetNodeId: 'lantern-ending',
+              when: {
+                op: 'all',
+                conditions: [
+                  { op: 'flag', key: 'lantern-lit', equals: true },
+                  { op: 'quest-status', questId: 'lantern-quest', status: 'completed' },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          id: 'guardian-ready',
+          speakerId: 'guardian',
+          text: { fa: 'برای روشن شدن فانوس، یک بازی نوری دوستانه انجام می‌دهیم؟' },
+          when: {
+            op: 'all',
+            conditions: [
+              { op: 'eq', key: 'story-path', value: 'lantern' },
+              { op: 'flag', key: 'clue-found', equals: true },
+              { op: 'quest-status', questId: 'lantern-quest', status: 'active' },
+            ],
+          },
+          choices: [
+            {
+              id: 'challenge-guardian',
+              label: { fa: 'شروع بازی نوری' },
+              targetNodeId: 'traveler-wait',
+              repeatable: true,
+              effects: [{ op: 'set-flag', key: 'guardian-challenge-accepted', value: true }],
+            },
+          ],
         },
         {
           id: 'garden-ending',
@@ -94,8 +142,8 @@ export const gardenNarrativeDefinition: NarrativeDefinition = {
         },
         {
           id: 'lantern-ending',
-          speakerId: 'traveler',
-          text: { fa: 'فانوس روشن شد و نورش به همه باغ رسید.' },
+          speakerId: 'guardian',
+          text: { fa: 'بازی دوستانه به پایان رسید و فانوس کهن باغ را روشن کرد.' },
           when: { op: 'quest-status', questId: 'lantern-quest', status: 'completed' },
           terminal: true,
           endingId: 'ending-lantern',
@@ -153,7 +201,25 @@ export const gardenNarrativeDefinition: NarrativeDefinition = {
       effects: [{ op: 'set-flag', key: 'clue-found', value: true }],
     },
     {
-      id: 'light-ancient-lantern',
+      id: 'guardian-victory',
+      when: {
+        op: 'all',
+        conditions: [
+          { op: 'eq', key: 'story-path', value: 'lantern' },
+          { op: 'flag', key: 'clue-found', equals: true },
+          { op: 'flag', key: 'guardian-challenge-accepted', equals: true },
+          { op: 'quest-status', questId: 'lantern-quest', status: 'active' },
+        ],
+      },
+      effects: [
+        { op: 'set-flag', key: 'lantern-lit', value: true },
+        { op: 'set-fact', key: 'garden-outcome', value: 'guardian' },
+        { op: 'set-fact', key: 'trial-result', value: 'victory' },
+        { op: 'complete-quest', questId: 'lantern-quest' },
+      ],
+    },
+    {
+      id: 'guardian-retry',
       when: {
         op: 'all',
         conditions: [
@@ -162,10 +228,10 @@ export const gardenNarrativeDefinition: NarrativeDefinition = {
           { op: 'quest-status', questId: 'lantern-quest', status: 'active' },
         ],
       },
+      repeatable: true,
       effects: [
-        { op: 'set-flag', key: 'lantern-lit', value: true },
-        { op: 'set-fact', key: 'garden-outcome', value: 'lantern' },
-        { op: 'complete-quest', questId: 'lantern-quest' },
+        { op: 'set-fact', key: 'trial-result', value: 'try-again' },
+        { op: 'increment-fact', key: 'trial-attempts', amount: 1 },
       ],
     },
   ],

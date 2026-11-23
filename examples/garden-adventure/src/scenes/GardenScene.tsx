@@ -30,6 +30,7 @@ export function GardenScene({ runtime, state, onTargetPress }: GardenSceneProps)
   return (
     <group name={`garden-scene-${state.mapId}`}>
       <SceneCamera mapId={state.mapId} anchorId={state.anchorId} />
+      <ContextRecovery />
       <SceneProbe mapId={state.mapId} treeGrown={treeGrown} lanternLit={lanternLit} />
       <ArrivalDriver runtime={runtime} state={state} />
       <color attach="background" args={[state.mapId === 'village' ? '#c7e2cf' : '#a9c8aa']} />
@@ -52,6 +53,19 @@ export function GardenScene({ runtime, state, onTargetPress }: GardenSceneProps)
       <PlayerCharacter anchor={entry} previousAnchorId={state.lastAnchorId} mapId={state.mapId} />
     </group>
   );
+}
+
+function ContextRecovery() {
+  const { gl, invalidate } = useThree();
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const onContextRestored = () => invalidate();
+    canvas.addEventListener('webglcontextrestored', onContextRestored);
+    return () => canvas.removeEventListener('webglcontextrestored', onContextRestored);
+  }, [gl, invalidate]);
+
+  return null;
 }
 
 function ArrivalDriver({ runtime, state }: Pick<GardenSceneProps, 'runtime' | 'state'>) {
@@ -304,8 +318,32 @@ function TargetModel({
   if (kind === 'gate') return <GateModel />;
   if (kind === 'bed') return <PlantBedModel />;
   if (kind === 'stone') return <ClueStoneModel />;
+  if (kind === 'guardian') return <GuardianModel />;
   if (kind === 'lantern') return <LanternModel lit={lanternLit} />;
   return <BenchModel />;
+}
+
+function GuardianModel() {
+  return (
+    <group>
+      <mesh position={[0, 0.44, 0]} castShadow>
+        <dodecahedronGeometry args={[0.64, 1]} />
+        <meshStandardMaterial color="#83a8a3" roughness={0.72} />
+      </mesh>
+      <mesh position={[0, 1.25, 0]} castShadow>
+        <sphereGeometry args={[0.43, 16, 12]} />
+        <meshStandardMaterial color="#a7c9bb" roughness={0.68} />
+      </mesh>
+      <mesh position={[-0.17, 1.31, 0.37]}>
+        <sphereGeometry args={[0.055, 10, 8]} />
+        <meshBasicMaterial color="#415b57" />
+      </mesh>
+      <mesh position={[0.17, 1.31, 0.37]}>
+        <sphereGeometry args={[0.055, 10, 8]} />
+        <meshBasicMaterial color="#415b57" />
+      </mesh>
+    </group>
+  );
 }
 
 function FountainModel() {

@@ -40,11 +40,16 @@ jobs:
           FRAMEWORK_INSTALL_CHROMIUM: 'browser-only'
           FRAMEWORK_TARBALL_OUTPUT: ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
           NARRATIVE_TARBALL_OUTPUT: ${{ runner.temp }}/waypoint-rpg-narrative-0.1.0.tgz
+      - name: Build and pack the independent gameplay package
+        run: |
+          npm run framework:gameplay:build
+          npm pack --ignore-scripts --workspace=packages/gameplay --pack-destination "$RUNNER_TEMP"
       - name: Prepare runtime-only consumer installs before switching Node versions
         run: >-
           node scripts/check-framework-runtime.mjs --prepare
           "$RUNNER_TEMP/waypoint-rpg-core-0.1.0.tgz"
           "$RUNNER_TEMP/waypoint-rpg-narrative-0.1.0.tgz"
+          "$RUNNER_TEMP/waypoint-rpg-gameplay-0.1.0.tgz"
           "$RUNNER_TEMP/framework-runtime-consumer"
       - uses: actions/upload-artifact@v4
         with:
@@ -52,6 +57,7 @@ jobs:
           path: |
             ${{ runner.temp }}/waypoint-rpg-core-0.1.0.tgz
             ${{ runner.temp }}/waypoint-rpg-narrative-0.1.0.tgz
+            ${{ runner.temp }}/waypoint-rpg-gameplay-0.1.0.tgz
           if-no-files-found: error
           retention-days: 14
       - uses: actions/setup-node@v4

@@ -23,6 +23,7 @@ export type GardenTargetId =
   | 'garden-gate'
   | 'planting-bed'
   | 'clue-stone'
+  | 'guardian'
   | 'ancient-lantern'
   | 'recap-bench'
   | 'village-gate';
@@ -36,6 +37,7 @@ export type GardenTargetKind =
   | 'gate'
   | 'bed'
   | 'stone'
+  | 'guardian'
   | 'lantern'
   | 'bench';
 
@@ -114,6 +116,7 @@ const gardenAnchors: readonly GardenAnchor[] = [
   anchor('garden-village-gate', 'garden', 0, 5, 'village-gate'),
   anchor('garden-bed', 'garden', -4, 0, 'planting-bed'),
   anchor('garden-clue', 'garden', 3, -1, 'clue-stone'),
+  anchor('garden-guardian', 'garden', 0, -3, 'guardian'),
   anchor('garden-lantern', 'garden', 4, 2, 'ancient-lantern'),
   anchor('garden-bench', 'garden', 0, -4, 'recap-bench'),
 ];
@@ -143,6 +146,8 @@ export const gardenGraphs: Readonly<Record<GardenMapId, GraphSource<GardenAnchor
     edges: [
       edge('garden-village-gate', 'garden-bed'),
       edge('garden-village-gate', 'garden-clue'),
+      edge('garden-clue', 'garden-guardian'),
+      edge('garden-guardian', 'garden-lantern'),
       edge('garden-village-gate', 'garden-bench'),
       edge('garden-clue', 'garden-lantern'),
       edge('garden-lantern', 'garden-bench'),
@@ -214,6 +219,13 @@ export const gardenTargets: readonly GardenTarget[] = [
     anchorId: anchorId('garden-clue'),
     kind: 'stone',
     position: [3, 0, -2],
+  },
+  {
+    id: 'guardian',
+    mapId: 'garden',
+    anchorId: anchorId('garden-guardian'),
+    kind: 'guardian',
+    position: [0, 0, -4],
   },
   {
     id: 'ancient-lantern',

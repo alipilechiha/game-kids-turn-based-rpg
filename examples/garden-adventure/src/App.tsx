@@ -1,8 +1,19 @@
 import { Canvas } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  getEffectiveCharacterAttributes,
+  getInventorySlotCount,
+  type GameplayCell,
+  type GameplayPlayerIntent,
+} from 'waypoint-rpg-gameplay';
 import { getDialogueView, getFact, getQuestStatus } from 'waypoint-rpg-narrative';
 import { faUi } from './content/fa/ui.js';
-import { createGardenRuntime } from './game/runtime.js';
+import {
+  createGardenRuntime,
+  getGardenProgress,
+  type GardenRuntime,
+  type GardenState,
+} from './game/runtime.js';
 import {
   inspectGardenSave,
   removeGardenSave,
@@ -22,7 +33,11 @@ export function App() {
   const [resetOpen, setResetOpen] = useState(false);
   const [initialInspection] = useState<GardenSaveInspection>(() => {
     try {
-      return inspectGardenSave(window.localStorage, runtime.compiledNarrative);
+      return inspectGardenSave(
+        window.localStorage,
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
     } catch {
       return { status: 'unavailable' };
     }
@@ -47,17 +62,19 @@ export function App() {
     ? getQuestStatus(runtime.compiledNarrative, state.narrative, questId)
     : null;
   const seedFound = getFact(state.narrative, 'seed-found') === true;
-  const clueFound = getFact(state.narrative, 'clue-found') === true;
   const questObjective =
     storyPath === 'gardener'
       ? seedFound
         ? faUi.gardenerPlantObjective
         : faUi.gardenerSeedObjective
       : storyPath === 'lantern'
-        ? clueFound
-          ? faUi.travelerLanternObjective
-          : faUi.travelerClueObjective
+        ? faUi.guardianQuestObjective
         : faUi.talkToChoosePath;
+  const progress = getGardenProgress(runtime, state);
+  const inventorySlots = getInventorySlotCount(runtime.compiledGameplay, state.gameplay);
+  const activeEncounter =
+    state.gameplay.encounter?.outcome === null ? state.gameplay.encounter : null;
+  const [battleNotice, setBattleNotice] = useState('');
 
   useEffect(() => () => runtime.dispose(), [runtime]);
 
@@ -82,11 +99,17 @@ export function App() {
       const current = runtime.getState();
       if (current.phase !== 'playing' || current.walk) return;
       try {
-        writeGardenSave(window.localStorage, {
-          mapId: current.mapId,
-          anchorId: current.anchorId,
-          narrative: current.narrative,
-        });
+        writeGardenSave(
+          window.localStorage,
+          {
+            mapId: current.mapId,
+            anchorId: current.anchorId,
+            narrative: current.narrative,
+            gameplay: current.gameplay,
+          },
+          runtime.compiledNarrative,
+          runtime.compiledGameplay,
+        );
         setSaveFeedback(faUi.saveComplete);
       } catch {
         setStorageMode('session-only');
@@ -102,12 +125,24 @@ export function App() {
   }, [endingId]);
 
   useEffect(() => {
-    if (!dialogueOpen && !recapVisible && !resetOpen) return;
+    if (!dialogueOpen && !recapVisible && !resetOpen && !activeEncounter) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (dialogueOpen) runtime.dispatch({ type: 'DIALOGUE_EXIT' });
       else if (resetOpen) setResetOpen(false);
-      else closeRecap();
+      else if (activeEncounter) {
+        const current = runtime.getState();
+        const encounter = current.gameplay.encounter;
+        if (encounter?.outcome === null) {
+          runtime.dispatch({
+            type: 'BATTLE_ACTION',
+            playthroughId: current.gameplay.playthroughId,
+            expectedRevision: current.gameplay.revision,
+            encounterInstanceId: encounter.instanceId,
+            intent: { type: 'withdraw' },
+          });
+        }
+      } else closeRecap();
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
@@ -116,6 +151,7 @@ export function App() {
     dialogue?.dialogueId,
     dialogue?.nodeId,
     dialogueOpen,
+    activeEncounter,
     recapVisible,
     resetOpen,
     runtime,
@@ -128,6 +164,7 @@ export function App() {
       setManualRecapOpen(false);
       setDismissedEndingId(null);
       runtime.dispatch({ type: 'NEW_GAME' });
+      setBattleNotice('');
     },
     [runtime, setStorageMode],
   );
@@ -156,11 +193,17 @@ export function App() {
     const current = runtime.getState();
     if (current.phase !== 'playing') return;
     try {
-      writeGardenSave(window.localStorage, {
-        mapId: current.mapId,
-        anchorId: current.anchorId,
-        narrative: current.narrative,
-      });
+      writeGardenSave(
+        window.localStorage,
+        {
+          mapId: current.mapId,
+          anchorId: current.anchorId,
+          narrative: current.narrative,
+          gameplay: current.gameplay,
+        },
+        runtime.compiledNarrative,
+        runtime.compiledGameplay,
+      );
       setStorageMode('persistent');
       setSaveFeedback(faUi.saveComplete);
     } catch {
@@ -168,6 +211,26 @@ export function App() {
       setSaveFeedback(faUi.saveFailed);
     }
   }, [runtime, setStorageMode, storageMode]);
+
+  const onBattleIntent = useCallback(
+    (intent: GameplayPlayerIntent) => {
+      const current = runtime.getState();
+      const encounter = current.gameplay.encounter;
+      if (current.phase !== 'playing' || !encounter || encounter.outcome !== null) return;
+      runtime.dispatch({
+        type: 'BATTLE_ACTION',
+        playthroughId: current.gameplay.playthroughId,
+        expectedRevision: current.gameplay.revision,
+        encounterInstanceId: encounter.instanceId,
+        intent: intent as Extract<
+          GameplayPlayerIntent,
+          { type: 'move' | 'use-ability' | 'wait' | 'withdraw' }
+        >,
+      });
+      setBattleNotice(runtime.getState() === current ? faUi.invalidBattleAction : '');
+    },
+    [runtime],
+  );
 
   const onTargetPress = useCallback(
     (targetId: GardenTargetId) => {
@@ -387,7 +450,61 @@ export function App() {
                   );
                 })}
             </nav>
+            <details className="inventory-panel" data-testid="inventory-panel">
+              <summary>{faUi.inventoryHeading}</summary>
+              <p data-testid="hero-progress">
+                {faUi.heroLevel}: {progress.level} · {faUi.stepsAttribute}:{' '}
+                {progress.attributes.steps} · {faUi.resonanceAttribute}:{' '}
+                {progress.attributes.resonance}
+              </p>
+              <p data-testid="inventory-slots">
+                {faUi.inventorySlots}: {inventorySlots}/
+                {runtime.compiledGameplay.definition.inventoryCapacity}
+              </p>
+              <ul className="inventory-list">
+                <li data-testid="inventory-special-seed">
+                  {faUi.specialSeed}: {state.gameplay.inventory['special-seed'] ?? 0}
+                </li>
+                <li data-testid="inventory-garden-reward">
+                  {faUi.gardenReward}: {state.gameplay.inventory['garden-reward'] ?? 0}
+                </li>
+                <li data-testid="inventory-lantern-charm">
+                  {faUi.lanternCharm}: {state.gameplay.inventory['lantern-charm'] ?? 0}
+                </li>
+              </ul>
+              <p data-testid="unlocked-abilities">
+                {faUi.unlockedAbilities}:{' '}
+                {progress.abilities.map((abilityId) => abilityLabel(abilityId)).join('، ')}
+              </p>
+              {(state.gameplay.inventory['lantern-charm'] ?? 0) > 0 ? (
+                <button
+                  className="quiet-button"
+                  data-testid="toggle-lantern-charm"
+                  type="button"
+                  onClick={() => runtime.dispatch({ type: 'TOGGLE_CHARM' })}
+                >
+                  {state.gameplay.equipment['garden-hero']?.charm === 'lantern-charm'
+                    ? faUi.unequipCharm
+                    : faUi.equipCharm}
+                </button>
+              ) : null}
+            </details>
+            {state.gameplay.encounter?.outcome && !endingId ? (
+              <section className="battle-result" data-testid="battle-outcome" role="status">
+                <h2>{faUi.battleResult}</h2>
+                <p>{faUi.battleRetry}</p>
+                <p>{faUi.targets.guardian} را دوباره ببین تا بازی را از نو آغاز کنی.</p>
+              </section>
+            ) : null}
           </div>
+          {activeEncounter ? (
+            <BattlePanel
+              runtime={runtime}
+              state={state}
+              notice={battleNotice}
+              onIntent={onBattleIntent}
+            />
+          ) : null}
           {dialogue ? (
             <div className="dialogue-layer" data-testid="dialogue-layer">
               <button
@@ -510,4 +627,209 @@ export function App() {
       )}
     </main>
   );
+}
+
+type BattleIntent = Extract<
+  GameplayPlayerIntent,
+  { type: 'move' | 'use-ability' | 'wait' | 'withdraw' }
+>;
+
+function BattlePanel({
+  runtime,
+  state,
+  notice,
+  onIntent,
+}: {
+  readonly runtime: GardenRuntime;
+  readonly state: GardenState;
+  readonly notice: string;
+  readonly onIntent: (intent: BattleIntent) => void;
+}) {
+  const encounter = state.gameplay.encounter;
+  if (!encounter || encounter.outcome !== null) return null;
+  const definition = runtime.compiledGameplay.definition.encounters.find(
+    (candidate) => candidate.id === encounter.definitionId,
+  );
+  const board = definition
+    ? runtime.compiledGameplay.definition.boards.find(
+        (candidate) => candidate.id === definition.boardId,
+      )
+    : undefined;
+  const hero = encounter.combatants.find((participant) => participant.id === 'hero-seat');
+  const guardian = encounter.combatants.find((participant) => participant.id === 'guardian-seat');
+  if (!board || !hero || !guardian) return null;
+  const isPlayerTurn = encounter.activeParticipantId === hero.id;
+  const heroHealth = hero.resources.hearts ?? 0;
+  const guardianHealth = guardian.resources.hearts ?? 0;
+  const effectiveHeroAttributes = getEffectiveCharacterAttributes(
+    runtime.compiledGameplay,
+    state.gameplay,
+    'garden-hero',
+    hero.id,
+  );
+  const heroStatuses = hero.statuses.map((status) => statusLabel(status.statusEffectId)).join('، ');
+  const unlockedAbilities = getGardenProgress(runtime, state).abilities;
+  const cells = Array.from({ length: board.width * board.height }, (_, index) => ({
+    x: index % board.width,
+    y: Math.floor(index / board.width),
+  }));
+
+  return (
+    <div className="battle-layer" data-testid="battle-layer">
+      <section className="battle-panel" aria-labelledby="garden-battle-heading">
+        <h2 id="garden-battle-heading">{faUi.battleHeading}</h2>
+        <p>{faUi.battleInstructions}</p>
+        <p data-testid="battle-turn" aria-live="polite">
+          {isPlayerTurn ? faUi.battleHero : faUi.battleGuardian} · {faUi.heroHealth}: {heroHealth}
+          /10 · {faUi.guardianHealth}: {guardianHealth}/8 · {faUi.stepsAttribute}:{' '}
+          {effectiveHeroAttributes.steps}
+        </p>
+        <p className="battle-statuses" data-testid="battle-statuses">
+          {heroStatuses ? `${faUi.battleHero}: ${heroStatuses}` : faUi.battleHero}
+        </p>
+        <div
+          className="battle-board"
+          data-testid="battle-board"
+          role="group"
+          aria-label={faUi.battleBoard}
+        >
+          {cells.map((cell) => {
+            const participant = encounter.combatants.find(
+              (candidate) =>
+                candidate.position.x === cell.x &&
+                candidate.position.y === cell.y &&
+                (candidate.resources.hearts ?? 0) > 0,
+            );
+            const blocked = board.blockedCells.some(
+              (candidate) => candidate.x === cell.x && candidate.y === cell.y,
+            );
+            return (
+              <button
+                key={`${cell.x}-${cell.y}`}
+                className={`battle-cell${participant?.team === 'player' ? ' is-hero' : ''}${participant?.team === 'enemy' ? ' is-guardian' : ''}${blocked ? ' is-blocked' : ''}`}
+                data-testid={`battle-cell-${cell.x}-${cell.y}`}
+                data-position={`${cell.x},${cell.y}`}
+                data-occupant={participant?.id ?? ''}
+                type="button"
+                disabled={blocked || Boolean(participant) || !isPlayerTurn}
+                aria-label={`${cell.x + 1}، ${cell.y + 1}، ${
+                  participant?.id === hero.id
+                    ? faUi.battleHero
+                    : participant?.id === guardian.id
+                      ? faUi.battleGuardian
+                      : blocked
+                        ? faUi.invalidBattleAction
+                        : faUi.battleBoard
+                }`}
+                onClick={() =>
+                  onIntent({
+                    type: 'move',
+                    participantId: hero.id,
+                    destination: cell as GameplayCell,
+                  })
+                }
+              >
+                {participant?.team === 'player'
+                  ? '●'
+                  : participant?.team === 'enemy'
+                    ? '✦'
+                    : blocked
+                      ? '◆'
+                      : ''}
+              </button>
+            );
+          })}
+        </div>
+        <div className="battle-abilities" aria-label={faUi.unlockedAbilities}>
+          <button
+            className="primary-button"
+            data-testid="battle-ability-light-ray"
+            type="button"
+            disabled={!isPlayerTurn}
+            onClick={() =>
+              onIntent({
+                type: 'use-ability',
+                participantId: hero.id,
+                abilityId: 'light-ray',
+                targetParticipantId: guardian.id,
+              })
+            }
+          >
+            {faUi.lightRay}
+          </button>
+          <button
+            className="quiet-button"
+            data-testid="battle-ability-gentle-ward"
+            type="button"
+            disabled={!isPlayerTurn}
+            onClick={() =>
+              onIntent({
+                type: 'use-ability',
+                participantId: hero.id,
+                abilityId: 'gentle-ward',
+                targetParticipantId: hero.id,
+              })
+            }
+          >
+            {faUi.gentleWard}
+          </button>
+          {unlockedAbilities.includes('star-bloom') ? (
+            <button
+              className="quiet-button"
+              data-testid="battle-ability-star-bloom"
+              type="button"
+              disabled={!isPlayerTurn}
+              onClick={() =>
+                onIntent({
+                  type: 'use-ability',
+                  participantId: hero.id,
+                  abilityId: 'star-bloom',
+                  targetParticipantId: guardian.id,
+                })
+              }
+            >
+              {faUi.starBloom}
+            </button>
+          ) : null}
+          <button
+            className="quiet-button"
+            data-testid="battle-wait"
+            type="button"
+            disabled={!isPlayerTurn}
+            onClick={() => onIntent({ type: 'wait', participantId: hero.id })}
+          >
+            {faUi.waitTurn}
+          </button>
+          <button
+            className="quiet-button"
+            data-testid="battle-withdraw"
+            type="button"
+            onClick={() => onIntent({ type: 'withdraw' })}
+          >
+            {faUi.withdraw}
+          </button>
+        </div>
+        <p className="battle-notice" role="status" data-testid="battle-notice">
+          {notice || (heroStatuses ? `${faUi.steadyGlow} · ${heroStatuses}` : '')}
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function abilityLabel(abilityId: string): string {
+  const labels: Readonly<Record<string, string>> = {
+    'light-ray': faUi.lightRay,
+    'gentle-ward': faUi.gentleWard,
+    'star-bloom': faUi.starBloom,
+  };
+  return labels[abilityId] ?? abilityId;
+}
+
+function statusLabel(statusId: string): string {
+  const labels: Readonly<Record<string, string>> = {
+    'steady-glow': faUi.steadyGlow,
+    'pollen-dusted': faUi.pollenDusted,
+  };
+  return labels[statusId] ?? statusId;
 }

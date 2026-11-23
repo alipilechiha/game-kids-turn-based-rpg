@@ -12,6 +12,7 @@ const sampleRoot = path.join(repoRoot, 'examples', 'garden-adventure');
 const frameworkPackages = [
   { name: 'waypoint-rpg-core', workspace: 'packages/core' },
   { name: 'waypoint-rpg-narrative', workspace: 'packages/narrative' },
+  { name: 'waypoint-rpg-gameplay', workspace: 'packages/gameplay' },
 ];
 
 async function packFrameworkPackage(artifactRoot, { name, workspace }) {
@@ -38,12 +39,16 @@ async function installToolchain(consumerRoot) {
   const manifest = JSON.parse(await readFile(packagePath, 'utf8'));
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
 
-  for (const { name } of frameworkPackages) {
+  for (const { name, workspace } of frameworkPackages) {
     delete manifest.dependencies[name];
     delete lock.packages[''].dependencies[name];
     delete lock.packages[`node_modules/${name}`];
-    delete lock.packages[`../../packages/${name.replace('waypoint-rpg-', '')}`];
+    delete lock.packages[`../../${workspace}`];
   }
+  delete manifest.dependencies['mahalle-ye-mehrabani'];
+  delete lock.packages[''].dependencies['mahalle-ye-mehrabani'];
+  delete lock.packages['../..'];
+  delete lock.packages['node_modules/mahalle-ye-mehrabani'];
 
   await writeFile(packagePath, `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
@@ -74,6 +79,68 @@ async function installArchives(consumerRoot, artifactRoot, archives) {
   log('Garden consumer framework packages: local archives installed offline');
 }
 
+async function verifyEachArchiveIndependently(consumerRoot, temporaryRoot, archives) {
+  const declarations = {
+    'waypoint-rpg-core': `import { createGameRuntime, findPath, type WorldMap } from 'waypoint-rpg-core';\nvoid createGameRuntime; void findPath; const map: WorldMap | undefined = undefined; void map;\n`,
+    'waypoint-rpg-narrative': `import { compileNarrative, createNarrativeState, decodeNarrativeState, getDialogueView, getFact, getQuestStatus, transitionNarrative, validateNarrative } from 'waypoint-rpg-narrative';\nvoid [compileNarrative, createNarrativeState, decodeNarrativeState, getDialogueView, getFact, getQuestStatus, transitionNarrative, validateNarrative];\n`,
+    'waypoint-rpg-gameplay': `import { applyGameplayGrant, compileGameplay, createGameplayState, decodeGameplayState, encodeGameplayState, getCharacterLevel, getCharacterAttributes, getEffectiveCharacterAttributes, getInventorySlotCount, getUnlockedAbilityIds, transitionGameplay, validateGameplay } from 'waypoint-rpg-gameplay';\nvoid [applyGameplayGrant, compileGameplay, createGameplayState, decodeGameplayState, encodeGameplayState, getCharacterLevel, getCharacterAttributes, getEffectiveCharacterAttributes, getInventorySlotCount, getUnlockedAbilityIds, transitionGameplay, validateGameplay];\n`,
+  };
+
+  for (const archive of archives) {
+    const probeRoot = path.join(temporaryRoot, `probe-${archive.name}`);
+    await mkdir(probeRoot, { recursive: true });
+    await writeFile(
+      path.join(probeRoot, 'package.json'),
+      `${JSON.stringify(
+        {
+          name: `garden-consumer-${archive.name}`,
+          private: true,
+          type: 'module',
+          dependencies: {
+            [archive.name]: `file:${path.relative(probeRoot, archive.archive).replaceAll(path.sep, '/')}`,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    runNpm(['install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'], {
+      cwd: probeRoot,
+    });
+    await writeFile(path.join(probeRoot, 'consumer.ts'), declarations[archive.name]);
+    runNode(
+      [
+        '--input-type=module',
+        '-e',
+        `const api = await import('${archive.name}'); if (!Object.keys(api).length) process.exit(1);`,
+      ],
+      { cwd: probeRoot },
+    );
+    const compiler = path.join(consumerRoot, 'node_modules', 'typescript', 'bin', 'tsc');
+    for (const [module, resolution] of [
+      ['NodeNext', 'NodeNext'],
+      ['ESNext', 'Bundler'],
+    ]) {
+      runNode(
+        [
+          compiler,
+          '--noEmit',
+          '--strict',
+          '--target',
+          'ES2022',
+          '--module',
+          module,
+          '--moduleResolution',
+          resolution,
+          'consumer.ts',
+        ],
+        { cwd: probeRoot },
+      );
+    }
+    log(`${archive.name}: isolated installed ESM and NodeNext/Bundler declarations passed`);
+  }
+}
+
 async function checkPublicImports(consumerRoot) {
   const sourceRoot = path.join(consumerRoot, 'src');
   const { readdir } = await import('node:fs/promises');
@@ -84,12 +151,12 @@ async function checkPublicImports(consumerRoot) {
     const source = await readFile(file, 'utf8');
     assert.doesNotMatch(
       source,
-      /(?:from\s*|import\s*\()["']waypoint-rpg-(?:core|narrative)\//,
+      /(?:from\s*|import\s*\()["']waypoint-rpg-(?:core|narrative|gameplay)\//,
       `Framework deep imports are not public APIs: ${path.relative(consumerRoot, file)}`,
     );
     assert.doesNotMatch(
       source,
-      /(?:from\s*|import\s*\()["'][^"']*(?:scene-demo|src\/framework|packages\/(?:core|narrative)\/src)/,
+      /(?:from\s*|import\s*\()["'][^"']*(?:scene-demo|src\/framework|packages\/(?:core|narrative|gameplay)\/src)/,
       `The sample must not import repository-private implementation: ${path.relative(consumerRoot, file)}`,
     );
   }
@@ -135,6 +202,7 @@ export async function checkFrameworkGardenConsumer() {
     runNpm(['run', 'typecheck'], { cwd: consumerRoot });
     runNpm(['run', 'test'], { cwd: consumerRoot });
     runNpm(['run', 'build'], { cwd: consumerRoot });
+    await verifyEachArchiveIndependently(consumerRoot, temporaryRoot, archives);
 
     if (process.env['FRAMEWORK_INSTALL_CHROMIUM']) {
       const installArgs = ['exec', '--', 'playwright', 'install'];
@@ -145,7 +213,7 @@ export async function checkFrameworkGardenConsumer() {
 
     runNpm(['run', 'test:e2e'], { cwd: consumerRoot });
     log(
-      'framework Garden consumer: independent source copy, locked toolchain, offline core+narrative archives, ESM, declarations, tests, production build, and Chromium smoke passed',
+      'framework Garden consumer: independent source copy, locked toolchain, offline core+narrative+gameplay archives, isolated ESM/declaration probes, tests, production build, and Chromium smoke passed',
     );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });

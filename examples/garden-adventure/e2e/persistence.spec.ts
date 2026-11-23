@@ -38,7 +38,7 @@ test('continues a saved ending on its map and restores its rendered tree', async
     saveKey,
   );
   expect(saved).toMatchObject({
-    schemaVersion: 1,
+    schemaVersion: 2,
     gameId: 'garden-adventure',
     mapId: 'garden',
     anchorId: 'garden-bed',
@@ -47,6 +47,10 @@ test('continues a saved ending on its map and restores its rendered tree', async
       facts: { 'tree-grown': true, 'garden-outcome': 'tree' },
       endingId: 'ending-garden',
     },
+  });
+  expect(JSON.parse(saved.gameplay)).toMatchObject({
+    inventory: { 'garden-reward': 1, 'lantern-charm': 1 },
+    playthroughId: saved.narrative.playthroughId,
   });
 
   await page.reload();
@@ -88,7 +92,7 @@ test('keeps invalid save bytes during temporary recovery and resets to a new pla
     saveKey,
   );
   expect(resetSave).toMatchObject({
-    schemaVersion: 1,
+    schemaVersion: 2,
     gameId: 'garden-adventure',
     mapId: 'village',
     narrative: { revision: 0, endingId: null, facts: {}, quests: {} },
