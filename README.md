@@ -20,7 +20,7 @@ microphone, geolocation or device identifiers. Progress lives only in the browse
 
 ```mermaid
 flowchart LR
-  P1["1. Reusable core"] --> P2["2. 3D scene consumer"] --> P3["3. Narrative and quests"] --> P4["4. Gameplay modules"] --> P5["5. Model, animation, and cinematics"] --> P6["6. Asset and game creation tools"] --> P7["7. Five playable games"] --> P8["8. Individual releases"] --> P9["9. Player evaluation"]
+  P1["1. Reusable core"] --> P2["2. World/renderer"] --> P3["3. Narrative/quests"] --> P4["4. Gameplay modules"] --> P5["5. Animation/cinematics"] --> P6["6. Developer tools"] --> P7["7. Shahnameh proof of concept"]
   classDef complete fill:#dcfce7,stroke:#15803d,color:#14532d
   classDef next fill:#fef3c7,stroke:#b45309,color:#78350f
   classDef planned fill:#e5e7eb,stroke:#6b7280,color:#1f2937
@@ -35,7 +35,7 @@ flowchart LR
 | 2. World/renderer | ✅ Complete | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111) |
 | 3. Narrative/quests | ✅ Complete | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113) |
 | 4. Gameplay modules | ✅ Complete | [PR #116](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/116); [29 gameplay tests](../packages/gameplay/test/) |
-| 5. Animation/cinematics | ➡️ Next | — |
+| 5. Animation/cinematics | 🚧 In progress | [PR #118](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/118); P5.2–P5.4 remain open in the [execution record](../.plans/phase-5-model-animation-cinematics.md) |
 | 6. Developer tools | ⏳ Planned | — |
 | 7. Shahnameh proof of concept | ⏳ Planned | — |
 

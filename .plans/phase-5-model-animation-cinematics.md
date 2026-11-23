@@ -169,3 +169,14 @@ The implementation branch begins from the latest fetched `main`. Commit P5.0 thr
 - Added model import tests (8/8), loader tests (4 focused lifecycle/cache/error tests), contract validation tests, and production Chromium smoke assertions for both real models, clip inventory, reload, and absence of external model requests.
 - Verification passed: `npm run format:check`; `npm run roadmap:check`; `npm run lint` (0 errors, 18 pre-existing Fast Refresh warnings); `npm run models:import:test` (8/8); `node examples/scene-demo/scripts/generate-phase5-fixtures.mjs --check`; `npm run verify` (all gates green, 511 application tests, core 15, narrative 34, gameplay 29); `npm run framework:scene-consumer` (offline package install, typecheck, unit tests, production build, Chromium consumer smoke); `npm run framework:watch:check`; and `npm --prefix examples/scene-demo run test:e2e` (production Chromium narrative/persistence/lifecycle plus static/rigged model load and reload smoke). `npx tsc --noEmit -p examples/scene-demo/tsconfig.json` and the focused scene-demo Vitest suite (46/46) also passed. Builds report the existing large-chunk warning; no new runtime package dependency was introduced.
 - P5.1 does not yet prove per-instance animation playback, game-state action selection, cinematics, context-loss recovery with a live mixer, or source-rendered gallery capture. Those remain P5.2–P5.4 gates. The added importer tooling dependencies are development-only and do not enter the Kids RPG production bundle.
+
+### Post-merge status audit — PR #118
+
+PR #118 merged at `56dbb6a2ce1413cd7c027254b2dd02fd2c33f21b`. On the current
+main baseline `1ae9946bd280caa6847e78d6a9b32180a3499ad8`, the execution record
+above still contains implementation and verification evidence for P5.0 and
+P5.1 only. It explicitly leaves per-instance animation playback and
+game-state-driven clips, cinematics, live-mixer context recovery, and the
+source-rendered gallery open under P5.2–P5.4. The merge does not satisfy the
+remaining phase exit gates. Keep Phase 5 **In progress** until all five gates
+and the final acceptance criteria are verified.
