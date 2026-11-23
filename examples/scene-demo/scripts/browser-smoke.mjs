@@ -3,7 +3,7 @@ import { log } from 'node:console';
 import { chromium } from '@playwright/test';
 import { preview } from 'vite';
 
-/* global Storage, URL, document, getComputedStyle, localStorage, window */
+/* global Storage, URL, URLSearchParams, document, getComputedStyle, localStorage, location, window */
 
 const server = await preview({
   preview: { host: '127.0.0.1', port: 0, strictPort: false },

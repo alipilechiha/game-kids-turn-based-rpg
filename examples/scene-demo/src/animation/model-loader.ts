@@ -182,11 +182,9 @@ function assertSelfContainedGlb(bytes: ArrayBuffer, assetId: string): void {
   if (bufferList.length === 0 && binaryByteLength !== null) throwInvalidGlb(assetId);
 
   const images = document.images;
-  let imageList: unknown[] = [];
   if (images !== undefined) {
     if (!Array.isArray(images)) throwInvalidGlb(assetId);
-    imageList = images;
-    for (const image of imageList) {
+    for (const image of images) {
       if (!image || typeof image !== 'object' || Object.hasOwn(image, 'uri'))
         throwInvalidGlb(assetId);
     }

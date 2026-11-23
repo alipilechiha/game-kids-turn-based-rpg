@@ -77,7 +77,6 @@ export function ModelInstance({
     let mounted = true;
     let ownedLease: ModelLease | null = null;
     let animation: CharacterAnimationController | null = null;
-    setLoaded(null);
     onStatusRef.current(instanceId, { status: 'loading' });
     void loader
       .load(assetId, controller.signal)

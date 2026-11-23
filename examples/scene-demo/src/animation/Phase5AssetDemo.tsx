@@ -82,7 +82,6 @@ export function Phase5AssetDemo() {
   const sceneProbeRef = useRef<Window['__phase5ModelProbe']>(undefined);
   const timelinePlayer = useMemo(() => createTimelinePlayer(guardianGreetingCinematic), []);
   const timelineRef = useRef<TimelinePlayer | null>(timelinePlayer);
-  timelineRef.current = timelinePlayer;
   const pendingCuesRef = useRef<TimelineCue[]>([]);
   const invalidateRef = useRef<() => void>(() => {});
   const [cinematicStatus, setCinematicStatus] = useState<TimelineStatus>('idle');

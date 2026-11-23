@@ -166,7 +166,10 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['examples/scene-demo/scripts/capture-previews.mjs'],
+    files: [
+      'examples/scene-demo/scripts/capture-previews.mjs',
+      'examples/scene-demo/scripts/capture-phase5-previews.mjs',
+    ],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
   {
