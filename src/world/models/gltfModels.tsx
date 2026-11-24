@@ -397,7 +397,10 @@ const HUB_GLB_PRELOAD: readonly string[] = [
 /** very-high-only critters — same gate as ANIMAL_GLBS minDetail. */
 const HUB_GLB_PRELOAD_VERY_HIGH: readonly string[] = ['butterfly', 'koi', 'elephant'];
 
-const PRELOAD_TIMEOUT_MS = 45_000;
+// Keep a slow or stalled network from holding the child on the startup screen.
+// Once this expires the Canvas can still show the per-model pending/error
+// fallback while the request continues in the GLTF cache.
+const PRELOAD_TIMEOUT_MS = 12_000;
 
 let hubGltfPreloadPromise: Promise<void> | null = null;
 let hubGltfPreloadTier: QualityTier | null = null;
@@ -410,9 +413,12 @@ function hubGltfUrls(tier: QualityTier): readonly string[] {
 }
 
 /**
- * Warm the GLTF cache for town fixtures and resolve only when every URL is in
- * the suspend-react cache (or the timeout fires — fail-open so a missing file
- * never traps the child on the loading screen).
+ * Warm the GLTF cache for town fixtures and resolve when every URL has either
+ * loaded or failed (or the timeout fires). A successful-response-only probe
+ * treats cached loader errors as pending and
+ * traps startup until the timeout. Calling `suspend` with the same cache key
+ * lets us distinguish a pending promise from a settled loader error without
+ * owning another loader or duplicating network requests.
  */
 export function preloadHubGltfModels(tier: QualityTier): Promise<void> {
   if (tier !== 'high' && tier !== 'very-high') return Promise.resolve();
@@ -425,16 +431,37 @@ export function preloadHubGltfModels(tier: QualityTier): Promise<void> {
   }
 
   hubGltfPreloadPromise = (async () => {
-    const [{ peek }, { GLTFLoader }] = await Promise.all([
+    const [{ suspend }, { GLTFLoader }] = await Promise.all([
       import('suspend-react'),
       import('three-stdlib'),
     ]);
     const deadline = Date.now() + PRELOAD_TIMEOUT_MS;
     await Promise.all(
       urls.map(async (url) => {
-        while (peek([GLTFLoader, url]) === undefined) {
-          if (Date.now() > deadline) return;
-          await new Promise((r) => setTimeout(r, 32));
+        const keys = [GLTFLoader, url];
+        while (Date.now() < deadline) {
+          try {
+            // Every key was synchronously registered by useGLTF.preload above.
+            // A loader error is thrown here and is a settled state: the
+            // mounted model's boundary will render its cubic fallback.
+            suspend(() => Promise.resolve(undefined), keys);
+            return;
+          } catch (pendingOrError) {
+            if (
+              pendingOrError === null ||
+              (typeof pendingOrError !== 'object' && typeof pendingOrError !== 'function') ||
+              typeof (pendingOrError as { then?: unknown }).then !== 'function'
+            ) {
+              return;
+            }
+
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) return;
+            await Promise.race([
+              pendingOrError,
+              new Promise<void>((resolve) => setTimeout(resolve, remaining)),
+            ]);
+          }
         }
       }),
     );

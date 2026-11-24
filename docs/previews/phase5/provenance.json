@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "0e89ee3fd3ca035da3b51c5fed1e8886abaffdb2",
+  "browser": "Chromium via Playwright, headless SwiftShader",
+  "viewport": {
+    "width": 1365,
+    "height": 1000
+  },
+  "images": [
+    {
+      "file": "01-external-models.png",
+      "width": 1365,
+      "height": 1071,
+      "bytes": 79212,
+      "sha256": "5ccb09012d4837f30836e16408f1a7e2b4c9b462d38d45fb4e693ec5109ea01d"
+    },
+    {
+      "file": "02-guardian-cinematic.png",
+      "width": 1365,
+      "height": 1172,
+      "bytes": 112966,
+      "sha256": "74a1683ba9d1e1f09b4e707be4f48ededbfa67cfa53a8ac33a0dcf5c479a35ff"
+    }
+  ],
+  "models": [
+    {
+      "id": "phase5-khronos-box",
+      "sourceSha256": "ed52f7192b8311d700ac0ce80644e3852cd01537e4d62241b9acba023da3d54e",
+      "outputSha256": "a052de8729a6d1ee6cf7977664da7cc1eb6d9a80da2387f69c1e8485b1cab84b",
+      "licenseId": "CC-BY-4.0"
+    },
+    {
+      "id": "phase5-khronos-rigged-figure",
+      "sourceSha256": "d6be85417d3e256861ee733eea6916093a7af7c79c16366181fd8abcaeb38cf5",
+      "outputSha256": "15fdf90c98ee6aca863d769f177c54de7639311514a29d28f30c04731697c3c0",
+      "licenseId": "CC-BY-4.0"
+    }
+  ]
+}

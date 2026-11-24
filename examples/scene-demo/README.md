@@ -77,6 +77,25 @@ synthetic fixtures under the root MIT license and load from this example's
 own `public/models/` directory. The preview is isolated from the Blood Leaf
 story and the Kids RPG; it makes no network requests for model data.
 
+The runtime preview also loads two pinned, third-party source models from the
+Khronos glTF Sample Assets repository: **Box** and **Rigged Figure** at commit
+`e124e8d8d7330a5372bc2b4d00d39a4a9d7997ea`. Both are © 2017 Cesium and licensed
+CC BY 4.0, with “Cesium for Everything” attribution. The model-specific
+license records and upstream links are stored beside the source GLBs in
+`fixtures/model-source/khronos/`; generated source/output hashes and normalized
+runtime records are in `src/animation/asset-records.json`. These local-only
+fixtures do not enter the Kids RPG registry or PWA precache.
+
+After committing scene-demo runtime changes, run `npm run sample:phase5:previews`
+from the repository root to build the production app and capture real Chromium
+screenshots of the external models and guardian cinematic. The capture manifest
+records the source commit, viewport, browser, asset hashes, and screenshot
+hashes under `docs/previews/phase5/`.
+
+![Production Chromium preview of the external Box and two Rigged Figure instances](../../docs/previews/phase5/01-external-models.png)
+
+![Production Chromium preview of the Persian guardian cinematic](../../docs/previews/phase5/02-guardian-cinematic.png)
+
 To regenerate the source fixtures and import them into the demo, run from the
 repository root:
 
@@ -96,3 +115,23 @@ data, embedded PNG/JPEG textures, skinning, morph targets, and named clips; it
 rejects unconfigured compression and texture extensions with diagnostics.
 Blender/FBX/OBJ conversion, retargeting across different skeletons, and a
 general-purpose asset editor remain future work.
+
+At runtime the example loader accepts only self-contained GLB 2.0. It inspects
+the container before Three.js parsing and rejects external buffer or image
+references; the importer packages an approved glTF source and its local
+dependencies into that single runtime file. Each `ModelInstance` owns a
+skeleton clone, animation mixer, and resource lease. Semantic `idle` actions
+play a bounded two-cycle loop for demand rendering; movement, interaction, and
+combat are one-shots that settle back to idle, while defeat may hold its final
+pose. Reduced motion applies a static final pose and stops frame invalidation.
+Changing an instance's asset ID removes the old model immediately while the new
+lease loads, so released resources are never rendered.
+
+The same preview route offers an optional staged guardian greeting. Its
+example-owned timeline emits validated camera, imported-animation, Persian
+dialogue, and audio-cue records in stable order. Play/replay, pause/resume,
+skip, and cancel are keyboard-operable; cancel restores the camera and idle
+pose, and unmount cancels the active sequence. Reduced motion applies the same
+story cue immediately without an animation loop. This demo has no approved
+sound asset, so it authors no audio playback cue. The timeline changes no
+durable narrative or gameplay state.

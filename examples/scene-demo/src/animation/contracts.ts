@@ -12,7 +12,7 @@ export const MODEL_IMPORT_BUDGET = Object.freeze({
 });
 
 export type SemanticAction = 'idle' | 'move' | 'interact' | 'combat' | 'defeat';
-export type RuntimeModelFormat = 'glb' | 'gltf';
+export type RuntimeModelFormat = 'glb';
 export type AxisDirection = 'X' | '-X' | 'Y' | '-Y' | 'Z' | '-Z';
 
 export interface ModelAssetRights {
@@ -128,12 +128,12 @@ export function validateModelAssetRecord(value: unknown): readonly ModelAssetDia
     issue('id', 'Use a stable lowercase kebab-case asset ID.');
   if (
     typeof value.runtimePath !== 'string' ||
-    !/^models\/[a-zA-Z0-9._/-]+\.(glb|gltf)$/.test(value.runtimePath) ||
+    !/^models\/[a-zA-Z0-9._/-]+\.glb$/.test(value.runtimePath) ||
     value.runtimePath.includes('..')
   )
     issue('runtimePath', 'Use a local models/ path without traversal.');
-  if (value.runtimeFormat !== 'glb' && value.runtimeFormat !== 'gltf')
-    issue('runtimeFormat', 'Runtime format must be glb or gltf.');
+  if (value.runtimeFormat !== 'glb')
+    issue('runtimeFormat', 'Runtime assets must be self-contained GLB files.');
   if (typeof value.sourceFormat !== 'string' || value.sourceFormat.length === 0)
     issue('sourceFormat', 'Record the original source format.');
   if (typeof value.sourceOrigin !== 'string' || value.sourceOrigin.length === 0)

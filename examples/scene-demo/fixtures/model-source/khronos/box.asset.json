@@ -1,0 +1,18 @@
+{
+  "id": "phase5-khronos-box",
+  "sourceOrigin": "KhronosGroup/glTF-Sample-Assets Models/Box/glTF-Binary/Box.glb at e124e8d8d7330a5372bc2b4d00d39a4a9d7997ea",
+  "rights": {
+    "licenseId": "CC-BY-4.0",
+    "attribution": "© 2017 Cesium. Box, KhronosGroup/glTF-Sample-Assets at e124e8d8d7330a5372bc2b4d00d39a4a9d7997ea. Cesium for Everything. https://creativecommons.org/licenses/by/4.0/",
+    "commercialUse": true,
+    "redistribution": true,
+    "approved": true
+  },
+  "normalization": {
+    "metersPerUnit": 1,
+    "sourceUpAxis": "Y",
+    "sourceForwardAxis": "-Z"
+  },
+  "clips": {},
+  "fallbackAction": "static"
+}

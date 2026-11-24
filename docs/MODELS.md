@@ -222,9 +222,9 @@ We ship static GLBs; rigged sources need baking before they ship:
   if three.js shows it assembled, the skin+animation holds the real pose.
 - Sanity numbers: elephant 5,998 → 1,199 tris at `--ratio 0.2`; ~318 rigid
   sub-shards is normal for auto-rigged sources and not a bug.
-- We never ship animations (`--no-anim`). Playback under demand rendering is
-  a separate unsolved problem — AnimationMixer wants a persistent loop we
-  deliberately do not run.
+- The Kids RPG continues to ship static models (`--no-anim`). Phase 5's
+  independent consumer owns the separate rigged-model playback path described
+  below; do not change the child game's asset pipeline as part of that work.
 
 ## 10. Phase 5 local model intake for the independent scene consumer
 
@@ -248,10 +248,25 @@ only after the license is reviewed. The repository-generated sample sidecars
 and original fixtures are under
 `examples/scene-demo/fixtures/model-source/`.
 
-GLB is the release format. A glTF JSON source may use only data URIs or local
-dependencies contained inside its own source folder; traversal, symlink escape,
-absolute, and network references are rejected. Supported core inputs preserve
-PBR textures, skins, morph targets, and animation channels. PNG/JPEG textures
+The reference consumer additionally includes local source files for **Box**
+and **Rigged Figure** from Khronos glTF Sample Assets at pinned commit
+`e124e8d8d7330a5372bc2b4d00d39a4a9d7997ea`. Both are © 2017 Cesium under CC BY
+4.0 with “Cesium for Everything” attribution. See the paired metadata sidecars
+and their upstream `README.md` sources in
+`examples/scene-demo/fixtures/model-source/khronos/`. The importer assigns a
+stable `clip-N` name to an unnamed source animation before writing runtime GLB;
+that keeps its authored semantic mapping consistent with the actual clip name
+Three.js loads.
+
+GLB is both the release format and the Phase 5 runtime loading boundary. The
+loader accepts only self-contained GLB 2.0 files and rejects every JSON/BIN
+buffer or image URI before passing bytes to Three.js. This deliberately avoids
+unverified external-resource resolution at runtime. A glTF JSON source may use
+only data URIs or local dependencies contained inside its own source folder;
+traversal, symlink escape, absolute, and network references are rejected by
+the development importer, which packages validated inputs into one GLB.
+Supported core inputs preserve PBR textures, skins, morph targets, and
+animation channels. PNG/JPEG textures
 are capped at 2048 pixels per side; import also caps source/output size, decoded
 texture memory, primitives, triangles, joints, clips, and clip duration. The
 locked glTF Transform SDK is a development-only MIT tool. Draco, Meshopt,

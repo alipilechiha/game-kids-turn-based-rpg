@@ -16,7 +16,7 @@ microphone, geolocation or device identifiers. Progress lives only in the browse
 
 ## Framework roadmap
 
-**4/7 phases completed** · Next: **Phase 5 — Animation/cinematics** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
+**5/7 phases completed** · Next: **Phase 6 — Developer tools** · [Full roadmap and exit gates](docs/FRAMEWORK-ROADMAP.md)
 
 ```mermaid
 flowchart LR
@@ -24,8 +24,7 @@ flowchart LR
   classDef complete fill:#dcfce7,stroke:#15803d,color:#14532d
   classDef next fill:#fef3c7,stroke:#b45309,color:#78350f
   classDef planned fill:#e5e7eb,stroke:#6b7280,color:#1f2937
-  class P1,P2,P3,P4 complete
-  class P5 next
+  class P1,P2,P3,P4,P5 complete
   class P6,P7 planned
 ```
 
@@ -35,7 +34,7 @@ flowchart LR
 | 2. World/renderer | ✅ Complete | [PR #111](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/111) |
 | 3. Narrative/quests | ✅ Complete | [PR #113](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/113) |
 | 4. Gameplay modules | ✅ Complete | [PR #116](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/116); [29 gameplay tests](../packages/gameplay/test/) |
-| 5. Animation/cinematics | 🚧 In progress | [PR #118](https://github.com/hmmftg/game-kids-turn-based-rpg/pull/118); P5.2–P5.4 remain open in the [execution record](../.plans/phase-5-model-animation-cinematics.md) |
+| 5. Animation/cinematics | ✅ Complete | [Phase 5 execution evidence](../.plans/phase-5-model-animation-cinematics.md); [rendered previews](previews/phase5/) |
 | 6. Developer tools | ⏳ Planned | — |
 | 7. Shahnameh proof of concept | ⏳ Planned | — |
 
